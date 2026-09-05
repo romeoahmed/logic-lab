@@ -4,16 +4,13 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="Add" xml:space="preserve"><value>Add</value></data>
   <data name="Arithmetic" xml:space="preserve"><value>Arithmetic</value></data>
   <data name="AuthorCircuit" xml:space="preserve"><value>Author circuit</value></data>
   <data name="Back" xml:space="preserve"><value>Back</value></data>
   <data name="Build" xml:space="preserve"><value>Build</value></data>
-  <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="Circuit" xml:space="preserve"><value>Circuit</value></data>
   <data name="CircuitDefinitionInstance" xml:space="preserve"><value>Circuit Definition instance</value></data>
   <data name="CircuitSceneEyebrow" xml:space="preserve"><value>Schematic</value></data>
-  <data name="Commit" xml:space="preserve"><value>Commit</value></data>
   <data name="Compilation" xml:space="preserve"><value>Compilation</value></data>
   <data name="CompilationNotRequested" xml:space="preserve"><value>Not requested</value></data>
   <data name="CompilationPublished" xml:space="preserve"><value>Published</value></data>
@@ -29,37 +26,27 @@
   <data name="CreateSession" xml:space="preserve"><value>Start simulation</value></data>
   <data name="DefinitionContext" xml:space="preserve"><value>Circuit navigation</value></data>
   <data name="DefinitionView" xml:space="preserve"><value>Definition view</value></data>
-  <data name="Draft" xml:space="preserve"><value>Draft</value></data>
   <data name="DurableProjectName" xml:space="preserve"><value>Project name</value></data>
   <data name="ElaboratedOccurrence" xml:space="preserve"><value>Instance view</value></data>
   <data name="EnterDefinition" xml:space="preserve"><value>Enter {0}</value></data>
   <data name="Entry" xml:space="preserve"><value>Entry</value></data>
   <data name="EntryCircuitDefinition" xml:space="preserve"><value>Entry Circuit Definition</value></data>
-  <data name="Geometry" xml:space="preserve"><value>Geometry</value></data>
-  <data name="GeometryRule" xml:space="preserve"><value>Only terminal connections change a net; line appearance does not.</value></data>
   <data name="ImportProject" xml:space="preserve"><value>Import project</value></data>
   <data name="InputsHigh" xml:space="preserve"><value>Inputs = 1</value></data>
   <data name="InstrumentBay" xml:space="preserve"><value>Signal monitor</value></data>
-  <data name="Junctions" xml:space="preserve"><value>Junctions</value></data>
   <data name="KeepDurable" xml:space="preserve"><value>Save project</value></data>
   <data name="LiveReadout" xml:space="preserve"><value>Live</value></data>
   <data name="LogicalTime" xml:space="preserve"><value>Logical time</value></data>
-  <data name="Membership" xml:space="preserve"><value>Membership</value></data>
-  <data name="MergeNets" xml:space="preserve"><value>Merge Nets</value></data>
   <data name="NoActiveSession" xml:space="preserve"><value>Simulation has not started</value></data>
   <data name="NoDefinitions" xml:space="preserve"><value>No Circuit Definitions are open.</value></data>
   <data name="Output" xml:space="preserve"><value>Output</value></data>
   <data name="SignalOrdinal" xml:space="preserve"><value>Signal {0}</value></data>
-  <data name="Prepare" xml:space="preserve"><value>Prepare</value></data>
   <data name="PrepareExport" xml:space="preserve"><value>Export project</value></data>
   <data name="Probe" xml:space="preserve"><value>Probe</value></data>
   <data name="ProbeEmptyHelp" xml:space="preserve"><value>Compile the circuit, then start the simulation.</value></data>
   <data name="Project" xml:space="preserve"><value>Project</value></data>
   <data name="Quiescence" xml:space="preserve"><value>Quiescence</value></data>
   <data name="Quiescent" xml:space="preserve"><value>Quiescent</value></data>
-  <data name="Remove" xml:space="preserve"><value>Remove</value></data>
-  <data name="Route" xml:space="preserve"><value>Route</value></data>
-  <data name="RoutePreview" xml:space="preserve"><value>Route preview: 0,0 → 0,2 → 8,2. Commit or cancel this local draft.</value></data>
   <data name="Save" xml:space="preserve"><value>Save</value></data>
   <data name="SaveDurable" xml:space="preserve"><value>Save</value></data>
   <data name="SaveDurableChanged" xml:space="preserve"><value>Unsaved changes · {0}</value></data>
@@ -71,14 +58,23 @@
   <data name="SessionVersion" xml:space="preserve"><value>Session version</value></data>
   <data name="SetAsEntry" xml:space="preserve"><value>Set as entry</value></data>
   <data name="Simulation" xml:space="preserve"><value>Simulation</value></data>
-  <data name="SplitNet" xml:space="preserve"><value>Split Net</value></data>
   <data name="Step" xml:space="preserve"><value>Step</value></data>
+  <data name="Run" xml:space="preserve"><value>Run</value></data>
+  <data name="Pause" xml:space="preserve"><value>Pause</value></data>
+  <data name="RunStarted" xml:space="preserve"><value>Simulation is running.</value></data>
+  <data name="RunPaused" xml:space="preserve"><value>Simulation paused.</value></data>
+  <data name="RunStopped" xml:space="preserve"><value>Simulation stopped.</value></data>
+  <data name="RunFailed" xml:space="preserve"><value>Run failed: {0}.</value></data>
+  <data name="RunRejected" xml:space="preserve"><value>Run rejected: {0}.</value></data>
+  <data name="PauseRejected" xml:space="preserve"><value>Pause rejected: {0}.</value></data>
+  <data name="RunStateRunning" xml:space="preserve"><value>Running</value></data>
+  <data name="RunStatePaused" xml:space="preserve"><value>Paused</value></data>
+  <data name="RunStateFailed" xml:space="preserve"><value>Failed</value></data>
+  <data name="RunStateReady" xml:space="preserve"><value>Ready</value></data>
+  <data name="NoScheduledStimulus" xml:space="preserve"><value>No future events are scheduled.</value></data>
   <data name="TabsHierarchyEntry" xml:space="preserve"><value>Definitions · hierarchy · entry</value></data>
-  <data name="TopologyHeading" xml:space="preserve"><value>Net and route tools</value></data>
-  <data name="TopologyEyebrow" xml:space="preserve"><value>Net structure</value></data>
   <data name="TraceRange" xml:space="preserve"><value>Trace range</value></data>
   <data name="Unavailable" xml:space="preserve"><value>Unavailable</value></data>
-  <data name="Unroute" xml:space="preserve"><value>Unroute</value></data>
   <data name="WireOrthogonal" xml:space="preserve"><value>Orthogonal · {0}</value></data>
   <data name="ConflictDescription" xml:space="preserve"><value>Your local revision is still available. Choose how to recover it.</value></data>
   <data name="ConflictExportLocal" xml:space="preserve"><value>Export local</value></data>
@@ -193,15 +189,6 @@
   <data name="EntryDefinitionChanged" xml:space="preserve"><value>{0} is now the entry Circuit Definition.</value></data>
   <data name="HierarchyObserving" xml:space="preserve"><value>Viewing instance {0}.</value></data>
   <data name="HierarchyReturned" xml:space="preserve"><value>Returned to {0}.</value></data>
-  <data name="JunctionAdded" xml:space="preserve"><value>Junction added at grid 4, 2.</value></data>
-  <data name="JunctionRemoved" xml:space="preserve"><value>Junction removed without inferring connectivity from geometry.</value></data>
-  <data name="NetMerged" xml:space="preserve"><value>Nets merged.</value></data>
-  <data name="NetSplit" xml:space="preserve"><value>Net split.</value></data>
-  <data name="RouteCancelled" xml:space="preserve"><value>Route edit cancelled.</value></data>
-  <data name="RouteCommitted" xml:space="preserve"><value>Orthogonal route committed.</value></data>
-  <data name="RouteDraftPrepared" xml:space="preserve"><value>Route preview ready. Commit or cancel it.</value></data>
-  <data name="RouteMarkedUnrouted" xml:space="preserve"><value>Wire route marked as unrouted.</value></data>
-  <data name="RouteRouted" xml:space="preserve"><value>Wire routed orthogonally.</value></data>
   <data name="SteeringExampleAuthored" xml:space="preserve"><value>2-to-1 multiplexer created. Compile it, then change Select to choose an input.</value></data>
   <data name="CanvasReady" xml:space="preserve"><value>Circuit canvas ready.</value></data>
   <data name="CanvasStarting" xml:space="preserve"><value>Preparing the circuit canvas.</value></data>
@@ -232,12 +219,10 @@
   <data name="StarterCarryLookaheadDescription" xml:space="preserve"><value>Inspect generate, propagate, and parallel carry terms in a four-bit sum.</value></data>
   <data name="StarterBitSerialTitle" xml:space="preserve"><value>Bit-serial adder</value></data>
   <data name="StarterBitSerialDescription" xml:space="preserve"><value>Shift two four-bit operands through one reusable full-adder cell.</value></data>
-  <data name="AdvancedTopology" xml:space="preserve"><value>Advanced wiring</value></data>
-  <data name="AdvancedTopologyDescription" xml:space="preserve"><value>Edit nets, junctions, and wire routes</value></data>
   <data name="Library" xml:space="preserve"><value>Library</value></data>
   <data name="Components" xml:space="preserve"><value>Components</value></data>
-  <data name="Inspector" xml:space="preserve"><value>Learn and inspect</value></data>
-  <data name="InspectorDescription" xml:space="preserve"><value>Examples, signal values, and advanced wiring</value></data>
+  <data name="Inspector" xml:space="preserve"><value>Inspect selection</value></data>
+  <data name="InspectorDescription" xml:space="preserve"><value>Object properties, signals, and selection actions</value></data>
   <data name="SearchComponents" xml:space="preserve"><value>Search components</value></data>
   <data name="SearchComponentsPlaceholder" xml:space="preserve"><value>Gate, clock, register…</value></data>
   <data name="NoMatchingComponents" xml:space="preserve"><value>No matching components.</value></data>
@@ -334,4 +319,87 @@
   <data name="RetryWaveform" xml:space="preserve"><value>Try again</value></data>
   <data name="ProbeRevealed" xml:space="preserve"><value>Located “{0}” on the circuit.</value></data>
   <data name="ReturnToLive" xml:space="preserve"><value>Back to live</value></data>
+  <data name="RestartSession" xml:space="preserve"><value>Restart simulation</value></data>
+  <data name="CloseSession" xml:space="preserve"><value>Close simulation</value></data>
+  <data name="HotSwapSession" xml:space="preserve"><value>Apply changes</value></data>
+  <data name="SessionRestarted" xml:space="preserve"><value>Simulation restarted from authored initial state.</value></data>
+  <data name="SessionClosed" xml:space="preserve"><value>Simulation closed. The circuit and compilation remain available.</value></data>
+  <data name="SessionHotSwapped" xml:space="preserve"><value>Changes applied to the simulation; compatible state was preserved.</value></data>
+  <data name="InspectorSelectHint" xml:space="preserve"><value>Select an object on the canvas to inspect it. Use Shift to select multiple objects.</value></data>
+  <data name="InspectorSelectionCount" xml:space="preserve"><value>{0} selected</value></data>
+  <data name="InspectorKind_componentInstance" xml:space="preserve"><value>Component</value></data>
+  <data name="InspectorKind_instancePort" xml:space="preserve"><value>Component port</value></data>
+  <data name="InspectorKind_definitionPort" xml:space="preserve"><value>Definition port</value></data>
+  <data name="InspectorKind_net" xml:space="preserve"><value>Net</value></data>
+  <data name="InspectorKind_junction" xml:space="preserve"><value>Junction</value></data>
+  <data name="InspectorKind_wireGeometry" xml:space="preserve"><value>Wire route</value></data>
+  <data name="InspectorKind_annotation" xml:space="preserve"><value>Annotation</value></data>
+  <data name="InspectorType" xml:space="preserve"><value>Type / definition</value></data>
+  <data name="InspectorPosition" xml:space="preserve"><value>Grid position</value></data>
+  <data name="InspectorDirection" xml:space="preserve"><value>Direction</value></data>
+  <data name="InspectorInput" xml:space="preserve"><value>Input</value></data>
+  <data name="InspectorOutput" xml:space="preserve"><value>Output</value></data>
+  <data name="InspectorWidth" xml:space="preserve"><value>Width (bits)</value></data>
+  <data name="InspectorRoute" xml:space="preserve"><value>Route</value></data>
+  <data name="InspectorRoutePoints" xml:space="preserve"><value>Orthogonal · {0} points</value></data>
+  <data name="InspectorUnrouted" xml:space="preserve"><value>Unrouted</value></data>
+  <data name="InspectorAnnotationText" xml:space="preserve"><value>Text</value></data>
+  <data name="InspectorNet" xml:space="preserve"><value>Net</value></data>
+  <data name="InspectorDrivers" xml:space="preserve"><value>Drivers</value></data>
+  <data name="InspectorReceivers" xml:space="preserve"><value>Receivers</value></data>
+  <data name="InspectorValue" xml:space="preserve"><value>Value (binary)</value></data>
+  <data name="InspectorNotProbed" xml:space="preserve"><value>No probe for this occurrence</value></data>
+  <data name="InspectorValueRevision" xml:space="preserve"><value>Value source</value></data>
+  <data name="InspectorPreviousRevision" xml:space="preserve"><value>Session uses an earlier revision</value></data>
+  <data name="InspectorDiagnostic" xml:space="preserve"><value>Diagnostic code</value></data>
+  <data name="InspectorRemoveComponents" xml:space="preserve"><value>Delete selected components</value></data>
+  <data name="InspectorRemoveJunction" xml:space="preserve"><value>Remove junction</value></data>
+  <data name="InspectorRemoveJunctionDescription" xml:space="preserve"><value>Removes this junction while preserving the remaining net members.</value></data>
+  <data name="InspectorUnroute" xml:space="preserve"><value>Mark route as unrouted</value></data>
+  <data name="InspectorUnrouteDescription" xml:space="preserve"><value>Clears the path coordinates. Electrical connectivity stays unchanged.</value></data>
+  <data name="InspectorRemoveRoute" xml:space="preserve"><value>Delete wire route</value></data>
+  <data name="InspectorRemoveRouteDescription" xml:space="preserve"><value>Deletes this route. The remaining net members stay electrically connected.</value></data>
+  <data name="InspectorRemoveAnnotation" xml:space="preserve"><value>Delete annotation</value></data>
+  <data name="InspectorMergeNets" xml:space="preserve"><value>Merge selected nets</value></data>
+  <data name="InspectorMergeNetsDescription" xml:space="preserve"><value>Joins only the selected nets. The first selected net keeps its identity.</value></data>
+  <data name="InspectorSplitMembers" xml:space="preserve"><value>Separate selected members</value></data>
+  <data name="InspectorSplitMembersDescription" xml:space="preserve"><value>Moves the selected terminals, junctions, and routes into a separate net from the unselected members.</value></data>
+  <data name="InspectorEditApplied" xml:space="preserve"><value>Selection edit applied.</value></data>
+  <data name="InspectorComponents" xml:space="preserve"><value>Components</value></data>
+  <data name="InspectorNets" xml:space="preserve"><value>Nets</value></data>
+  <data name="InspectorPorts" xml:space="preserve"><value>Definition ports</value></data>
+  <data name="InspectorUnconnected" xml:space="preserve"><value>Unconnected</value></data>
+  <data name="InspectorParameter_initialValue" xml:space="preserve"><value>Initial value</value></data>
+  <data name="InspectorParameter_value" xml:space="preserve"><value>Value</value></data>
+  <data name="InspectorParameter_initialState" xml:space="preserve"><value>Initial state</value></data>
+  <data name="InspectorParameter_radix" xml:space="preserve"><value>Display radix</value></data>
+  <data name="InspectorParameter_direction" xml:space="preserve"><value>Direction</value></data>
+  <data name="InspectorParameter_edge" xml:space="preserve"><value>Trigger edge</value></data>
+  <data name="InspectorParameter_firstTransition" xml:space="preserve"><value>First transition time</value></data>
+  <data name="InspectorParameter_highDuration" xml:space="preserve"><value>High duration</value></data>
+  <data name="InspectorParameter_lowDuration" xml:space="preserve"><value>Low duration</value></data>
+  <data name="InspectorParameter_inputWidths" xml:space="preserve"><value>Input widths</value></data>
+  <data name="InspectorParameter_slices" xml:space="preserve"><value>Slices (offset:length)</value></data>
+  <data name="InspectorParameter_inputWidth" xml:space="preserve"><value>Input width</value></data>
+  <data name="InspectorParameter_outputWidth" xml:space="preserve"><value>Output width</value></data>
+  <data name="InspectorParameter_addressWidth" xml:space="preserve"><value>Address width</value></data>
+  <data name="InspectorParameter_wordWidth" xml:space="preserve"><value>Word width</value></data>
+  <data name="InspectorParameter_initialImage" xml:space="preserve"><value>Initial memory image</value></data>
+  <data name="InspectorParameter_selectorWidth" xml:space="preserve"><value>Selector width</value></data>
+  <data name="InspectorParameter_enablePolarity" xml:space="preserve"><value>Enable polarity</value></data>
+  <data name="InspectorParameter_inputCount" xml:space="preserve"><value>Input count</value></data>
+  <data name="InspectorParameter_priority" xml:space="preserve"><value>Priority</value></data>
+  <data name="InspectorParameter_fanIn" xml:space="preserve"><value>Input count</value></data>
+  <data name="InspectorChoice_up" xml:space="preserve"><value>Up</value></data>
+  <data name="InspectorChoice_down" xml:space="preserve"><value>Down</value></data>
+  <data name="InspectorChoice_towardHigh" xml:space="preserve"><value>Toward high bits</value></data>
+  <data name="InspectorChoice_towardLow" xml:space="preserve"><value>Toward low bits</value></data>
+  <data name="InspectorChoice_rising" xml:space="preserve"><value>Rising</value></data>
+  <data name="InspectorChoice_falling" xml:space="preserve"><value>Falling</value></data>
+  <data name="InspectorChoice_activeHigh" xml:space="preserve"><value>Active high</value></data>
+  <data name="InspectorChoice_activeLow" xml:space="preserve"><value>Active low</value></data>
+  <data name="InspectorChoice_lowestIndex" xml:space="preserve"><value>Lowest index first</value></data>
+  <data name="InspectorChoice_highestIndex" xml:space="preserve"><value>Highest index first</value></data>
+  <data name="InspectorChoice_left" xml:space="preserve"><value>Left</value></data>
+  <data name="InspectorChoice_right" xml:space="preserve"><value>Right</value></data>
 </root>

@@ -290,21 +290,32 @@ public static partial class SimulationRuntime
                     assignment.DriverSource,
                     out var driverOrdinal))
             {
-                throw new InvalidOperationException(
-                    "A Stimulus assignment does not resolve in the active artifact.");
+                return new StimulusBatchInvalid(
+                    state.SessionVersion,
+                    state.LogicalTime,
+                    StimulusBatchInvalidRule.DriverSourceUnresolved);
             }
 
             var driver = artifact.SimulationIr.Drivers[driverOrdinal];
             var evaluator = artifact.SimulationIr.Evaluators[driver.EvaluatorOrdinal];
-            if (evaluator.Kind != SimulationEvaluatorKind.InputSource
-                || assignment.Value.Width != checked((int)driver.Width))
+            if (evaluator.Kind != SimulationEvaluatorKind.InputSource)
             {
-                throw new InvalidOperationException(
-                    "A Stimulus assignment is not a width-compatible external Driver.");
+                return new StimulusBatchInvalid(
+                    state.SessionVersion,
+                    state.LogicalTime,
+                    StimulusBatchInvalidRule.DriverNotExternalInput);
+            }
+
+            if (assignment.Value.Width != checked((int)driver.Width))
+            {
+                return new StimulusBatchInvalid(
+                    state.SessionVersion,
+                    state.LogicalTime,
+                    StimulusBatchInvalidRule.DriverWidthMismatch);
             }
 
             if (normalized.TryGetValue(driverOrdinal, out var existing)
-                && !ValuesEqual(existing, assignment.Value))
+                && !existing.ContentEquals(assignment.Value, cancellationToken))
             {
                 return new StimulusBatchInvalid(
                     state.SessionVersion,
@@ -325,7 +336,7 @@ public static partial class SimulationRuntime
                 if (assignmentsAtTime.TryGetValue(
                         assignment.Key,
                         out var existing)
-                    && !ValuesEqual(existing, assignment.Value))
+                    && !existing.ContentEquals(assignment.Value, cancellationToken))
                 {
                     return new StimulusBatchInvalid(
                         state.SessionVersion,
@@ -348,6 +359,7 @@ public static partial class SimulationRuntime
             assignmentCount);
 
         var sequence = checked(state.NextStimulusSequence + 1);
+        var nextVersion = checked(state.SessionVersion + 1);
         var scheduledAssignments = normalized
             .Select(assignment => new ScheduledStimulusAssignment(
                 assignment.Key,
@@ -373,7 +385,7 @@ public static partial class SimulationRuntime
         state.ScheduledAssignmentsByTime[batch.LogicalTime] = mergedAssignments;
         state.ScheduledAssignmentCount = assignmentCount;
         state.NextStimulusSequence = sequence;
-        state.SessionVersion = checked(state.SessionVersion + 1);
+        state.SessionVersion = nextVersion;
         return new StimulusBatchScheduled(
             state.SessionVersion,
             batch.LogicalTime,
@@ -476,7 +488,7 @@ public static partial class SimulationRuntime
         foreach (var probe in state.Probes)
         {
             var value = netValues[probe.NetOrdinal];
-            if (ValuesEqual(state.NetValues[probe.NetOrdinal], value))
+            if (state.NetValues[probe.NetOrdinal].ContentEquals(value, cancellationToken))
             {
                 continue;
             }
@@ -921,7 +933,7 @@ public static partial class SimulationRuntime
                         evaluator.ContractKey,
                         artifact.SourceMap.Evaluators[evaluatorOrdinal].Source,
                         artifact.SourceMap.Drivers[driverOrdinal].Source);
-                    if (!ValuesEqual(previous, current))
+                    if (!previous.ContentEquals(current, cancellationToken))
                     {
                         ordinalBuffer[refinedDriverCount++] = driverOrdinal;
                     }
@@ -949,7 +961,7 @@ public static partial class SimulationRuntime
                     previous,
                     resolution.Value);
                 netResolutions[netOrdinal] = resolution;
-                if (ValuesEqual(previous, resolution.Value))
+                if (previous.ContentEquals(resolution.Value, cancellationToken))
                 {
                     continue;
                 }
@@ -1280,25 +1292,6 @@ public static partial class SimulationRuntime
                 reason,
                 diagnostics,
                 policyEvidence);
-    }
-
-    private static bool ValuesEqual(LogicVector left, LogicVector right)
-    {
-        if (left.Width != right.Width)
-        {
-            return false;
-        }
-
-        for (var wordIndex = 0; wordIndex < left.WordCount; wordIndex++)
-        {
-            if (left.GetLowWord(wordIndex) != right.GetLowWord(wordIndex)
-                || left.GetHighWord(wordIndex) != right.GetHighWord(wordIndex))
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private static bool IsAllUnknown(LogicVector value)

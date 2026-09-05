@@ -1,6 +1,6 @@
 # Engine Performance Evidence
 
-> Measured 2026-08-05; benchmark corpus revalidated 2026-08-30 (Asia/Shanghai)
+> Measurements: 2026-08-05 and 2026-09-05; corpus revalidated 2026-08-30 (Asia/Shanghai)
 > Scope: Engine implementation and BenchmarkDotNet evidence
 > Authority: research and measured decisions; [Architecture](../architecture.md) and [Engineering](../engineering.md) own normative rules
 
@@ -80,6 +80,31 @@ construction overhead without adding overload families, ownership rules, or spec
 branches. This record retains the measured decisions; the
 [benchmark README](../../benchmarks/LogicLab.Engine.Benchmarks/README.md) owns the current
 corpus definition and run commands.
+
+### Compiler consolidation, 2026-09-05
+
+The flat and hierarchical Compiler paths now share occurrence expansion and lowering.
+This fixes two path-dependent facts: adding an unreferenced definition could change
+elaborated work, and a flat Net could list the same receiver twice. Regression tests
+cover both. The entry occurrence now counts once in every Compilation; the Compiler
+semantic version identifies the revised translation and evidence.
+
+A same-machine Release `ShortRun` comparison (one launch, three warmups and three
+measurements) used the existing 256-gate and 256-instance corpus cases. Baseline and
+candidate both included the preceding Domain and vector-allocation cleanup.
+
+| Case | Separate paths | Unified path | Managed allocation, before → after |
+| --- | ---: | ---: | ---: |
+| `flat-and-v2-g256` | 598.7 μs | 665.1 μs | 1.96 → 2.15 MiB |
+| `hier-not-v1-i256` | 1,488.3 μs | 1,414.9 μs | 3.86 → 3.68 MiB |
+
+Environment: Apple M5, macOS 26.6.2, SDK 10.0.400, .NET 10.0.11 Arm64, BenchmarkDotNet
+0.15.8, concurrent workstation GC. Candidate standard deviations were 3.61 μs and
+29.16 μs respectively. These short measurements are directional evidence, not release
+capacity or latency claims. The consolidation retains a measured cost for the flat
+case in exchange for one consistent translation implementation; it is not presented
+as a universal speedup. It reuses the resolved-instance index and sorts scoped Nets
+once before grouping, without adding a cache or changing a public interface.
 
 ## 5. Benchmark coverage and gaps
 

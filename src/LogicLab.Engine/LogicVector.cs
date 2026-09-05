@@ -6,28 +6,27 @@ public sealed class LogicVector
 {
     internal const int BitsPerWord = 64;
 
+    // Two planes encode (high, low): 0=00, 1=01, X=10, Z=11; tail bits stay zero.
     private readonly ulong[] lowBits;
     private readonly ulong[] highBits;
 
     public LogicVector(IReadOnlyList<LogicValue> values)
     {
         ArgumentNullException.ThrowIfNull(values);
-        var ownedValues = values.ToArray();
-
-        if (ownedValues.Length == 0)
+        if (values.Count == 0)
         {
             throw new ArgumentException(
                 "A Logic Vector requires a positive width.",
                 nameof(values));
         }
 
-        Width = ownedValues.Length;
+        Width = values.Count;
         lowBits = new ulong[GetWordCount(Width)];
         highBits = new ulong[lowBits.Length];
 
-        for (var index = 0; index < ownedValues.Length; index++)
+        for (var index = 0; index < Width; index++)
         {
-            var value = ownedValues[index];
+            var value = values[index];
             ScalarLogic.EnsureDefined(value, nameof(values));
 
             var wordIndex = index / BitsPerWord;
@@ -112,6 +111,34 @@ public sealed class LogicVector
     }
 
     internal int WordCount => lowBits.Length;
+
+    internal bool ContentEquals(
+        LogicVector other,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (ReferenceEquals(this, other))
+        {
+            return true;
+        }
+
+        if (Width != other.Width)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < WordCount; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (lowBits[index] != other.lowBits[index]
+                || highBits[index] != other.highBits[index])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     internal ulong GetLowWord(int wordIndex)
     {

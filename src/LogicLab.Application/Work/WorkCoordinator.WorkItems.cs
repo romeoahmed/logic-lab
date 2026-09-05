@@ -20,12 +20,6 @@ internal sealed partial class WorkCoordinator
         {
         }
 
-        protected WorkItem(CancellationToken stoppingToken)
-            : this(
-                CancellationTokenSource.CreateLinkedTokenSource(stoppingToken))
-        {
-        }
-
         private WorkItem(CancellationTokenSource ownedCancellation)
         {
             cancellation = ownedCancellation;

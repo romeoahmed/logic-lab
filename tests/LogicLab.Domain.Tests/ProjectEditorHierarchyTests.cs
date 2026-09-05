@@ -1,6 +1,7 @@
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using TUnit.Assertions.Enums;
+using static LogicLab.Domain.Tests.ProjectEditorTestContext;
 
 namespace LogicLab.Domain.Tests;
 
@@ -24,6 +25,7 @@ internal sealed class ProjectEditorHierarchyTests
                 new DefinitionPortPlacement(new GridPoint(8, 2), CardinalDirection.East)),
         };
 
+        var expectedPorts = declarations.ToArray();
         var outcome = ProjectEditor.Apply(
             revision,
             new CreateCircuitDefinitionIntent("Inverter", declarations));
@@ -36,27 +38,24 @@ internal sealed class ProjectEditorHierarchyTests
             PortDirection.Output,
             8,
             new DefinitionPortPlacement(new GridPoint(99, 99), CardinalDirection.North));
+        AuthoredSourceIdentity[] changedSources =
+        [
+            new CircuitRootSourceIdentity(definition.Id),
+            new DefinitionPortSourceIdentity(definition.Id, definition.Ports[0].Id),
+            new DefinitionPortSourceIdentity(definition.Id, definition.Ports[1].Id),
+        ];
 
         using (Assert.Multiple())
         {
-            await Assert.That(definition.Ports.Select(port => port.DisplayName).ToArray())
-                .IsEquivalentTo(["A", "Q"], CollectionOrdering.Matching);
-            await Assert.That(definition.Ports.Select(port => port.Direction).ToArray())
+            await Assert.That(definition.Ports.Select(port =>
+                    (port.DisplayName, port.Direction, port.Width, port.Placement)))
                 .IsEquivalentTo(
-                    [PortDirection.Input, PortDirection.Output],
+                    expectedPorts.Select(port => (port.DisplayName, port.Direction, port.Width, port.Placement)),
                     CollectionOrdering.Matching);
-            await Assert.That(definition.Ports.All(port => port.Width == 1)).IsTrue();
             await Assert.That(definition.Ports.Select(port => port.Id).Distinct().Count())
                 .IsEqualTo(2);
-            await Assert.That(committed.ChangedSources)
-                .Contains(new CircuitRootSourceIdentity(definition.Id));
-            await Assert.That(committed.ChangedSources
-                .OfType<DefinitionPortSourceIdentity>()
-                .Select(source => source.DefinitionPortId)
-                .ToArray())
-                .IsEquivalentTo(
-                    definition.Ports.Select(port => port.Id).ToArray(),
-                    CollectionOrdering.Any);
+            await Assert.That(committed.ChangedSources).IsEquivalentTo(changedSources);
+            await Assert.That(committed.RemovedSources).IsEmpty();
         }
     }
 
@@ -147,8 +146,7 @@ internal sealed class ProjectEditorHierarchyTests
                 .IsEqualTo(child.Id);
             await Assert.That(committed.Revision.Document.ProjectId)
                 .IsEqualTo(revision.Document.ProjectId);
-            await Assert.That(committed.Revision.RevisionId == withChild.RevisionId)
-                .IsFalse();
+            await Assert.That(committed.Revision.RevisionId).IsNotEqualTo(withChild.RevisionId);
             await Assert.That(committed.Revision.Document.CircuitDefinitions)
                 .Count().IsEqualTo(2);
         }
@@ -286,9 +284,16 @@ internal sealed class ProjectEditorHierarchyTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(((EditRejected)wrongScope).Diagnostics
-                .All(diagnostic => diagnostic.Code == "authoring_missing_reference"))
-                .IsTrue();
+            await Assert.That(((EditRejected)wrongScope).Diagnostics.Select(diagnostic =>
+                    (diagnostic.Code, diagnostic.Arguments.Single(), diagnostic.Primary)))
+                .IsEquivalentTo(
+                [
+                    ("authoring_missing_reference", new AuthoringDiagnosticArgument(
+                        "referenceKind", new StableTokenDiagnosticValue("definitionPort")), (AuthoredSourceIdentity?)null),
+                    ("authoring_missing_reference", new AuthoringDiagnosticArgument(
+                        "referenceKind", new StableTokenDiagnosticValue("terminalScope")), (AuthoredSourceIdentity?)null),
+                ],
+                CollectionOrdering.Matching);
             await Assert.That(((EditRejected)wrongWidth).Diagnostics.Single().Code)
                 .IsEqualTo("authoring_width_mismatch");
             await Assert.That(withChild.Document.FindCircuitDefinition(child.Id)!.Nets)
@@ -330,10 +335,7 @@ internal sealed class ProjectEditorHierarchyTests
         var outcome = ProjectEditor.Begin(new NewProjectSeed(
             "Hierarchy",
             LibrarySnapshot.Core,
-            new SymbolProfileReference(
-                "TeachingMixed",
-                "1.0.0",
-                IndicationConvention.Negation),
+            TeachingMixedProfile(),
             "Main"));
         return ((ProjectGenesisCommitted)outcome).Revision;
     }

@@ -276,12 +276,11 @@ internal sealed partial class EditorWorkspaceRunTests
         _ = await blockingStep.WaitAsync(cancellationToken);
         var unauthorized = (await Assert.That(unauthorizedOutcome)
             .IsTypeOf<WorkspaceCommandRejected>())!;
-        var ownerOutcome = (await Assert.That(await ownerStep.WaitAsync(cancellationToken))
-            .IsTypeOf<WorkspaceCommandRejected>())!;
+        var ownerOutcome = await ownerStep.WaitAsync(cancellationToken);
         using (Assert.Multiple())
         {
             await Assert.That(unauthorized.Code).IsEqualTo("workspace_not_found");
-            await Assert.That(ownerOutcome.Code).IsEqualTo("no_scheduled_stimulus");
+            await Assert.That(ownerOutcome).IsTypeOf<LogicLab.Application.Workspaces.NoScheduledStimulus>();
         }
     }
 
@@ -381,11 +380,11 @@ internal sealed partial class EditorWorkspaceRunTests
         try
         {
             var stimulus = workspace.DispatchAsync(
-                new ScheduleInputStimulus(
+                EditorWorkspaceTestDriver.ScheduleInput(
                     Command(stimulusWorkspace, "rejected-stimulus"),
                     EditorWorkspaceTestDriver.SessionMutation(beforeStimulus),
                     1,
-                    [new InputStimulusAssignment(input.Id, [LogicValue.One])]),
+                    input.Id, [LogicValue.One]),
                 cancellationToken);
             var stimulusOutcome = await stimulus.WaitAsync(cancellationToken);
             rejected = await Assert.That(stimulusOutcome)
@@ -743,7 +742,11 @@ internal sealed partial class EditorWorkspaceRunTests
     }
 
     [Test, Timeout(30_000)]
-    public async Task DispatchAsync_RequestCompilationWhileRunning_RejectsWithoutChangingCompilation(
+    [Arguments("compile")]
+    [Arguments("restart")]
+    [Arguments("close-session")]
+    public async Task DispatchAsync_SessionOrCompilationCommandWhileRunning_PreservesActiveRun(
+        string commandKind,
         CancellationToken cancellationToken)
     {
         var advanceGate = new BlockingOperationGate();
@@ -758,14 +761,21 @@ internal sealed partial class EditorWorkspaceRunTests
             cancellationToken);
         await advanceGate.Started.WaitAsync(cancellationToken);
 
-        var compilation = workspace.DispatchAsync(
-            new RequestCompilation(
-                Command(controlled, "compile-while-running"),
-                EditorWorkspaceTestDriver.Compilation(beforeRun)),
-            cancellationToken);
+        var commandContext = Command(controlled, "command-while-running");
+        WorkspaceCommand command = commandKind switch
+        {
+            "compile" => new RequestCompilation(
+                commandContext, EditorWorkspaceTestDriver.Compilation(beforeRun)),
+            "restart" => new RestartSession(
+                commandContext, EditorWorkspaceTestDriver.SessionMutation(beforeRun),
+                beforeRun.PublishedCompilation().ArtifactKey,
+                SessionConfigurationV1.ForEntryOutputs(beforeRun.ProjectRevision)),
+            _ => new CloseSession(commandContext, EditorWorkspaceTestDriver.SessionMutation(beforeRun)),
+        };
+        var pendingCommand = workspace.DispatchAsync(command, cancellationToken);
         advanceGate.Release();
 
-        var outcome = await compilation.WaitAsync(cancellationToken);
+        var outcome = await pendingCommand.WaitAsync(cancellationToken);
         var whileRunning = await Read(workspace, controlled, cancellationToken);
         _ = await workspace.DispatchAsync(
             new PauseRun(
@@ -1322,7 +1332,8 @@ internal sealed partial class EditorWorkspaceRunTests
         var created = await workspace.DispatchAsync(
             new CreateSession(
                 Command(controlled, "session"),
-                EditorWorkspaceTestDriver.SessionCreation(afterCompile)),
+                EditorWorkspaceTestDriver.SessionCreation(afterCompile),
+                SessionConfigurationV1.ForEntryOutputs(afterCompile.ProjectRevision)),
             cancellationToken);
         _ = await Assert.That(created).IsTypeOf<SimulationSessionCreated>();
     }

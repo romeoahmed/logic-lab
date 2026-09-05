@@ -71,7 +71,7 @@ internal static class BoundaryTerminalGeometryBuilder
         var labelOrigin = new PointV1(
             isSource ? checked(3 * h) : checked(5 * h),
             checked(centerY - verticalCenterOffset));
-        var labelBounds = Translate(labelEnvelope, labelOrigin);
+        var labelBounds = labelEnvelope.Translate(labelOrigin);
         var tagBounds = RectV1.Enclose(tag);
         if (!tagBounds.Contains(new PointV1(labelBounds.Left, labelBounds.Top))
             || !tagBounds.Contains(new PointV1(labelBounds.Right, labelBounds.Bottom)))
@@ -124,7 +124,7 @@ internal static class BoundaryTerminalGeometryBuilder
                 bodyHitId,
                 HitRegionKindV1.Body,
                 null,
-                new RectHitShapeV1(Inflate(tagBounds, bodyHitPadding))),
+                new RectHitShapeV1(tagBounds.Inflate(bodyHitPadding))),
             new(
                 portHitId,
                 HitRegionKindV1.Port,
@@ -151,17 +151,5 @@ internal static class BoundaryTerminalGeometryBuilder
         [],
         LineCapV1.Butt,
         MiterJoin);
-
-    private static RectV1 Translate(RectV1 bounds, PointV1 point) => new(
-        checked(bounds.Left + point.X),
-        checked(bounds.Top + point.Y),
-        checked(bounds.Right + point.X),
-        checked(bounds.Bottom + point.Y));
-
-    private static RectV1 Inflate(RectV1 bounds, int padding) => new(
-        checked(bounds.Left - padding),
-        checked(bounds.Top - padding),
-        checked(bounds.Right + padding),
-        checked(bounds.Bottom + padding));
 
 }

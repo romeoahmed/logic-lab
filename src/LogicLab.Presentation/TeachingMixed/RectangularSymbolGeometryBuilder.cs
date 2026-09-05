@@ -326,7 +326,7 @@ internal static class RectangularSymbolGeometryBuilder
                 "body",
                 HitRegionKindV1.Body,
                 null,
-                new RectHitShapeV1(Inflate(body, bodyHitPadding))),
+                new RectHitShapeV1(body.Inflate(bodyHitPadding))),
         };
         var inputIndex = 0;
         var outputIndex = 0;
@@ -539,7 +539,7 @@ internal static class RectangularSymbolGeometryBuilder
             text,
             role,
             origin,
-            Translate(envelope, origin),
+            envelope.Translate(origin),
             alignment,
             TextOrientationV1.UprightReading,
             request.BaseDirection,
@@ -607,17 +607,6 @@ internal static class RectangularSymbolGeometryBuilder
         LineCapV1.Butt,
         MiterJoin);
 
-    private static RectV1 Translate(RectV1 bounds, PointV1 point) => new(
-        checked(bounds.Left + point.X),
-        checked(bounds.Top + point.Y),
-        checked(bounds.Right + point.X),
-        checked(bounds.Bottom + point.Y));
-
-    private static RectV1 Inflate(RectV1 bounds, int padding) => new(
-        checked(bounds.Left - padding),
-        checked(bounds.Top - padding),
-        checked(bounds.Right + padding),
-        checked(bounds.Bottom + padding));
 
     private static int ScaleUp(int value, int numerator, int denominator = 1) =>
         checked((int)((((long)value * numerator) + denominator - 1) / denominator));

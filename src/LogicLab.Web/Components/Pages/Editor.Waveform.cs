@@ -107,6 +107,11 @@ public sealed partial class Editor
 
     private async Task ReplaceProbesAsync(IReadOnlyList<ProbeBindingRequest> bindings)
     {
+        if (!CanMutateWorkspace)
+        {
+            return;
+        }
+
         var outcome = await Execute(context => new ReplaceProbes(
             context,
             SessionPrecondition(),

@@ -27,6 +27,8 @@ namespace LogicLab.Web.Tests;
 internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     LogicLabWebFactory factory)
 {
+    private static readonly DateTimeOffset Now = new(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+
     private const string AuthenticationExpiryClaimType =
         "logiclab:authentication_expires_utc";
 
@@ -34,11 +36,8 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     [RequiresPostgreSql]
     public async Task ValidateSessionAsync_ExpiryClaim_FailsClosedAtSessionBoundary()
     {
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var database = await PostgreSqlIdentityTestDatabase.CreateAsync();
-        using var host = CreateIdentityHost(
-            new FixedTimeProvider(now),
-            database.DataSource);
+        using var host = CreateIdentityHost(database.DataSource);
         await using var scope = host.Services.CreateAsyncScope();
         var (user, stamp, identityOptions) = await CreateUserAsync(scope.ServiceProvider);
         var provider = scope.ServiceProvider
@@ -52,21 +51,21 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
             AuthenticationStateFor(user, stamp, identityOptions, "not-a-date"));
         var exactlyExpired = await ValidateAsync(
             provider,
-            AuthenticationStateFor(user, stamp, identityOptions, now.ToString("O")));
+            AuthenticationStateFor(user, stamp, identityOptions, Now.ToString("O")));
         var expired = await ValidateAsync(
             provider,
             AuthenticationStateFor(
                 user,
                 stamp,
                 identityOptions,
-                now.AddSeconds(-1).ToString("O")));
+                Now.AddSeconds(-1).ToString("O")));
         var future = await ValidateAsync(
             provider,
             AuthenticationStateFor(
                 user,
                 stamp,
                 identityOptions,
-                now.AddMinutes(5).ToString("O")));
+                Now.AddMinutes(5).ToString("O")));
 
         using (Assert.Multiple())
         {
@@ -81,9 +80,8 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     [Test]
     public async Task ApplicationCookie_SigningIn_EmbedsAbsoluteExpiryClaim()
     {
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
-        var expiresUtc = now.AddMinutes(5);
-        using var host = CreateIdentityHost(new FixedTimeProvider(now));
+        var expiresUtc = Now.AddMinutes(5);
+        using var host = CreateIdentityHost();
         var options = host.Services
             .GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
             .Get(IdentityConstants.ApplicationScheme);
@@ -123,12 +121,9 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     [RequiresPostgreSql]
     public async Task ApplicationCookie_SecurityStampRefresh_PreservesAbsoluteExpiryClaim()
     {
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
-        var expiresUtc = now.AddMinutes(5);
+        var expiresUtc = Now.AddMinutes(5);
         await using var database = await PostgreSqlIdentityTestDatabase.CreateAsync();
-        using var host = CreateIdentityHost(
-            new FixedTimeProvider(now),
-            database.DataSource);
+        using var host = CreateIdentityHost(database.DataSource);
         await using var scope = host.Services.CreateAsyncScope();
         var (user, stamp, identityOptions) = await CreateUserAsync(scope.ServiceProvider);
         var options = host.Services
@@ -141,7 +136,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
             expiresUtc.ToString("O")).User;
         var properties = new AuthenticationProperties
         {
-            IssuedUtc = now.AddMinutes(-5),
+            IssuedUtc = Now.AddMinutes(-5),
             ExpiresUtc = expiresUtc,
         };
         var scheme = new AuthenticationScheme(
@@ -174,8 +169,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     [Test]
     public async Task ApplicationCookie_InvalidAbsoluteExpiry_RejectsHttpPrincipal()
     {
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
-        using var host = CreateIdentityHost(new FixedTimeProvider(now));
+        using var host = CreateIdentityHost();
         var identityOptions = host.Services
             .GetRequiredService<IOptions<IdentityOptions>>();
         var user = new ApplicationUser { Id = "expiry-user" };
@@ -191,8 +185,8 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         [
             null,
             "not-a-date",
-            now.ToString("O"),
-            now.AddSeconds(-1).ToString("O"),
+            Now.ToString("O"),
+            Now.AddSeconds(-1).ToString("O"),
         ];
 
         foreach (var invalidExpiry in invalidExpiries)
@@ -210,8 +204,8 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
                     principal,
                     new AuthenticationProperties
                     {
-                        IssuedUtc = now.AddMinutes(-5),
-                        ExpiresUtc = now.AddMinutes(5),
+                        IssuedUtc = Now.AddMinutes(-5),
+                        ExpiresUtc = Now.AddMinutes(5),
                     },
                     IdentityConstants.ApplicationScheme));
 
@@ -225,14 +219,11 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     [RequiresPostgreSql]
     public async Task Post_Logout_EstablishedCircuitPrincipal_IsRevoked()
     {
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var database = await PostgreSqlIdentityTestDatabase.CreateAsync();
         var principalSource = new PrincipalSource();
         using var host = CreateIdentityHost(
-            new FixedTimeProvider(now),
             database.DataSource,
-            principalSource,
-            configureAuthenticatedHttp: true);
+            principalSource);
         ApplicationUser user;
         string oldStamp;
         IOptions<IdentityOptions> identityOptions;
@@ -246,7 +237,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
             user,
             oldStamp,
             identityOptions,
-            now.AddMinutes(5).ToString("O"));
+            Now.AddMinutes(5).ToString("O"));
         principalSource.Principal = oldAuthenticationState.User;
         using var client = host.CreateHttpsClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
@@ -285,14 +276,11 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     [RequiresPostgreSql]
     public async Task Post_Logout_RevocationInfrastructureFails_ClearsCookieAndReturnsProblemDetails()
     {
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var database = await PostgreSqlIdentityTestDatabase.CreateAsync();
         var principalSource = new PrincipalSource();
         using var host = CreateIdentityHost(
-            new FixedTimeProvider(now),
             database.DataSource,
-            principalSource,
-            configureAuthenticatedHttp: true);
+            principalSource);
         await using (var scope = host.Services.CreateAsyncScope())
         {
             var created = await CreateUserAsync(scope.ServiceProvider);
@@ -300,7 +288,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
                 created.User,
                 created.SecurityStamp,
                 created.Options,
-                now.AddMinutes(5).ToString("O")).User;
+                Now.AddMinutes(5).ToString("O")).User;
         }
 
         using var client = host.CreateHttpsClient();
@@ -337,14 +325,11 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     [RequiresPostgreSql]
     public async Task Post_Logout_RequestBodyLimitIsInclusiveAndPreventsAdditionalRevocation()
     {
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var database = await PostgreSqlIdentityTestDatabase.CreateAsync();
         var principalSource = new PrincipalSource();
         using var host = CreateIdentityHost(
-            new FixedTimeProvider(now),
             database.DataSource,
-            principalSource,
-            configureAuthenticatedHttp: true);
+            principalSource);
         ApplicationUser user;
         await using (var scope = host.Services.CreateAsyncScope())
         {
@@ -354,7 +339,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
                 created.User,
                 created.SecurityStamp,
                 created.Options,
-                now.AddMinutes(5).ToString("O")).User;
+                Now.AddMinutes(5).ToString("O")).User;
         }
 
         using var client = host.CreateHttpsClient();
@@ -385,14 +370,11 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     [RequiresPostgreSql]
     public async Task Post_Logout_RateLimitRejectsBeforeAdditionalRevocation()
     {
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var database = await PostgreSqlIdentityTestDatabase.CreateAsync();
         var principalSource = new PrincipalSource();
         using var host = CreateIdentityHost(
-            new FixedTimeProvider(now),
             database.DataSource,
-            principalSource,
-            configureAuthenticatedHttp: true);
+            principalSource);
         ApplicationUser user;
         await using (var scope = host.Services.CreateAsyncScope())
         {
@@ -402,7 +384,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
                 created.User,
                 created.SecurityStamp,
                 created.Options,
-                now.AddMinutes(5).ToString("O")).User;
+                Now.AddMinutes(5).ToString("O")).User;
         }
 
         using var client = host.CreateHttpsClient();
@@ -444,14 +426,11 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     public async Task Post_LoginWhileAuthenticated_FailsClosedWithoutIdentitySwitch()
     {
         const string password = "Circuit-Passw0rd!";
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var database = await PostgreSqlIdentityTestDatabase.CreateAsync();
         var principalSource = new PrincipalSource();
         using var host = CreateIdentityHost(
-            new FixedTimeProvider(now),
             database.DataSource,
-            principalSource,
-            configureAuthenticatedHttp: true);
+            principalSource);
         ApplicationUser currentUser;
         string currentStamp;
         IOptions<IdentityOptions> identityOptions;
@@ -471,7 +450,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
             currentUser,
             currentStamp,
             identityOptions,
-            now.AddMinutes(5).ToString("O"));
+            Now.AddMinutes(5).ToString("O"));
         principalSource.Principal = currentAuthenticationState.User;
         using var client = host.CreateHttpsClient();
         var preparedForm = await WebTestHttp.GetAntiforgeryFormAsync(
@@ -502,14 +481,11 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     public async Task Post_RegisterWhileAuthenticated_FailsClosedWithoutIdentitySwitch()
     {
         const string password = "Circuit-Passw0rd!";
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var database = await PostgreSqlIdentityTestDatabase.CreateAsync();
         var principalSource = new PrincipalSource();
         using var host = CreateIdentityHost(
-            new FixedTimeProvider(now),
             database.DataSource,
-            principalSource,
-            configureAuthenticatedHttp: true);
+            principalSource);
         ApplicationUser currentUser;
         string currentStamp;
         IOptions<IdentityOptions> identityOptions;
@@ -524,7 +500,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
             currentUser,
             currentStamp,
             identityOptions,
-            now.AddMinutes(5).ToString("O"));
+            Now.AddMinutes(5).ToString("O"));
         principalSource.Principal = currentAuthenticationState.User;
         var replacementEmail = $"registered-{Guid.CreateVersion7():N}@example.test";
         using var client = host.CreateHttpsClient();
@@ -562,19 +538,16 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     public async Task Get_IdentityEntryWhileAuthenticated_RedirectsWithoutRenderingSwitchForm(
         string path)
     {
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         var principalSource = new PrincipalSource();
         using var host = CreateIdentityHost(
-            new FixedTimeProvider(now),
-            principalSource: principalSource,
-            configureAuthenticatedHttp: true);
+            principalSource: principalSource);
         var identityOptions = host.Services
             .GetRequiredService<IOptions<IdentityOptions>>();
         principalSource.Principal = AuthenticationStateFor(
             new ApplicationUser { Id = "authenticated-user" },
             "authenticated-stamp",
             identityOptions,
-            now.AddMinutes(5).ToString("O")).User;
+            Now.AddMinutes(5).ToString("O")).User;
 
         using var client = host.CreateHttpsClient();
         using var response = await client.GetAsync(
@@ -597,11 +570,8 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     {
         const string password = "Correct-Passw0rd!";
         const string submittedPassword = "Wrong-Passw0rd!";
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var database = await PostgreSqlIdentityTestDatabase.CreateAsync();
-        using var host = CreateIdentityHost(
-            new FixedTimeProvider(now),
-            database.DataSource);
+        using var host = CreateIdentityHost(database.DataSource);
         string email;
         await using (var scope = host.Services.CreateAsyncScope())
         {
@@ -641,8 +611,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     public async Task Post_LoginWithInvalidModel_DoesNotEchoSubmittedPassword()
     {
         const string submittedPassword = "Invalid-Model-Passw0rd!";
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
-        using var host = CreateIdentityHost(new FixedTimeProvider(now));
+        using var host = CreateIdentityHost();
         using var client = host.CreateHttpsClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(
             client,
@@ -673,11 +642,8 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     {
         const string existingPassword = "Existing-Passw0rd!";
         const string submittedPassword = "Replacement-Passw0rd!";
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var database = await PostgreSqlIdentityTestDatabase.CreateAsync();
-        using var host = CreateIdentityHost(
-            new FixedTimeProvider(now),
-            database.DataSource);
+        using var host = CreateIdentityHost(database.DataSource);
         string email;
         await using (var scope = host.Services.CreateAsyncScope())
         {
@@ -726,8 +692,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     {
         const string password = "Valid-Passw0rd!";
         const string confirmation = "Different-Passw0rd!";
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
-        using var host = CreateIdentityHost(new FixedTimeProvider(now));
+        using var host = CreateIdentityHost();
         using var client = host.CreateHttpsClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(
             client,
@@ -779,8 +744,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         string fieldName,
         int expectedMaximum)
     {
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
-        using var host = CreateIdentityHost(new FixedTimeProvider(now));
+        using var host = CreateIdentityHost();
         using var client = host.CreateHttpsClient();
 
         using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
@@ -806,17 +770,16 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         var password = $"{passwordPrefix}{new string(
             'x',
             AccountInputLimits.MaximumPasswordLength - passwordPrefix.Length)}";
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var database = await PostgreSqlIdentityTestDatabase.CreateAsync();
-        using var host = CreateIdentityHost(
-            new FixedTimeProvider(now),
-            database.DataSource);
+        using var host = CreateIdentityHost(database.DataSource);
+        string userId;
         await using (var scope = host.Services.CreateAsyncScope())
         {
-            _ = await CreateUserAsync(
+            var created = await CreateUserAsync(
                 scope.ServiceProvider,
                 email,
                 password);
+            userId = created.User.Id;
         }
 
         using var client = host.CreateHttpsClient();
@@ -839,6 +802,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
             await Assert.That(response.StatusCode)
                 .IsEqualTo(HttpStatusCode.Redirect);
             await Assert.That(RedirectPath(response)).IsEqualTo("/projects");
+            await AssertAuthenticationCookieAsync(host.Services, response, userId);
         }
     }
 
@@ -854,11 +818,8 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         var password = $"{passwordPrefix}{new string(
             'y',
             AccountInputLimits.MaximumPasswordLength - passwordPrefix.Length)}";
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var database = await PostgreSqlIdentityTestDatabase.CreateAsync();
-        using var host = CreateIdentityHost(
-            new FixedTimeProvider(now),
-            database.DataSource);
+        using var host = CreateIdentityHost(database.DataSource);
         using var client = host.CreateHttpsClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(
             client,
@@ -885,6 +846,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
                 .IsEqualTo(HttpStatusCode.Redirect);
             await Assert.That(RedirectPath(response)).IsEqualTo("/projects");
             await Assert.That(storedUser).IsNotNull();
+            await AssertAuthenticationCookieAsync(host.Services, response, storedUser!.Id);
         }
     }
 
@@ -896,11 +858,8 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         var submittedPassword = new string(
             'x',
             AccountInputLimits.MaximumPasswordLength + 1);
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var database = await PostgreSqlIdentityTestDatabase.CreateAsync();
-        using var host = CreateIdentityHost(
-            new FixedTimeProvider(now),
-            database.DataSource);
+        using var host = CreateIdentityHost(database.DataSource);
         string userId;
         string email;
         await using (var scope = host.Services.CreateAsyncScope())
@@ -960,8 +919,7 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         var email = $"{new string(
             'a',
             AccountInputLimits.MaximumEmailLength + 1 - emailSuffix.Length)}{emailSuffix}";
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
-        using var host = CreateIdentityHost(new FixedTimeProvider(now));
+        using var host = CreateIdentityHost();
         using var client = host.CreateHttpsClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(
             client,
@@ -1000,11 +958,8 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         var email = $"{new string(
             'a',
             AccountInputLimits.MaximumEmailLength + 1 - emailSuffix.Length)}{emailSuffix}";
-        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
         await using var database = await PostgreSqlIdentityTestDatabase.CreateAsync();
-        using var host = CreateIdentityHost(
-            new FixedTimeProvider(now),
-            database.DataSource);
+        using var host = CreateIdentityHost(database.DataSource);
         using var client = host.CreateHttpsClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(
             client,
@@ -1034,10 +989,8 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
     }
 
     private WebApplicationFactory<Program> CreateIdentityHost(
-        TimeProvider timeProvider,
         NpgsqlDataSource? identityDataSource = null,
-        PrincipalSource? principalSource = null,
-        bool configureAuthenticatedHttp = false)
+        PrincipalSource? principalSource = null)
     {
         return factory.WithWebHostBuilder(builder =>
             builder.ConfigureTestServices(services =>
@@ -1055,13 +1008,13 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
                 }
 
                 services.RemoveAll<TimeProvider>();
-                services.AddSingleton(timeProvider);
-                if (!configureAuthenticatedHttp)
+                services.AddSingleton<TimeProvider>(new FixedTimeProvider(Now));
+                if (principalSource is null)
                 {
                     return;
                 }
 
-                services.AddSingleton(principalSource!);
+                services.AddSingleton(principalSource);
                 services.AddAuthentication(options =>
                     {
                         options.DefaultAuthenticateScheme =
@@ -1166,37 +1119,34 @@ internal sealed class IdentityRevalidatingAuthenticationStateProviderTests(
         AntiforgeryForm preparedForm,
         int bodyLength)
     {
-        var values = new List<KeyValuePair<string, string>>
-        {
-            new("__RequestVerificationToken", preparedForm.RequestToken),
-            new("padding", string.Empty),
-        };
-        using var unpadded = new FormUrlEncodedContent(values);
-        var paddingLength = checked(
-            bodyLength - (int)(unpadded.Headers.ContentLength
-                ?? throw new InvalidOperationException(
-                    "The logout form did not expose its length.")));
-        if (paddingLength < 0)
-        {
-            throw new InvalidOperationException(
-                "The requested body length is smaller than the logout form envelope.");
-        }
-
-        values[^1] = new("padding", new string('x', paddingLength));
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
             new Uri("/account/logout", UriKind.Relative))
         {
-            Content = new FormUrlEncodedContent(values),
+            Content = WebTestHttp.CreateSizedFormContent(
+                bodyLength,
+                new KeyValuePair<string, string>("__RequestVerificationToken", preparedForm.RequestToken)),
         };
-        if (request.Content.Headers.ContentLength != bodyLength)
-        {
-            throw new InvalidOperationException(
-                "The encoded logout form did not reach the requested byte boundary.");
-        }
-
         request.Headers.Add("Cookie", preparedForm.Cookie);
         return await client.SendAsync(request);
+    }
+
+    private static async Task AssertAuthenticationCookieAsync(
+        IServiceProvider services,
+        HttpResponseMessage response,
+        string expectedUserId)
+    {
+        var options = services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get(IdentityConstants.ApplicationScheme);
+        var context = new DefaultHttpContext();
+        context.Request.Headers.Cookie = string.Join("; ", response.Headers.GetValues("Set-Cookie")
+            .Select(header => header.Split(';', 2)[0]));
+        var cookie = options.CookieManager.GetRequestCookie(context, options.Cookie.Name!);
+        await Assert.That(cookie).IsNotNull();
+        var ticket = options.TicketDataFormat.Unprotect(cookie!);
+        await Assert.That(ticket).IsNotNull();
+        await Assert.That(ticket!.Principal.Identity!.IsAuthenticated).IsTrue();
+        await Assert.That(ticket.Principal.FindFirstValue(ClaimTypes.NameIdentifier)).IsEqualTo(expectedUserId);
     }
 
     private static async Task<string> ReadSecurityStampAsync(

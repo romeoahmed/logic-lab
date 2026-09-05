@@ -82,6 +82,7 @@ class WaveformHandle {
     this.pendingIntent = null;
     this.viewportCommitTimer = 0;
     this.contextRestoreTimer = 0;
+    this.contextIsLost = false;
     this.pendingFrame = 0;
     this.dirty = false;
     this.cssWidth = 0;
@@ -137,6 +138,7 @@ class WaveformHandle {
     const transfer = this.transfers.get(transferId);
     if (
       !transfer ||
+      transfer.committing ||
       ordinal !== transfer.nextOrdinal ||
       typeof chunk !== "string" ||
       chunk.length === 0 ||
@@ -159,14 +161,16 @@ class WaveformHandle {
   async commitTransfer(transferId) {
     this.ensureLive();
     const transfer = this.transfers.get(transferId);
-    this.transfers.delete(transferId);
-    if (!transfer) return false;
+    if (!transfer || transfer.committing) return false;
+    // Keep the candidate registered while hashing so abort/destroy can cancel it.
+    transfer.committing = true;
 
     try {
       const candidateBytes = concatenate(transfer.chunks);
       if (
         candidateBytes.byteLength !== transfer.byteLength ||
-        (await sha256(candidateBytes)) !== transfer.digest
+        (await sha256(candidateBytes)) !== transfer.digest ||
+        this.transfers.get(transferId) !== transfer
       ) {
         return false;
       }
@@ -187,6 +191,8 @@ class WaveformHandle {
       return true;
     } catch {
       return false;
+    } finally {
+      if (this.transfers.get(transferId) === transfer) this.transfers.delete(transferId);
     }
   }
 
@@ -243,10 +249,16 @@ class WaveformHandle {
     this.canvas.addEventListener("keydown", (event) => this.keyDown(event), { signal });
     this.canvas.addEventListener(
       "contextlost",
-      (event) => {
-        event.preventDefault();
+      () => {
+        // Cancelling this Canvas 2D event would prevent the browser from restoring it.
+        // https://html.spec.whatwg.org/multipage/webappapis.html#context-lost-steps
+        this.contextIsLost = true;
         this.cancelGesture();
+        this.cancelViewportCommit();
         this.cancelContextRestore();
+        if (this.pendingFrame) cancelAnimationFrame(this.pendingFrame);
+        this.pendingFrame = 0;
+        this.dirty = false;
         this.contextRestoreTimer = window.setTimeout(
           () => this.failClosed(),
           contextRestoreTimeoutMilliseconds,
@@ -264,6 +276,7 @@ class WaveformHandle {
           this.failClosed();
           return;
         }
+        this.contextIsLost = false;
         this.resize();
         this.invalidate();
       },
@@ -306,7 +319,8 @@ class WaveformHandle {
   }
 
   resize() {
-    if (!this.canvas || !this.context || this.destroyed || this.failed) return;
+    if (!this.canvas || !this.context || this.destroyed || this.failed || this.contextIsLost)
+      return;
     this.rowLayoutCache = null;
     const bounds = this.canvas.getBoundingClientRect();
     if (!Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) return;
@@ -356,6 +370,7 @@ class WaveformHandle {
   pointerDown(event) {
     if (
       !this.published ||
+      this.contextIsLost ||
       event.button !== 0 ||
       event.isPrimary === false ||
       this.gesture ||
@@ -392,6 +407,7 @@ class WaveformHandle {
   pointerUp(event) {
     if (!this.gesture || this.gesture.pointerId !== event.pointerId) return;
     const gesture = this.gesture;
+    gesture.logicalTime = this.timeAt(event.offsetX);
     this.releasePointerCapture(event.pointerId);
     this.gesture = null;
     this.transientCursor = null;
@@ -426,7 +442,7 @@ class WaveformHandle {
   }
 
   wheel(event) {
-    if (!this.published) return;
+    if (!this.published || this.contextIsLost) return;
     event.preventDefault();
     const viewport = this.activeViewport();
     const start = BigInt(viewport.startInclusive);
@@ -499,7 +515,7 @@ class WaveformHandle {
   }
 
   keyDown(event) {
-    if (!this.published || this.interactionMode !== "commitEnabled") return;
+    if (!this.published || this.contextIsLost || this.interactionMode !== "commitEnabled") return;
     if (event.key === "Escape") {
       this.cancelGesture();
       return;
@@ -528,8 +544,10 @@ class WaveformHandle {
     const start = BigInt(viewport.startInclusive);
     const end = BigInt(viewport.endExclusive);
     const span = end - start;
-    const ratio = clamp(cssX / Math.max(1, this.cssWidth), 0, 0.999999999);
-    return start + proportionalOffset(span, ratio);
+    const ratio = clamp(cssX / Math.max(1, this.cssWidth), 0, 1);
+    const time = start + proportionalOffset(span, ratio);
+    // Clamp in Logical Time: a fractional inset can skip many ticks in a wide viewport.
+    return time < end ? time : end - 1n;
   }
 
   activeViewport() {
@@ -537,7 +555,12 @@ class WaveformHandle {
   }
 
   async emit(kind, payload) {
-    if (!this.published || this.interactionMode !== "commitEnabled" || this.pendingIntent)
+    if (
+      !this.published ||
+      this.contextIsLost ||
+      this.interactionMode !== "commitEnabled" ||
+      this.pendingIntent
+    )
       return false;
     const intent = {
       kind,
@@ -574,7 +597,7 @@ class WaveformHandle {
   }
 
   invalidate() {
-    if (this.destroyed || this.failed || this.dirty) return;
+    if (this.destroyed || this.failed || this.contextIsLost || this.dirty) return;
     this.dirty = true;
     if (!this.pendingFrame) {
       this.pendingFrame = requestAnimationFrame(() => this.render());
@@ -583,7 +606,15 @@ class WaveformHandle {
 
   render() {
     this.pendingFrame = 0;
-    if (!this.dirty || !this.context || !this.canvas || this.destroyed || this.failed) return;
+    if (
+      !this.dirty ||
+      !this.context ||
+      !this.canvas ||
+      this.destroyed ||
+      this.failed ||
+      this.contextIsLost
+    )
+      return;
     this.dirty = false;
     const context = this.context;
     const width = this.cssWidth;
@@ -869,13 +900,13 @@ function validateTrace(trace, rows, viewport) {
       throw new Error("Waveform segments are not in canonical row and range order");
     }
     if (trace.kind === "transitions") {
-      validVector(segment.value);
+      validateVector(segment.value);
       if (segment.value.width !== row.width || typeof segment.transitionAtStart !== "boolean") {
         throw new Error("invalid Waveform transition segment");
       }
     } else {
-      validVector(segment.firstValue);
-      validVector(segment.lastValue);
+      validateVector(segment.firstValue);
+      validateVector(segment.lastValue);
       const firstSymbols = decodedVectors.get(segment.firstValue);
       const lastSymbols = decodedVectors.get(segment.lastValue);
       const endpointsDiffer = firstSymbols.some((value, index) => value !== lastSymbols[index]);
@@ -921,27 +952,20 @@ function indexTrace(trace) {
 }
 
 function validRow(row, ordinal) {
-  return validRowShape(row) && row.displayOrdinal === ordinal;
+  return (
+    hasExactShape(row, recordShapes.row) &&
+    nonEmptyString(row.probeId) &&
+    row.displayOrdinal === ordinal &&
+    positiveInteger(row.width) &&
+    Number.isSafeInteger(row.appearanceOrdinal) &&
+    row.appearanceOrdinal >= 0 &&
+    row.appearanceOrdinal < 16 &&
+    row.pattern === ["solid", "dash", "dot", "dashDot"][Math.floor(row.appearanceOrdinal / 4)] &&
+    (row.binding === "resolved" || row.binding === "unresolved")
+  );
 }
 
-function validRowShape(row) {
-  if (
-    !hasExactShape(row, recordShapes.row) ||
-    !nonEmptyString(row.probeId) ||
-    !Number.isSafeInteger(row.displayOrdinal) ||
-    row.displayOrdinal < 0 ||
-    !positiveInteger(row.width) ||
-    !Number.isSafeInteger(row.appearanceOrdinal) ||
-    row.appearanceOrdinal < 0 ||
-    row.appearanceOrdinal >= 16 ||
-    row.pattern !== ["solid", "dash", "dot", "dashDot"][Math.floor(row.appearanceOrdinal / 4)] ||
-    (row.binding !== "resolved" && row.binding !== "unresolved")
-  )
-    return false;
-  return true;
-}
-
-function validVector(vector) {
+function validateVector(vector) {
   if (
     !hasExactShape(vector, recordShapes.vector) ||
     !positiveInteger(vector.width) ||
@@ -1024,11 +1048,7 @@ function drawRuler(context, width, height, viewport, ink, muted, border) {
 }
 
 function drawTraceRow(context, trace, entries, row, viewport, top, height, width, color, muted) {
-  if (row.binding === "unresolved") {
-    hatch(context, 0, top, width, height, muted);
-    return;
-  }
-  if (trace.kind === "unavailable") {
+  if (row.binding === "unresolved" || trace.kind === "unavailable") {
     hatch(context, 0, top, width, height, muted);
     return;
   }
@@ -1065,8 +1085,8 @@ function drawTransition(context, segment, symbols, left, right, top, height, col
       if (segment.transitionAtStart) {
         context.moveTo(left, top + height * 0.28);
         context.lineTo(left, top + height * 0.72);
-        context.moveTo(left, y);
-      } else context.moveTo(left, y);
+      }
+      context.moveTo(left, y);
       context.lineTo(right, y);
       context.stroke();
     } else if (symbol === 2) {

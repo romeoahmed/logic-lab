@@ -26,7 +26,9 @@ action for validation, what-if, deployment, and template outputs.
 
 The CI workflow is the executable static gate: it formats every Bicep source, lints
 all templates, compiles both production parameter files with non-production fixtures,
-and checks the deployment script with Bash and ShellCheck. For a focused local edit:
+and checks deployment scripts with Bash and ShellCheck. Simulated Azure and HTTP
+responses verify that release checks reject an old ready revision, a wrong image,
+or loss of readiness during the stability interval. For a focused local edit:
 
 ```bash
 az bicep format --file infra/foundation.bicep

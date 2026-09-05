@@ -208,6 +208,7 @@
                                         <FluentButton Type="ButtonType.Button"
                                                       Size="ButtonSize.Small"
                                                       Appearance="ButtonAppearance.Outline"
+                                                      Disabled="@(!CanModifyProbes)"
                                                       OnClick="@(_ => RebindAsync(row))">@Text["RebindProbe"]</FluentButton>
                                     }
                                     <FluentButton Class="probe-icon-action"
@@ -218,6 +219,7 @@
                                                   IconOnly="true"
                                                   Title="@Text["RemoveProbe"]"
                                                   aria-label="@Text["RemoveProbe"]"
+                                                  Disabled="@(row.Binding == "resolved" && !CanModifyProbes)"
                                                   OnClick="@(_ => RemoveAsync(row))">×</FluentButton>
                                 </div>
                             </li>

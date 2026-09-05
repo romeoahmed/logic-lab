@@ -1,15 +1,18 @@
+using System.Diagnostics;
 using LogicLab.Application.Work;
+using LogicLab.Domain.Authoring;
 using Microsoft.Extensions.Logging;
 
 namespace LogicLab.Application.Workspaces;
 
 internal sealed partial class EditorWorkspace
 {
-    private async Task<WorkspaceOpenOutcome> OpenDurableAsync(
-        OpenDurable request,
+    private async Task<WorkspaceOpenOutcome> OpenCompiledWorkspaceAsync(
+        OpenWorkspaceRequest request,
         CancellationToken cancellationToken)
     {
-        if (request.Caller is not AuthenticatedWorkspaceCaller authenticated)
+        if (request is OpenDurable
+            && request.Caller is not AuthenticatedWorkspaceCaller)
         {
             return RejectOpen(WorkspaceOutcomeReasons.AuthenticationRequired);
         }
@@ -25,45 +28,86 @@ internal sealed partial class EditorWorkspace
         }
 
         var hasReservation = true;
-        var stage = "load";
+        var published = false;
+        WorkspaceState? state = null;
+        var stage = request is OpenDurable ? "load" : "authoring-admission";
         try
         {
-            var load = await durableProjectLoader.LoadAsync(
-                new DurableProjectOpenRequest(
-                    request.DurableProjectId,
-                    authenticated.SubjectId),
-                cancellationToken).ConfigureAwait(false);
-            if (load is DurableProjectOpenNotFound)
+            ProjectRevision revision;
+            WorkspaceDurabilityState durability = SandboxWorkspaceState.Instance;
+            switch (request)
             {
-                return RejectOpen(WorkspaceOutcomeReasons.WorkspaceNotFound);
-            }
+                case OpenDurable durable:
+                    var authenticated = (AuthenticatedWorkspaceCaller)request.Caller;
+                    var load = await durableProjectLoader.LoadAsync(
+                        new DurableProjectOpenRequest(
+                            durable.DurableProjectId,
+                            authenticated.SubjectId),
+                        cancellationToken).ConfigureAwait(false);
+                    if (load is DurableProjectOpenNotFound)
+                    {
+                        return RejectOpen(WorkspaceOutcomeReasons.WorkspaceNotFound);
+                    }
 
-            if (load is not DurableProjectOpenFound found)
-            {
-                return RejectOpen(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
-            }
+                    if (load is not DurableProjectOpenFound found
+                        || found.DurableProjectId != durable.DurableProjectId)
+                    {
+                        return RejectOpen(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
+                    }
 
-            if (found.DurableProjectId != request.DurableProjectId)
-            {
-                return RejectOpen(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
+                    revision = found.ProjectRevision;
+                    stage = "authoring-admission";
+                    if (AuthoringAdmission.RejectionForDocument(
+                            revision.Document,
+                            workspacePolicy) is { } durableAuthoringEvidence)
+                    {
+                        return RejectOpen(
+                            WorkspaceOutcomeReasons.WorkspaceAdmissionRejected,
+                            policyEvidence: durableAuthoringEvidence);
+                    }
+
+                    durability = new DurableWorkspaceState(
+                        found.DurableProjectId,
+                        authenticated.SubjectId,
+                        found.DisplayName,
+                        found.DurableVersion,
+                        revision.RevisionId);
+                    break;
+                case ImportProject import:
+                    if (AuthoringAdmission.RejectionForDocument(
+                            import.ImportCandidate.Document,
+                            workspacePolicy) is { } authoringPolicyEvidence)
+                    {
+                        return RejectOpen(
+                            WorkspaceOutcomeReasons.WorkspaceAdmissionRejected,
+                            policyEvidence: authoringPolicyEvidence);
+                    }
+
+                    stage = "genesis";
+                    var genesis = ProjectEditor.Begin(
+                        new ImportedProjectSeed(import.ImportCandidate));
+                    if (genesis is ProjectGenesisRejected rejectedGenesis)
+                    {
+                        return RejectOpen(
+                            rejectedGenesis.Reason,
+                            [.. rejectedGenesis.Diagnostics.Select(item => item.Code)]);
+                    }
+
+                    revision = ((ProjectGenesisCommitted)genesis).Revision;
+                    break;
+                default:
+                    throw new UnreachableException();
             }
 
             stage = "bootstrap";
-            var revision = found.ProjectRevision;
-            var id = WorkspaceId.Create();
             var generation = new CompilationGeneration(1);
-            var state = new WorkspaceState(
-                id,
+            state = new WorkspaceState(
+                WorkspaceId.Create(),
                 revision,
                 request.Caller,
                 timeProvider.GetTimestamp())
             {
-                Durability = new DurableWorkspaceState(
-                    found.DurableProjectId,
-                    authenticated.SubjectId,
-                    found.DisplayName,
-                    found.DurableVersion,
-                    revision.RevisionId),
+                Durability = durability,
                 Compilation = new CompilationQueuedProjection(generation),
                 NextCompilationGeneration = 1,
             };
@@ -71,11 +115,11 @@ internal sealed partial class EditorWorkspace
                 TaskCreationOptions.RunContinuationsAsynchronously);
             stage = "compilation-admission";
             if (!workCoordinator.TryScheduleCompilation(
-                    id,
+                    state.Id,
                     request.Caller,
                     context => CompileRetainedAsync(
                         state,
-                        revision,
+                        state.Revision,
                         generation,
                         context),
                     () => compilationCompleted.TrySetResult(),
@@ -84,7 +128,6 @@ internal sealed partial class EditorWorkspace
                     out var scheduledCompilation,
                     out var schedulingRejection))
             {
-                DisposeUnpublishedWorkspace(state);
                 return RejectOpen(
                     schedulingRejection.Code,
                     policyEvidence: schedulingRejection.PolicyEvidence);
@@ -101,7 +144,6 @@ internal sealed partial class EditorWorkspace
             var compilation = state.Compilation;
             if (compilation is not CompilationPublishedProjection)
             {
-                DisposeUnpublishedWorkspace(state);
                 return compilation is CompilationRejectedProjection rejected
                     ? RejectOpen(
                         rejected.RejectionCode,
@@ -124,11 +166,11 @@ internal sealed partial class EditorWorkspace
 
             if (rejectionReason is not null)
             {
-                DisposeUnpublishedWorkspace(state);
                 return RejectOpen(rejectionReason);
             }
 
-            return new WorkspaceOpened(id, Project(state));
+            published = true;
+            return new WorkspaceOpened(state.Id, Project(state));
         }
         catch (OperationCanceledException exception)
             when (ExceptionClassifier.IsCooperativeCancellation(
@@ -142,12 +184,16 @@ internal sealed partial class EditorWorkspace
             var code = ExceptionClassifier.IsInfrastructureFailure(exception)
                 ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
                 : WorkspaceOutcomeReasons.WorkspaceInternalDefect;
-            LogDurableOpenFailure(
-                logger,
-                exception,
-                ApplicationCorrelation.CurrentOrCreate(),
-                stage,
-                code);
+            var correlation = ApplicationCorrelation.CurrentOrCreate();
+            if (request is OpenDurable)
+            {
+                LogDurableOpenFailure(logger, exception, correlation, stage, code);
+            }
+            else
+            {
+                LogProjectImportFailure(logger, exception, correlation, stage, code);
+            }
+
             return RejectOpen(code);
         }
         finally
@@ -156,8 +202,24 @@ internal sealed partial class EditorWorkspace
             {
                 ReleaseWorkspaceReservation(request.Caller);
             }
+
+            if (!published && state is not null)
+            {
+                DisposeUnpublishedWorkspace(state);
+            }
         }
     }
+
+    [LoggerMessage(
+        EventId = 1009,
+        Level = LogLevel.Error,
+        Message = "Project import failed with correlation {Correlation}, stage {Stage}, and outcome {OutcomeCode}.")]
+    private static partial void LogProjectImportFailure(
+        ILogger logger,
+        Exception exception,
+        string correlation,
+        string stage,
+        string outcomeCode);
 
     [LoggerMessage(
         EventId = 1006,

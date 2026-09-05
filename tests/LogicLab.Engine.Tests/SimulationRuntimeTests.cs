@@ -123,6 +123,18 @@ internal sealed class SimulationRuntimeTests
             await Assert.That(replaced.SessionVersion).IsEqualTo(2UL);
             await Assert.That(replaced.ProbeIds[0]).IsEqualTo(opened.ProbeIds[0]);
             await Assert.That(replaced.ProbeIds[1]).IsNotEqualTo(opened.ProbeIds[0]);
+            await Assert.That(replaced.ObservedProbes.Select(probe => probe.ProbeId))
+                .IsEquivalentTo(replaced.ProbeIds, CollectionOrdering.Matching);
+            await Assert.That(replaced.ObservedProbes.Select(probe => probe.Source))
+                .IsEquivalentTo(
+                    snapshot.Probes.Select(probe => probe.Source),
+                    CollectionOrdering.Matching);
+            await Assert.That(replaced.ObservedProbes.Select(probe => probe.Value[0]))
+                .IsEquivalentTo(
+                    [LogicValue.One, LogicValue.Zero],
+                    CollectionOrdering.Matching);
+            await Assert.That(snapshot.Probes.Select(probe => probe.Value[0]))
+                .IsEquivalentTo([LogicValue.One, LogicValue.Zero], CollectionOrdering.Matching);
             await Assert.That(snapshot.Probes.Select(probe => probe.Source))
                 .IsEquivalentTo(
                     [outputSource, inputSource],
@@ -131,6 +143,7 @@ internal sealed class SimulationRuntimeTests
             await Assert.That(createdTrace.Transitions[0].ProbeId)
                 .IsEqualTo(replaced.ProbeIds[1]);
             await Assert.That(createdTrace.Transitions[0].LogicalTime).IsEqualTo(0UL);
+            await Assert.That(createdTrace.Transitions[0].Value[0]).IsEqualTo(LogicValue.Zero);
         }
     }
 
@@ -413,6 +426,33 @@ internal sealed class SimulationRuntimeTests
     }
 
     [Test]
+    public async Task Execute_ScheduleVersionOverflow_PreservesEventQueue()
+    {
+        var context = SimulationTestContext.Create();
+        var opened = OpenOutputProbe(context);
+        opened.Handle.State.SessionVersion = ulong.MaxValue;
+
+        var outcome = SimulationRuntime.Execute(
+            opened.Handle,
+            Schedule(context, logicalTime: 10, LogicValue.One),
+            CancellationToken.None);
+        var failed = (await Assert.That(outcome).IsTypeOf<SimulationCommandFailed>())!;
+        var next = SimulationRuntime.Execute(
+            opened.Handle,
+            new AdvanceToNextQuiescentBoundary(),
+            CancellationToken.None);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(failed.Reason).IsEqualTo(SimulationFailureReason.SimulationInternalDefect);
+            await Assert.That(failed.SessionVersion).IsEqualTo(ulong.MaxValue);
+            await Assert.That(next).IsTypeOf<NoScheduledStimulus>();
+            await Assert.That(opened.Handle.State.NextStimulusSequence).IsEqualTo(0UL);
+            await Assert.That(opened.Handle.State.ScheduledAssignmentCount).IsEqualTo(0UL);
+        }
+    }
+
+    [Test]
     public async Task Execute_StimulusAtCommittedTime_PreservesSession()
     {
         var context = SimulationTestContext.Create();
@@ -436,6 +476,62 @@ internal sealed class SimulationRuntimeTests
             await Assert.That(invalid.LogicalTime).IsEqualTo(0UL);
             await Assert.That(snapshot.SessionVersion).IsEqualTo(1UL);
             await Assert.That(snapshot.TraceCursor).IsEqualTo(opened.TraceCursor);
+        }
+    }
+
+    [Test]
+    [Arguments(StimulusBatchInvalidRule.DriverSourceUnresolved)]
+    [Arguments(StimulusBatchInvalidRule.DriverNotExternalInput)]
+    [Arguments(StimulusBatchInvalidRule.DriverWidthMismatch)]
+    public async Task Execute_InvalidAssignment_PreservesWholeBatchAndExistingQueue(
+        StimulusBatchInvalidRule expectedRule)
+    {
+        var context = SimulationTestContext.Create();
+        var opened = OpenOutputProbe(context);
+        _ = SimulationRuntime.Execute(
+            opened.Handle,
+            Schedule(context, logicalTime: 20, LogicValue.One),
+            CancellationToken.None);
+        var inputSource = context.InputDriverSource();
+        var invalidSource = expectedRule switch
+        {
+            StimulusBatchInvalidRule.DriverSourceUnresolved =>
+                context.NetSource(context.Circuit.OutputNet.Id),
+            StimulusBatchInvalidRule.DriverNotExternalInput =>
+                context.Artifact.SourceMap.Drivers.First(entry => entry.Source != inputSource).Source,
+            _ => inputSource,
+        };
+        var invalidValue = expectedRule == StimulusBatchInvalidRule.DriverWidthMismatch
+            ? new LogicVector([LogicValue.Zero, LogicValue.One])
+            : new LogicVector([LogicValue.One]);
+
+        var outcome = SimulationRuntime.Execute(
+            opened.Handle,
+            new ScheduleStimulusBatch(new StimulusBatch(10,
+            [
+                new StimulusAssignment(inputSource, new LogicVector([LogicValue.Zero])),
+                new StimulusAssignment(invalidSource, invalidValue),
+            ])),
+            CancellationToken.None);
+        var snapshot = (SessionSnapshotRead)SimulationRuntime.Read(
+            opened.Handle, new ReadSessionSnapshot(), CancellationToken.None);
+        var next = (AdvanceCommitted)SimulationRuntime.Execute(
+            opened.Handle, new AdvanceToNextQuiescentBoundary(), CancellationToken.None);
+        var exhausted = SimulationRuntime.Execute(
+            opened.Handle, new AdvanceToNextQuiescentBoundary(), CancellationToken.None);
+
+        var invalid = (await Assert.That(outcome).IsTypeOf<StimulusBatchInvalid>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(invalid.Rule).IsEqualTo(expectedRule);
+            await Assert.That(invalid.SessionVersion).IsEqualTo(2UL);
+            await Assert.That(snapshot.SessionVersion).IsEqualTo(invalid.SessionVersion);
+            await Assert.That(snapshot.LogicalTime).IsEqualTo(0UL);
+            await Assert.That(snapshot.Probes[0].Value[0]).IsEqualTo(LogicValue.One);
+            await Assert.That(snapshot.TraceCursor).IsEqualTo(opened.TraceCursor);
+            await Assert.That(next.LogicalTime).IsEqualTo(20UL);
+            await Assert.That(next.ObservedProbePatch[0].Value[0]).IsEqualTo(LogicValue.Zero);
+            await Assert.That(exhausted).IsTypeOf<NoScheduledStimulus>();
         }
     }
 
@@ -468,6 +564,8 @@ internal sealed class SimulationRuntimeTests
             await Assert.That(snapshot.LogicalTime).IsEqualTo(0UL);
             await Assert.That(snapshot.TraceCursor).IsEqualTo(opened.TraceCursor);
         }
+
+        await AssertPendingInputCommits(opened);
     }
 
     [Test]
@@ -603,6 +701,8 @@ internal sealed class SimulationRuntimeTests
             await Assert.That(after.TraceCursor).IsEqualTo(before.TraceCursor);
             await Assert.That(after.Probes[0].Value[0]).IsEqualTo(LogicValue.One);
         }
+
+        await AssertPendingInputCommits(opened);
     }
 
     [Test]
@@ -704,18 +804,16 @@ internal sealed class SimulationRuntimeTests
             await Assert.That(beforeAdvance.TraceCursor).IsEqualTo(opened.TraceCursor);
         }
 
+        // Generated assignments at one time agree, so each group has one settled value.
         var expectedBuckets = stimuli
-            .Select((stimulus, insertionIndex) => (stimulus, insertionIndex))
-            .OrderBy(item => item.stimulus.LogicalTime)
-            .ThenBy(item => item.insertionIndex)
-            .GroupBy(item => item.stimulus.LogicalTime)
-            .Select(group => group.Select(item => item.stimulus).ToArray())
+            .GroupBy(stimulus => stimulus.LogicalTime)
+            .OrderBy(group => group.Key)
+            .Select(group => group.First())
             .ToArray();
         var previousProbeValue = LogicValue.One;
         for (var index = 0; index < expectedBuckets.Length; index++)
         {
-            var bucket = expectedBuckets[index];
-            var (logicalTime, value) = bucket[^1];
+            var (logicalTime, value) = expectedBuckets[index];
             var expectedProbeValue = ScalarLogic.Not(value);
             LogicValue[] expectedPatch = expectedProbeValue == previousProbeValue
                 ? []
@@ -898,6 +996,23 @@ internal sealed class SimulationRuntimeTests
             await Assert.That(failed.Reason)
                 .IsEqualTo(SimulationFailureReason.SimulationCancelled);
             await Assert.That(failed.Diagnostics).IsEmpty();
+        }
+    }
+
+    private static async Task AssertPendingInputCommits(SimulationOpened opened)
+    {
+        var outcome = SimulationRuntime.Execute(
+            opened.Handle, new AdvanceToNextQuiescentBoundary(), CancellationToken.None);
+        var committed = (await Assert.That(outcome).IsTypeOf<AdvanceCommitted>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(committed.LogicalTime).IsEqualTo(10UL);
+            await Assert.That(committed.SessionVersion).IsEqualTo(3UL);
+            await Assert.That(committed.ObservedProbePatch.Select(probe => (probe.ProbeId, probe.Value[0])))
+                .IsEquivalentTo([(opened.ProbeIds[0], LogicValue.Zero)], CollectionOrdering.Matching);
+            await Assert.That(SimulationRuntime.Execute(
+                    opened.Handle, new AdvanceToNextQuiescentBoundary(), CancellationToken.None))
+                .IsTypeOf<NoScheduledStimulus>();
         }
     }
 

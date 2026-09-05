@@ -149,6 +149,7 @@ public static partial class ProjectPackage
             }
 
             var carrierBytes = countingDestination.BytesWritten;
+            cancellationToken.ThrowIfCancellationRequested();
 
             var carrierBreach = FindBreach(
                 request.PackagePolicy,

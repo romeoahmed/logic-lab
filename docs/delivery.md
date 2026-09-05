@@ -2,7 +2,7 @@
 
 > **Status:** approved execution plan
 >
-> **Current frontier:** item `33`
+> **Current frontier:** Workbench conformance (`26`, `27`), then Component evidence (`33`)
 >
 > **Qualification gate:** item `43`
 >
@@ -14,7 +14,9 @@ plan rather than treating it as a second specification.
 
 ## Delivery status
 
-Items `01`–`27` are complete. Item `33` closes V1 Component evidence.
+Items `01`–`25` are complete. Items `26` and `27` have working Scene and waveform
+implementations, but remain open for the documented Workbench behavior. Item `33`
+closes V1 Component evidence.
 Items `34`–`43` qualify one concrete production deployment. Boolean explanation
 and proof-gated simplification are outside V1 and follow the separate future plan
 at items `F01`–`F05`.
@@ -48,8 +50,6 @@ at items `F01`–`F05`.
 | `23` | basic TeachingMixed Geometry Plans                    |
 | `24` | complex and hierarchical symbol projection            |
 | `25` | sequential and memory symbols with conformance export |
-| `26` | responsive Scene interaction and recovery             |
-| `27` | complete Logic Analyzer                               |
 
 Completed-item detail belongs to the owning specification, executable tests, and
 Git history. This table intentionally keeps only the delivery record.
@@ -58,10 +58,17 @@ Git history. This table intentionally keeps only the delivery record.
 
 |   ID | Slice                          | Requires                           | Completion signal                                                                                                                            |
 | ---: | ------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `26` | Workbench authoring and inspection | `12`, `18`, `25` | documented authoring and revision-history actions are reachable; selection facts and shared Probe identity cues pass interaction evidence |
+| `27` | Instrument Bay observation and diagnostics | `18`, `26` | waveform observation and the complete ordered, source-linked Diagnostics list support navigation and recovery |
 | `33` | V1 Component evidence manifest | `15`, `16`, `18`, `22`, `25`, `27` | every `logiclab.core` Contract ID has the required schema, oracle, lowering, serialization, symbol, property, Hot Swap, and browser evidence |
 
-V1 behavior is implementation-complete at item `27` and conformance-complete at
-item `33`; neither statement makes a deployment production-qualified.
+The current Workbench lacks revision-history controls and the Diagnostics tab;
+Inspector also lacks the shared Probe identity cue required by
+[Product](./product.md#inspector-diagnostics-and-waveform). Existing lower-layer
+commands and passing Scene/waveform tests do not close these integration gaps.
+Items `26` and `27` must satisfy their completion signals before V1 behavior is
+called implementation-complete. Item `33` and production qualification remain
+separate gates.
 
 ## Production qualification
 
@@ -121,6 +128,6 @@ change. Future items never block items `33`–`43`.
 
 ## Dependency frontier
 
-Item `33` is next and closes current V1 Component evidence. Item `34` then starts
-deployment qualification. Items `F01`–`F05` have no dependency edge into this
-frontier.
+Items `26` and `27` close the Workbench gaps before item `33` closes V1 Component
+evidence. Item `34` then starts deployment qualification. Items `F01`–`F05` have no
+dependency edge into this frontier.

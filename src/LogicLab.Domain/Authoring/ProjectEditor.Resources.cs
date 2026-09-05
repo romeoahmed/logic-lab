@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Text;
 
 namespace LogicLab.Domain.Authoring;
 
@@ -345,7 +344,7 @@ public static partial class ProjectEditor
         var moves = new Dictionary<AnnotationId, GridPoint>();
         foreach (var move in intent.Moves)
         {
-            if (move.AnnotationId is null || !moves.TryAdd(move.AnnotationId, move.Position))
+            if (!moves.TryAdd(move.AnnotationId, move.Position))
             {
                 diagnostics.Add(DuplicateId("annotation"));
             }
@@ -445,16 +444,7 @@ public static partial class ProjectEditor
         var rule = GetAnnotationTextRule(value.Text, cancellationToken);
         if (rule is not null)
         {
-            diagnostics.Add(new AuthoringDiagnostic(
-                "authoring_invalid_text",
-                [
-                    new AuthoringDiagnosticArgument(
-                        "field",
-                        new StableTokenDiagnosticValue("annotationText")),
-                    new AuthoringDiagnosticArgument(
-                        "rule",
-                        new StableTokenDiagnosticValue(rule)),
-                ]));
+            diagnostics.Add(InvalidText("annotationText", rule));
         }
 
         if (!Enum.IsDefined(value.Alignment))
@@ -467,47 +457,8 @@ public static partial class ProjectEditor
 
     private static string? GetAnnotationTextRule(
         string? value,
-        CancellationToken cancellationToken)
-    {
-        if (value is null)
-        {
-            return "required";
-        }
-
-        for (var index = 0; index < value.Length; index++)
-        {
-            if ((index & 4_095) == 0)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-
-            var character = value[index];
-            if (character <= '\u001f' && character != '\n')
-            {
-                return "controlCharacter";
-            }
-
-            if (char.IsHighSurrogate(character))
-            {
-                if (index + 1 >= value.Length || !char.IsLowSurrogate(value[index + 1]))
-                {
-                    return "unicodeScalar";
-                }
-
-                index++;
-            }
-            else if (char.IsLowSurrogate(character))
-            {
-                return "unicodeScalar";
-            }
-        }
-
-        var isNormalized = value.IsNormalized(NormalizationForm.FormC);
-        cancellationToken.ThrowIfCancellationRequested();
-        return isNormalized
-            ? null
-            : "normalizationFormC";
-    }
+        CancellationToken cancellationToken) =>
+        value is null ? "required" : GetUnicodeTextRule(value, allowLineFeed: true, cancellationToken);
 
     private static HashSet<(
         CircuitDefinitionId DefinitionId,

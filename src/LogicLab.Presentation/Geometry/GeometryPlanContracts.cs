@@ -469,7 +469,7 @@ internal static class GeometryPlanValidator
         operation switch
         {
             StrokePathV1 stroke => Contains(bounds, StrokeEnvelope(stroke)),
-            FillPathV1 fill => PathPoints(fill.Path).All(bounds.Contains),
+            FillPathV1 fill => Contains(bounds, fill.Path.ControlBounds),
             DrawTextV1 text => bounds.Contains(text.Origin)
                 && Contains(bounds, text.Bounds),
             _ => false,
@@ -483,27 +483,8 @@ internal static class GeometryPlanValidator
             : halfWidth;
     }
 
-    private static RectV1 StrokeEnvelope(StrokePathV1 stroke)
-    {
-        var pathBounds = RectV1.Enclose([.. PathPoints(stroke.Path)]);
-        var margin = ConservativeStrokeMargin(stroke.Width, stroke.LineJoin);
-        return new RectV1(
-            checked(pathBounds.Left - margin),
-            checked(pathBounds.Top - margin),
-            checked(pathBounds.Right + margin),
-            checked(pathBounds.Bottom + margin));
-    }
-
-    private static IEnumerable<PointV1> PathPoints(PathV1 path) =>
-        path.Commands.SelectMany(command => command switch
-        {
-            MoveToV1 move => new[] { move.Point },
-            LineToV1 line => [line.Point],
-            CubicToV1 cubic => [cubic.Control1, cubic.Control2, cubic.End],
-            ClosePathV1 => [],
-            _ => throw new InvalidOperationException(
-                "The Geometry Plan path command variant is undefined."),
-        });
+    private static RectV1 StrokeEnvelope(StrokePathV1 stroke) =>
+        stroke.Path.ControlBounds.Inflate(ConservativeStrokeMargin(stroke.Width, stroke.LineJoin));
 
     private static bool Contains(RectV1 outer, RectV1 inner) =>
         inner.Left >= outer.Left

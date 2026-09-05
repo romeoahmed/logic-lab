@@ -77,7 +77,11 @@ jobs:
       - name: Lint deployment script
         run: |
           bash -n .github/scripts/run-database-jobs.sh
-          shellcheck .github/scripts/run-database-jobs.sh
+          bash -n .github/scripts/verify-web-release.sh
+          shellcheck -P .github/scripts .github/scripts/*.sh
+
+      - name: Verify release checks with simulated Azure responses
+        run: bash .github/scripts/test-web-release.sh
 
   build-and-test:
     name: Build and test (${{ matrix.runner }})

@@ -16,12 +16,17 @@ public sealed partial class SceneToolStrip
     public bool CanProbe { get; set; }
 
     [Parameter]
+    public bool CanWire { get; set; } = true;
+
+    [Parameter]
     public EventCallback<SceneToolV1> ActiveToolChanged { get; set; }
 
     [Inject]
     private IStringLocalizer<EditorText> Text { get; set; } = null!;
 
-    private Task ChangeToolAsync(SceneToolV1 tool) => ActiveToolChanged.InvokeAsync(tool);
+    private Task ChangeToolAsync(SceneToolV1 tool) => tool is SceneWireToolV1 && !CanWire
+        ? Task.CompletedTask
+        : ActiveToolChanged.InvokeAsync(tool);
 
     private Task SelectProbeToolAsync() => !CanProbe || HierarchyPath is null
         ? Task.CompletedTask

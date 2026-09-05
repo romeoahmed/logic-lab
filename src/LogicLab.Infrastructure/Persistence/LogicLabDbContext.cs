@@ -138,4 +138,3 @@ public sealed class LogicLabDbContext(DbContextOptions<LogicLabDbContext> option
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
-#pragma warning restore CA1812

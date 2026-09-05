@@ -41,7 +41,7 @@ internal static class SchematicPrimitiveProjector
             labelEnvelope,
             Opposite(direction),
             h);
-        var labelBounds = SchematicGeometry.Translate(labelEnvelope, labelOrigin);
+        var labelBounds = labelEnvelope.Translate(labelOrigin);
         var operations = new DrawOperationV1[]
         {
             DefinitionPortStroke(
@@ -103,9 +103,9 @@ internal static class SchematicPrimitiveProjector
                         $"wire-segment-{index}",
                         HitRegionKindV1.Body,
                         null,
-                        new RectHitShapeV1(SchematicGeometry.Inflate(
-                            RectV1.Enclose([points[index], points[index + 1]]),
-                            hitPadding)));
+                        new RectHitShapeV1(
+                            RectV1.Enclose([points[index], points[index + 1]])
+                                .Inflate(hitPadding)));
                 }
 
                 return new WireGeometryItemV1(
@@ -159,9 +159,7 @@ internal static class SchematicPrimitiveProjector
             _ => throw new InvalidOperationException("The Annotation alignment is undefined."),
         };
         var origin = SchematicGeometry.ToPlanPoint(annotation.Position, fingerprint);
-        // StringSplitOptions.None preserves empty logical lines, including leading,
-        // adjacent, and trailing LF delimiters.
-        // Source: https://learn.microsoft.com/en-us/dotnet/api/system.string.split?view=net-10.0
+        // Empty logical lines advance the baseline without producing glyphs.
         var lines = annotation.Text.Split('\n', StringSplitOptions.None);
         var visibleLines = new List<(
             int Index,
@@ -208,7 +206,7 @@ internal static class SchematicPrimitiveProjector
             var lineOrigin = new PointV1(
                 origin.X,
                 checked(origin.Y + (line.Index * linePitch)));
-            var lineBounds = SchematicGeometry.Translate(line.Envelope, lineOrigin);
+            var lineBounds = line.Envelope.Translate(lineOrigin);
             operations[index] = new DrawTextV1(
                 line.Text,
                 FontRoleV1.Symbol,

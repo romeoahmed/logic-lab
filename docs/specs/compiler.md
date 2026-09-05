@@ -89,9 +89,11 @@ The `logiclab.core` Library Snapshot schema, Contract Keys, generated Ports, nor
 Compilation performs these logical stages in stable order:
 
 1. validate the exact Project Revision, entry definition, Library Snapshot, and policy provenance;
-2. resolve Component Contracts and parameters, then measure generated Port shapes without generating Port identities;
-3. build the definition call graph and reject recursion with one canonical witness;
-4. elaborate every reachable occurrence with a complete Hierarchy Path;
+2. resolve definition call targets and reject recursion with one canonical witness;
+3. elaborate every reachable occurrence with a complete Hierarchy Path under depth
+   and occurrence-count limits; a flat entry uses one root occurrence in this same pipeline;
+4. resolve Component Contracts and parameters, then measure generated Port shapes
+   without generating Port identities;
 5. admit the complete elaborated shape under Project Scale Policy;
 6. materialize generated Ports and resolve Memory Images into contiguous packed two-plane
    storage, after admitting each referenced image's checked `word width * depth` bit-cell count,
@@ -127,6 +129,8 @@ IR is never serialized, persisted, accepted from a caller, sent to the browser, 
 
 - Ordinals are dense, zero-based, Compilation-local, and assigned from canonical source order.
 - Every evaluator input, Driver, Net, fanout, SCC member, state slot, and memory range is in bounds.
+- Net receiver and fanout rows contain each receiving evaluator once, even when
+  several of its inputs share a Net. Evaluator inputs retain their ordered Port slots.
 - CSR offsets are monotonic, start at zero, and end at the exact backing-array length.
 - Each combinational node belongs to exactly one SCC; the condensation order covers every SCC once.
 - Every externally observable diagnostic, Probe binding, Trace value, and

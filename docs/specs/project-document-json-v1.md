@@ -126,7 +126,7 @@ NetDtoV1
 
 TerminalReferenceV1 =
   { kind: "definitionPort", portId: OpaqueIdV1 }
-  | { kind: "instancePort", componentInstanceId: OpaqueIdV1, portId: StableName }
+  | { kind: "instancePort", componentInstanceId: OpaqueIdV1, portId: StableName | OpaqueIdV1 }
 
 JunctionDtoV1
   id: OpaqueIdV1
@@ -146,6 +146,8 @@ GridPointV1
   x: signed 32-bit JSON integer
   y: signed 32-bit JSON integer
 ```
+
+An instance Terminal's `portId` is a catalog `StableName` for a library target or the referenced definition's public Port `OpaqueIdV1` for a Circuit Definition target. Domain resolves that identity against the target; the spelling does not determine the target kind.
 
 Terminal and Junction membership arrays preserve authored order and contain no duplicates. Every referenced entity exists in the same Circuit Definition. Each Junction's `netId` agrees with exactly one Net membership. Every Net owns at least one Terminal, Junction, or Wire Geometry. An orthogonal route has at least two points, no adjacent duplicates, and each segment changes exactly one coordinate. A route need not be used to reconstruct membership; geometric crossings never connect.
 

@@ -121,6 +121,51 @@ internal sealed class OpenDurableWorkspaceTests
     }
 
     [Test]
+    public async Task OpenAsync_DurableDocumentBeyondAuthoringLimits_RejectsBeforeCompilation()
+    {
+        var revision = Commit(ProjectEditor.Apply(
+            CreateCompleteRevision(),
+            new CreateCircuitDefinitionIntent("Second", [])));
+        var loader = new RecordingLoader(new DurableProjectOpenFound(
+            ProjectId,
+            new DurableDisplayName("Oversized project"),
+            new DurableVersion("oversized-version"),
+            revision));
+        var compilationCount = 0;
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            Compile = (request, token) =>
+            {
+                Interlocked.Increment(ref compilationCount);
+                return production.Compile(request, token);
+            },
+        };
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
+            operations,
+            workspacePolicy: SingleWorkspacePolicy(
+                authoringLimits: new WorkspaceAuthoringLimits(1, 100, 100)),
+            durableProjectLoader: loader);
+
+        var outcome = await workspace.OpenAsync(
+            new OpenDurable(ProjectId, Owner),
+            CancellationToken.None);
+        var replacement = await workspace.OpenAsync(
+            new CreateSandbox("Replacement", "Main", AnonymousWorkspaceCaller.Instance),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceOpenRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Code).IsEqualTo("workspace_admission_rejected");
+            await Assert.That(rejected.PolicyEvidence).IsEqualTo(new PolicyEvidenceProjection(
+                "open-durable-tests", "1", "authoring_definition_count", 2));
+            await Assert.That(compilationCount).IsEqualTo(0);
+            await Assert.That(replacement).IsTypeOf<WorkspaceOpened>();
+        }
+    }
+
+    [Test]
     public async Task OpenAsync_LoaderReturnsDifferentProject_RejectsDefectWithoutPublication()
     {
         var loader = new RecordingLoader(new DurableProjectOpenFound(
@@ -571,7 +616,9 @@ internal sealed class OpenDurableWorkspaceTests
         }
     }
 
-    private static WorkspacePolicy SingleWorkspacePolicy(int globalWorkspaceLimit = 1)
+    private static WorkspacePolicy SingleWorkspacePolicy(
+        int globalWorkspaceLimit = 1,
+        WorkspaceAuthoringLimits? authoringLimits = null)
     {
         return new WorkspacePolicy(
             "open-durable-tests",
@@ -580,7 +627,7 @@ internal sealed class OpenDurableWorkspaceTests
             anonymousWorkspaceLimit: globalWorkspaceLimit,
             workspaceCountPerSubject: globalWorkspaceLimit,
             sandboxRetention: TimeSpan.FromMinutes(1),
-            authoringLimits: WorkspaceAuthoringLimits.Default,
+            authoringLimits: authoringLimits ?? WorkspaceAuthoringLimits.Default,
             historyRevisionCount: 4,
             idempotencyRecordCount: 4,
             detachedRetention: TimeSpan.FromMinutes(1),

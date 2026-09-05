@@ -104,8 +104,10 @@ redirects to an account page. Account ingress rejection uses
 the exact code `authentication_rate_limit_exceeded`, maps to `429`, and includes
 `Retry-After` only when the limiter supplies an honest duration. An endpoint
 request body that exceeds its declared [Web Host limit](../specs/web-host.md#6-http-files-and-errors) uses the exact code
-`request_body_too_large` and maps to `413`. A protected form request whose antiforgery verdict is invalid uses the
-exact code `antiforgery_validation_failed`, maps to `400`, and never enters form
+`request_body_too_large` and maps to `413`, including a size rejection discovered
+while reading a chunked body and wrapped by antiforgery validation. A protected
+form request whose antiforgery verdict is invalid uses the exact code
+`antiforgery_validation_failed`, maps to `400`, and never enters form
 binding or application work.
 
 Anonymous editor identity issuance rejection uses the exact code

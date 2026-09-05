@@ -31,6 +31,7 @@ internal static class CompilerGraph
         int[][] adjacency,
         CancellationToken cancellationToken)
     {
+        // Iterative Kosaraju keeps deep circuits off the call stack; ordinals are canonicalized later.
         var finishOrder = ComputeFinishOrder(adjacency, cancellationToken);
         var reverse = Reverse(adjacency, cancellationToken);
         var assigned = new bool[adjacency.Length];
@@ -54,8 +55,9 @@ internal static class CompilerGraph
                 cancellationToken.ThrowIfCancellationRequested();
                 var node = stack.Pop();
                 members.Add(node);
-                foreach (var predecessor in reverse[node].Reverse())
+                for (var index = reverse[node].Length - 1; index >= 0; index--)
                 {
+                    var predecessor = reverse[node][index];
                     if (!assigned[predecessor])
                     {
                         assigned[predecessor] = true;
@@ -215,7 +217,8 @@ internal static class CompilerGraph
         for (var ordinal = 0; ordinal < reverse.Length; ordinal++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            canonical[ordinal] = [.. reverse[ordinal].Order()];
+            // Edges were appended in ascending source order.
+            canonical[ordinal] = [.. reverse[ordinal]];
         }
 
         return canonical;

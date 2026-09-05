@@ -18,17 +18,15 @@ internal sealed class MemoryEvaluationTests
     [Test]
     public async Task Read_EveryTwoBitAddress_MatchesEnumeratedReachableWords()
     {
-        LogicVector[] words =
+        LogicValue[][] words =
         [
-            new([LogicValue.Zero, LogicValue.Zero]),
-            new([LogicValue.One, LogicValue.Zero]),
-            new([LogicValue.Zero, LogicValue.One]),
-            new([LogicValue.One, LogicValue.One]),
+            [LogicValue.Zero, LogicValue.Zero],
+            [LogicValue.One, LogicValue.Zero],
+            [LogicValue.Zero, LogicValue.One],
+            [LogicValue.One, LogicValue.One],
         ];
         var memory = PackedMemory.FromImage(
-            MemoryTestCircuit.Create().CreateMemoryImage(
-                "Words",
-                [.. words.Select(LogicVectorTestData.ToValues)]),
+            MemoryTestCircuit.Create().CreateMemoryImage("Words", words),
             CancellationToken.None);
 
         foreach (var low in AddressValues)
@@ -40,9 +38,8 @@ internal sealed class MemoryEvaluationTests
                     .Where(index => Matches(index, address))
                     .Select(index => words[index])
                     .ToArray();
-                var expected = new LogicVector(
-                    [.. Enumerable.Range(0, 2).Select(bit => ConservativeMerge.Merge(
-                        [.. reachable.Select(word => word[bit])]))]);
+                var expected = Enumerable.Range(0, 2).Select(bit => ConservativeMerge.Merge(
+                    [.. reachable.Select(word => word[bit])])).ToArray();
 
                 var actual = MemoryEvaluation.Read(
                     memory,
@@ -50,9 +47,7 @@ internal sealed class MemoryEvaluationTests
                     CancellationToken.None);
 
                 await Assert.That(LogicVectorTestData.ToValues(actual))
-                    .IsEquivalentTo(
-                        LogicVectorTestData.ToValues(expected),
-                        CollectionOrdering.Matching);
+                    .IsEquivalentTo(expected, CollectionOrdering.Matching);
             }
         }
     }
@@ -60,17 +55,15 @@ internal sealed class MemoryEvaluationTests
     [Test]
     public async Task Write_EveryTwoBitAddressAndEnable_MatchesEnumeratedPossibilities()
     {
-        LogicVector[] words =
+        LogicValue[][] words =
         [
-            new([LogicValue.Zero, LogicValue.Zero]),
-            new([LogicValue.Zero, LogicValue.Zero]),
-            new([LogicValue.Zero, LogicValue.Zero]),
-            new([LogicValue.Zero, LogicValue.Zero]),
+            [LogicValue.Zero, LogicValue.Zero],
+            [LogicValue.Zero, LogicValue.Zero],
+            [LogicValue.Zero, LogicValue.Zero],
+            [LogicValue.Zero, LogicValue.Zero],
         ];
         var initialMemory = PackedMemory.FromImage(
-            MemoryTestCircuit.Create().CreateMemoryImage(
-                "Words",
-                [.. words.Select(LogicVectorTestData.ToValues)]),
+            MemoryTestCircuit.Create().CreateMemoryImage("Words", words),
             CancellationToken.None);
         var data = new LogicVector([LogicValue.One, LogicValue.Z]);
 
@@ -98,23 +91,20 @@ internal sealed class MemoryEvaluationTests
                             data,
                             writeEnable,
                             wordIndex);
-                        var expected = new LogicVector(
-                            [.. Enumerable.Range(0, data.Width).Select(bit =>
-                                ConservativeMerge.Merge(
-                                    [.. possibleWords.Select(word => word[bit])]))]);
+                        var expected = Enumerable.Range(0, data.Width).Select(bit =>
+                            ConservativeMerge.Merge(
+                                [.. possibleWords.Select(word => word[bit])])).ToArray();
                         await Assert.That(LogicVectorTestData.ToValues(
                                 actual.ReadWord(wordIndex)))
-                            .IsEquivalentTo(
-                                LogicVectorTestData.ToValues(expected),
-                                CollectionOrdering.Matching);
+                            .IsEquivalentTo(expected, CollectionOrdering.Matching);
                     }
                 }
             }
         }
     }
 
-    private static LogicVector[] EnumerateWrites(
-        LogicVector[] words,
+    private static LogicValue[][] EnumerateWrites(
+        LogicValue[][] words,
         LogicVector address,
         LogicVector data,
         LogicValue writeEnable,
@@ -130,7 +120,8 @@ internal sealed class MemoryEvaluationTests
             LogicValue.X or LogicValue.Z => [false, true],
             _ => throw new InvalidOperationException(),
         };
-        var normalizedData = VectorLogic.NormalizeInput(data);
+        var normalizedData = LogicVectorTestData.ToValues(data)
+            .Select(value => value == LogicValue.Z ? LogicValue.X : value).ToArray();
         return
         [
             .. from concreteAddress in concreteAddresses

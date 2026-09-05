@@ -94,12 +94,9 @@ public sealed record TeachingMixedConformanceManifestEntryV1
         ComponentInstanceId = componentInstanceId;
         SymbolVariantId = symbolVariantId;
         Claim = claim;
-        StandardReferences = Array.AsReadOnly(standardReferences
-            .Select(Copy)
-            .ToArray());
-        Deviations = Array.AsReadOnly(deviations
-            .Select(Copy)
-            .ToArray());
+        // Evidence records already own their nested collections.
+        StandardReferences = Array.AsReadOnly(standardReferences.ToArray());
+        Deviations = Array.AsReadOnly(deviations.ToArray());
     }
 
     public ComponentInstanceId ComponentInstanceId { get; }
@@ -111,15 +108,6 @@ public sealed record TeachingMixedConformanceManifestEntryV1
     public ReadOnlyCollection<StandardReferenceV1> StandardReferences { get; }
 
     public ReadOnlyCollection<ConformanceDeviationV1> Deviations { get; }
-
-    private static StandardReferenceV1 Copy(StandardReferenceV1 reference) => new(
-        reference.PublicationId,
-        reference.Edition,
-        reference.ClauseIds);
-
-    private static ConformanceDeviationV1 Copy(ConformanceDeviationV1 deviation) => new(
-        deviation.DeviationCode,
-        deviation.AffectedPortIds);
 }
 
 public sealed record StrictConformanceViolationV1

@@ -65,7 +65,7 @@
   <data name="HelpCanvasPanDescription" xml:space="preserve"><value>选择“平移”后拖动画布；按住空格键可临时切换到平移。</value></data>
   <data name="HelpCanvasZoom" xml:space="preserve"><value>缩放</value></data>
   <data name="HelpCanvasZoomDescription" xml:space="preserve"><value>使用画布内的控件；电路超出画布时，选择“适合窗口”恢复全图。</value></data>
-  <data name="HelpAdvancedTopologyTitle" xml:space="preserve"><value>高级布线</value></data>
-  <data name="HelpAdvancedTopologyDescription" xml:space="preserve"><value>仅在需要修改网络成员关系、结点或精确导线路径时展开。</value></data>
+  <data name="HelpSelectionActionsTitle" xml:space="preserve"><value>检查与编辑选区</value></data>
+  <data name="HelpSelectionActionsDescription" xml:space="preserve"><value>检查选区面板显示对象属性和可用的删除、网络合并、成员分离操作。按住 Shift 可多选。</value></data>
   <data name="HelpKeepWorkTitle" xml:space="preserve"><value>在沙盒之外保留工作</value></data>
 </root>

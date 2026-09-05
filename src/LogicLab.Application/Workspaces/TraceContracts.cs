@@ -79,6 +79,12 @@ public sealed record TraceWindowRequest
         ArgumentNullException.ThrowIfNull(compilationArtifactKey);
         ArgumentNullException.ThrowIfNull(probeIds);
         ArgumentNullException.ThrowIfNull(representation);
+        // A default struct bypasses TraceTimeRange's constructor.
+        if (range.StartInclusive >= range.EndExclusive)
+        {
+            throw new ArgumentException("A Trace window range must be nonempty.", nameof(range));
+        }
+
         if (representation is TraceVisualSummaryRequest && afterSequence is not null)
         {
             throw new ArgumentException(

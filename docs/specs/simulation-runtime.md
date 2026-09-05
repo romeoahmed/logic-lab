@@ -96,7 +96,7 @@ SimulationCommandOutcome =
       reason, Diagnostics[], policyEvidence?
     }
   | ProbeBindingsReplaced {
-      SessionVersion, ordered ProbeIds[], Trace cursor
+      SessionVersion, ordered ProbeIds[], ordered observed Probes[], Trace cursor
     }
   | ProbeBindingsInvalid {
       unchanged SessionVersion,
@@ -270,6 +270,13 @@ Logical Time is the full `u64` domain exposed by the Runtime contracts. A Clock 
 
 Future Stimulus Batches are held in a min-heap ordered by `(LogicalTime, stableSequence)`. `Step` pops the earliest non-empty time bucket; it never scans empty ticks. Scheduling in the committed past or at the current Logical Time is rejected. Multiple same-time changes to one Driver must normalize to one identical value or the batch is rejected.
 
+Every assignment uses a complete source identity and Hierarchy Path that resolves
+to an external input Driver in the active Compilation Artifact, with a matching
+Logic Vector width. An unresolved source, a non-input Driver, or a width mismatch
+returns `StimulusBatchInvalid` with its specific rule. These are caller errors.
+Validation precedes publication of the whole batch; rejection preserves existing
+scheduled events, Session Version, values, and Trace.
+
 Wall-clock pacing controls only how quickly `Run` requests advances. It cannot change event order or results.
 
 ## 4. Logical-time Advance
@@ -334,9 +341,15 @@ Trace capacity cannot block, fail, or roll back simulation. The oldest sealed st
 
 ## 7. Hot swap
 
-Hot Swap is one Runtime intent. Compilation, compatibility checks, State Migration, initial settlement, and atomic publication are hidden inside the Module.
+Hot Swap is one Runtime intent over a replacement Compilation Artifact produced by
+Compiler. Runtime owns compatibility checks, State Migration, initial settlement,
+and atomic publication.
 
-State migrates only when stable instance identity, Component Contract kind, width, and state schema are compatible. Event queues, combinational caches, and runtime ordinals never migrate. At most the current artifact and one newest-wins candidate coexist. Failure discards the candidate and leaves the old Session paused; the user can retry or explicitly Restart.
+State migrates only when stable instance identity, Component Contract kind, width,
+and state schema are compatible. Event queues, combinational caches, and runtime
+ordinals never migrate. Failure discards the candidate and preserves the old Session.
+[Editor Workspace](../contracts/editor-workspace.md) owns Run suspension, newest-wins
+candidate coordination, retry, and Restart.
 
 ## 8. Required evidence
 

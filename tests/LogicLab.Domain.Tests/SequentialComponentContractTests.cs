@@ -126,8 +126,7 @@ internal sealed class SequentialComponentContractTests
                     .IsEquivalentTo(
                         shape.Choices.Select(choice => choice.ParameterId),
                         CollectionOrdering.Matching);
-                foreach (var (choice, choiceIndex) in shape.Choices.Select(
-                             (choice, index) => (choice, index)))
+                foreach (var choice in shape.Choices)
                 {
                     var actualChoice = choices.Single(parameter =>
                         parameter.Id == choice.ParameterId);

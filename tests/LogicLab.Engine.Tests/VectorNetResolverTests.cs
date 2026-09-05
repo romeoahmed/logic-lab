@@ -8,33 +8,38 @@ namespace LogicLab.Engine.Tests;
 internal sealed class VectorNetResolverTests
 {
     [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
-    public Property Resolve_ValidDriverSets_MatchesScalarValueAndCausesAtEveryBit(
+    public Property Resolve_DirectAndIndexedDriverSets_MatchScalarValueAndCausesAtEveryBit(
         LogicVectorDriverCase sample)
     {
         var drivers = sample.Drivers
             .Select(values => new LogicVector(values))
             .ToArray();
-        var arrayResolution = VectorNetResolver.Resolve(sample.Width, drivers);
-        var listResolution = VectorNetResolver.Resolve(sample.Width, [.. drivers]);
+        var direct = VectorNetResolver.Resolve(sample.Width, drivers);
+        // Runtime storage includes unrelated Drivers; only the supplied ordinals belong to this Net.
+        var unrelated = LogicVector.CreateFilled(sample.Width + 1, LogicValue.Z);
+        LogicVector[] storage = [unrelated, .. drivers.Reverse(), unrelated];
+        var ordinals = Enumerable.Range(0, drivers.Length)
+            .Select(index => drivers.Length - index).ToArray();
+        var indexed = VectorNetResolver.Resolve(sample.Width, storage, ordinals);
         var matches = true;
-        var label = "array and list carriers match the scalar oracle";
+        var label = "direct and indexed Drivers match the scalar oracle";
 
         for (var bitIndex = 0; bitIndex < sample.Width; bitIndex++)
         {
             var expected = NetResolver.Resolve(
                 [.. sample.Drivers.Select(values => values[bitIndex])]);
-            var arrayValue = arrayResolution.Value[bitIndex];
-            var arrayCauses = arrayResolution.GetCauses(bitIndex);
-            var listValue = listResolution.Value[bitIndex];
-            var listCauses = listResolution.GetCauses(bitIndex);
-            if (arrayValue != expected.Value
-                || arrayCauses != expected.Causes
-                || listValue != expected.Value
-                || listCauses != expected.Causes)
+            var directValue = direct.Value[bitIndex];
+            var directCauses = direct.GetCauses(bitIndex);
+            var indexedValue = indexed.Value[bitIndex];
+            var indexedCauses = indexed.GetCauses(bitIndex);
+            if (directValue != expected.Value
+                || directCauses != expected.Causes
+                || indexedValue != expected.Value
+                || indexedCauses != expected.Causes)
             {
                 matches = false;
                 label = $"bit {bitIndex}: expected {expected}, "
-                    + $"array {arrayValue}/{arrayCauses}, list {listValue}/{listCauses}";
+                    + $"direct {directValue}/{directCauses}, indexed {indexedValue}/{indexedCauses}";
                 break;
             }
         }

@@ -41,6 +41,15 @@ public sealed partial class WorkbenchStatusStrip
     private string LogicalTime => Projection?.Simulation?.LogicalTime
         .ToString(CultureInfo.InvariantCulture) ?? "—";
 
+    private string Simulation => Projection?.Simulation?.Run switch
+    {
+        RunRunningProjection => Text["RunStateRunning"],
+        RunPausedProjection => Text["RunStatePaused"],
+        RunFailedProjection => Text["RunStateFailed"],
+        RunNotRunningProjection => Text["RunStateReady"],
+        _ => Text["Unavailable"],
+    };
+
     private string Quiescence => Projection?.Simulation is null
         ? Text["Unavailable"]
         : Text["Quiescent"];

@@ -50,35 +50,46 @@ internal sealed class ProjectEditorCatalogTests
     {
         var revision = BeginProjectWithPorts();
         var definition = revision.Document.EntryCircuitDefinition;
-        var originalIds = definition.Ports.Select(port => port.Id).ToArray();
+        var originalPorts = definition.Ports.Select(port =>
+            (port.Id, port.DisplayName, port.Direction, port.Width)).ToArray();
+        AuthoredTerminalReference[] terminals =
+        [
+            .. definition.Ports.Select(port =>
+                new DefinitionTerminalReference(definition.Id, port.Id)),
+        ];
+        revision = Commit(ProjectEditor.Apply(revision, new ConnectTerminalsIntent(terminals)));
+        var originalNet = revision.Document.EntryCircuitDefinition.Nets.Single();
+        DefinitionPortMove[] moves =
+        [
+            new(
+                definition.Ports[0].Id,
+                new DefinitionPortPlacement(new GridPoint(-4, 7), CardinalDirection.North)),
+            new(
+                definition.Ports[1].Id,
+                new DefinitionPortPlacement(new GridPoint(12, 7), CardinalDirection.South)),
+        ];
 
         var outcome = ProjectEditor.Apply(
             revision,
-            new MoveDefinitionPortsIntent(
-                definition.Id,
-                [
-                    new DefinitionPortMove(
-                        originalIds[0],
-                        new DefinitionPortPlacement(
-                            new GridPoint(-4, 7),
-                            CardinalDirection.North)),
-                    new DefinitionPortMove(
-                        originalIds[1],
-                        new DefinitionPortPlacement(
-                            new GridPoint(12, 7),
-                            CardinalDirection.South)),
-                ]));
+            new MoveDefinitionPortsIntent(definition.Id, moves));
 
         var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
         var ports = committed.Revision.Document.EntryCircuitDefinition.Ports;
+        var net = committed.Revision.Document.EntryCircuitDefinition.Nets.Single();
         using (Assert.Multiple())
         {
-            await Assert.That(ports.Select(port => port.Id).ToArray())
-                .IsEquivalentTo(originalIds, CollectionOrdering.Matching);
-            await Assert.That(ports[0].Placement.Facing).IsEqualTo(CardinalDirection.North);
-            await Assert.That(ports[1].Placement.Facing).IsEqualTo(CardinalDirection.South);
-            await Assert.That(committed.Revision.Document.EntryCircuitDefinition.Nets)
-                .IsEmpty();
+            await Assert.That(ports.Select(port =>
+                    (port.Id, port.DisplayName, port.Direction, port.Width)))
+                .IsEquivalentTo(originalPorts, CollectionOrdering.Matching);
+            await Assert.That(ports.Select(port => port.Placement))
+                .IsEquivalentTo(moves.Select(move => move.Placement), CollectionOrdering.Matching);
+            await Assert.That(net.Id).IsEqualTo(originalNet.Id);
+            await Assert.That(net.Width).IsEqualTo(1U);
+            await Assert.That(net.Terminals).IsEquivalentTo(terminals, CollectionOrdering.Matching);
+            await Assert.That(committed.ChangedSources).IsEquivalentTo(
+                definition.Ports.Select(port => (AuthoredSourceIdentity)
+                    new DefinitionPortSourceIdentity(definition.Id, port.Id)));
+            await Assert.That(committed.RemovedSources).IsEmpty();
         }
     }
 
@@ -95,20 +106,18 @@ internal sealed class ProjectEditorCatalogTests
                 SinkParameters(1),
                 new ComponentPlacement(new GridPoint(0, 0)))));
         var instanceId = revision.Document.EntryCircuitDefinition.ComponentInstances.Single().Id;
+        ComponentParameterBinding[] parameters =
+        [
+            new("width", new Unsigned32ParameterValue(1)),
+            new("radix", new ChoiceParameterValue("hex")),
+        ];
 
         var sameShape = ProjectEditor.Apply(
             revision,
             new SetInstanceParametersIntent(
                 definitionId,
                 instanceId,
-                [
-                    new ComponentParameterBinding(
-                        "width",
-                        new Unsigned32ParameterValue(1)),
-                    new ComponentParameterBinding(
-                        "radix",
-                        new ChoiceParameterValue("hex")),
-                ]));
+                parameters));
         var changedShape = ProjectEditor.Apply(
             revision,
             new SetInstanceParametersIntent(
@@ -122,18 +131,9 @@ internal sealed class ProjectEditorCatalogTests
         {
             await Assert.That(committed.Revision.Document.EntryCircuitDefinition
                 .ComponentInstances.Single().Parameters)
-                .IsEquivalentTo(
-                    [
-                        new ComponentParameterBinding(
-                            "width",
-                            new Unsigned32ParameterValue(1)),
-                        new ComponentParameterBinding(
-                            "radix",
-                            new ChoiceParameterValue("hex")),
-                    ],
-                    CollectionOrdering.Matching);
-            await Assert.That(rejected.Diagnostics.Select(item => item.Code).ToArray())
-                .Contains("authoring_invalid_parameter");
+                .IsEquivalentTo(parameters, CollectionOrdering.Matching);
+            await Assert.That(rejected.Diagnostics.Select(item => item.Code))
+                .IsEquivalentTo(["authoring_invalid_parameter"]);
             await Assert.That(revision.Document.EntryCircuitDefinition.ComponentInstances
                 .Single().Parameters)
                 .IsEquivalentTo(SinkParameters(1), CollectionOrdering.Matching);
@@ -173,6 +173,7 @@ internal sealed class ProjectEditorCatalogTests
                     new InstanceTerminalReference(definitionId, source.Id, "Q"),
                     new InstanceTerminalReference(definitionId, sink.Id, "D"),
                 ])));
+        var netId = revision.Document.EntryCircuitDefinition.Nets.Single().Id;
 
         var outcome = ProjectEditor.Apply(
             revision,
@@ -181,16 +182,20 @@ internal sealed class ProjectEditorCatalogTests
                 [.. instances.Select(instance => instance.Id)]));
 
         var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
+        AuthoredSourceIdentity[] removedSources =
+        [
+            new ComponentInstanceSourceIdentity(definitionId, source.Id),
+            new ComponentInstanceSourceIdentity(definitionId, sink.Id),
+            new NetSourceIdentity(definitionId, netId),
+        ];
         using (Assert.Multiple())
         {
             await Assert.That(committed.Revision.Document.EntryCircuitDefinition
                 .ComponentInstances).IsEmpty();
             await Assert.That(committed.Revision.Document.EntryCircuitDefinition.Nets)
                 .IsEmpty();
-            await Assert.That(committed.RemovedSources
-                .OfType<ComponentInstanceSourceIdentity>()).Count().IsEqualTo(2);
-            await Assert.That(committed.RemovedSources
-                .OfType<NetSourceIdentity>()).Count().IsEqualTo(1);
+            await Assert.That(committed.RemovedSources).IsEquivalentTo(removedSources);
+            await Assert.That(committed.ChangedSources).IsEmpty();
         }
     }
 

@@ -59,7 +59,7 @@ IDs remain opaque. `entityKind` is one of `definitionPort`, `componentInstance`,
 
 Package paths are already validated logical names. JSON Pointer follows RFC 6901 and byte offset counts the original uncompressed part bytes. A location is omitted when revealing it would disclose unauthorized existence or when no honest source position exists.
 
-Canonical Source Location order first uses the variant order shown above, then compares declared fields lexicographically. Canonical strings and opaque IDs use ordinal UTF-8 byte order; an absent optional field sorts before a present field; byte offsets compare as unsigned integers. Hierarchy Paths compare the entry Circuit Definition ID and then their step pairs lexicographically, with the shorter path first when one is a prefix.
+Canonical Source Location order first uses the variant order shown above, then compares declared fields lexicographically. `entityKind` uses its listed order above, not the spelling of its token. Canonical strings and opaque IDs use ordinal UTF-8 byte order; an absent optional field sorts before a present field; byte offsets compare as unsigned integers. Hierarchy Paths compare the entry Circuit Definition ID and then their step pairs lexicographically, with the shorter path first when one is a prefix.
 
 ## 4. Codes and evolution
 

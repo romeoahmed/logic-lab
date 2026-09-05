@@ -68,7 +68,13 @@ ProjectScaleLimitV1
   maximum: UnsignedDecimal
 ```
 
-`elaborated_slot_count` counts every library evaluator, resolved library Port slot, and Net record in the elaborated entry, plus each reachable hierarchical occurrence and scoped Net before boundary unions. Compiler measures generated Port cardinality and admits the complete count before allocating generated identities or topology storage. `memory_cell_count` is `word width * depth` for every elaborated ROM or RAM instance and is admitted before packed memory is materialized.
+`elaborated_slot_count` counts each reachable Circuit Definition occurrence (including
+the entry), library evaluator, resolved library Port slot, and scoped Net before
+boundary unions exactly once. Unreferenced definitions contribute only to the
+Project-wide definition/entity dimensions, never to elaborated work. Compiler measures
+generated Port cardinality and admits the complete count before allocating generated
+identities or topology storage. `memory_cell_count` is `word width * depth` for every
+elaborated ROM or RAM instance and is admitted before packed memory is materialized.
 
 ### Shared policy shape
 

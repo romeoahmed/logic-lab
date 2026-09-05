@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Text;
 using FsCheck;
 using LogicLab.Domain.Authoring;
@@ -283,10 +282,20 @@ internal sealed class ProjectEditorSequenceTests
             violations.Add($"step {step}: rejected edit changed the current document");
         }
 
-        var canonical = AuthoringCanonicalizer.Diagnostics(rejected.Diagnostics);
-        if (!canonical.SequenceEqual(rejected.Diagnostics))
+        if (rejected.Diagnostics is not
+            [
+            {
+                Code: "authoring_missing_reference",
+                Severity: AuthoringDiagnosticSeverity.Error,
+                Primary: null,
+                Arguments: [
+                    {
+                        Name: "referenceKind",
+                        Value: StableTokenDiagnosticValue { Value: "componentInstance" }
+                    }]
+            }])
         {
-            violations.Add($"step {step}: rejection diagnostics were not canonical");
+            violations.Add($"step {step}: rejection did not identify the missing component");
         }
     }
 
@@ -307,22 +316,14 @@ internal sealed class ProjectEditorSequenceTests
             violations.Add($"step {step}: commit mutated the previous revision");
         }
 
-        ProjectEditor.ValidateDocument(committed.Revision.Document);
         _ = new ProjectImportCandidate(committed.Revision.Document);
-        VerifySources("changed", committed.ChangedSources, step, violations);
-        VerifySources("removed", committed.RemovedSources, step, violations);
-    }
-
-    private static void VerifySources(
-        string kind,
-        ReadOnlyCollection<AuthoredSourceIdentity> sources,
-        int step,
-        List<string> violations)
-    {
-        if (sources.Distinct().Count() != sources.Count
-            || !AuthoringCanonicalizer.Sources(sources).SequenceEqual(sources))
+        var changed = committed.ChangedSources;
+        var removed = committed.RemovedSources;
+        if (changed.Distinct().Count() != changed.Count
+            || removed.Distinct().Count() != removed.Count
+            || changed.Intersect(removed).Any())
         {
-            violations.Add($"step {step}: {kind} sources were not unique and canonical");
+            violations.Add($"step {step}: changed and removed sources were not unique and disjoint");
         }
     }
 

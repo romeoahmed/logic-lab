@@ -36,10 +36,12 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
     }
 
     [Test]
-    public async Task InverterStarter_CompileSimulateAndStep_ProjectsSignalTransition()
+    [Arguments(1280)]
+    [Arguments(390)]
+    public async Task InverterStarter_StepRestartAndClose_PreservesCircuitAndResetsSimulation(int width)
     {
         var workbench = new WorkbenchTestPage(Page, application.EditorUri);
-        await workbench.OpenSandboxAsync();
+        await workbench.OpenSandboxAsync(width: width);
 
         await workbench.InverterStarter.ClickAsync();
         var compile = workbench.Compile;
@@ -59,14 +61,66 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
 
         await stimulus.ClickAsync();
         var step = workbench.Step;
-        await Expect(stimulus).ToBeHiddenAsync();
+        await Expect(stimulus).ToBeVisibleAsync();
         await Expect(step).ToBeVisibleAsync();
 
         await step.ClickAsync();
         await Expect(workbench.LogicalTime).ToHaveTextAsync("1");
         await Expect(workbench.Probes.Locator("strong")).ToHaveTextAsync("0");
         await Expect(stimulus).ToBeVisibleAsync();
-        await Expect(step).ToBeHiddenAsync();
+        await Expect(step).ToBeVisibleAsync();
+
+        await workbench.RestartSimulation.ClickAsync();
+        await Expect(workbench.LogicalTime).ToHaveTextAsync("0");
+        await Expect(workbench.Probes.Locator("strong")).ToHaveTextAsync("1");
+        await Expect(workbench.WaveformCanvas).ToBeVisibleAsync();
+        await Expect(step).ToBeVisibleAsync();
+        await Expect(stimulus).ToBeVisibleAsync();
+
+        await workbench.CloseSimulation.ClickAsync();
+        await Expect(workbench.StartSimulation).ToBeVisibleAsync();
+        await Expect(workbench.WaveformCanvas).Not.ToBeVisibleAsync();
+        await Expect(workbench.Canvas).ToBeVisibleAsync();
+
+        await workbench.StartSimulation.ClickAsync();
+        await Expect(workbench.WaveformCanvas).ToBeVisibleAsync();
+        await Expect(workbench.Probes).ToHaveCountAsync(1);
+        await Expect(workbench.Probes.Locator("strong")).ToHaveTextAsync("1");
+        await Expect(workbench.LogicalTime).ToHaveTextAsync("0");
+    }
+
+    [Test]
+    [Arguments(1280)]
+    [Arguments(390)]
+    public async Task ClockCircuit_RunAndPause_UpdatesTimeAndKeepsControlsReachable(int width)
+    {
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenSandboxAsync(width: width);
+        await workbench.ComponentSearch.FillAsync("clock");
+        var clock = Page.Locator("[data-place-option='library:logiclab.core:source.clock']");
+        await clock.ClickAsync();
+        // A browser click completes before the server acknowledges the selected tool.
+        await Expect(clock).ToHaveAttributeAsync("aria-pressed", "true");
+        await workbench.Canvas.ClickAsync();
+        await Expect(clock).ToHaveAttributeAsync("aria-pressed", "false");
+        await workbench.Compile.ClickAsync();
+        await workbench.StartSimulation.ClickAsync();
+
+        await Expect(workbench.Step).ToBeEnabledAsync();
+        await workbench.Run.ClickAsync();
+        await Expect(workbench.SimulationStatus).ToHaveTextAsync("Running");
+        await Expect(workbench.LogicalTime).Not.ToHaveTextAsync("0");
+        await Expect(workbench.Pause).ToBeInViewportAsync();
+        await workbench.Pause.ClickAsync();
+        await Expect(workbench.SimulationStatus).ToHaveTextAsync("Paused");
+        await Expect(workbench.Run).ToBeEnabledAsync();
+        await Expect(workbench.Step).ToBeEnabledAsync();
+        await Expect(workbench.Pause).ToBeHiddenAsync();
+        var pausedTime = await workbench.LogicalTime.TextContentAsync();
+        await workbench.Step.ClickAsync();
+        await Expect(workbench.LogicalTime).Not.ToHaveTextAsync(pausedTime!);
+        await Assert.That(await Page.EvaluateAsync<bool>(
+            "document.documentElement.scrollWidth <= window.innerWidth")).IsTrue();
     }
 
     [Test]

@@ -241,9 +241,7 @@ public static partial class SimulationRuntime
             }
 
             var replacementValue = replacementNetValues[reboundProbe.NetOrdinal];
-            if (!ValuesEqual(
-                    state.NetValues[currentProbe.NetOrdinal],
-                    replacementValue))
+            if (!state.NetValues[currentProbe.NetOrdinal].ContentEquals(replacementValue))
             {
                 count++;
                 packedWordCount = checked(
@@ -293,9 +291,7 @@ public static partial class SimulationRuntime
             }
 
             var replacementValue = replacementNetValues[reboundProbe.NetOrdinal];
-            if (!ValuesEqual(
-                    state.NetValues[currentProbe.NetOrdinal],
-                    replacementValue))
+            if (!state.NetValues[currentProbe.NetOrdinal].ContentEquals(replacementValue))
             {
                 observations[observationIndex++] = (reboundProbe, replacementValue);
             }

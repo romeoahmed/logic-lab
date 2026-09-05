@@ -28,7 +28,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Microsoft.Extensions.Options;
 using Microsoft.FluentUI.AspNetCore.Components;
 using Npgsql;
 
@@ -84,27 +83,7 @@ builder.Services.AddSingleton(anonymousWorkspaceIngressPolicy);
 builder.Services.AddSingleton<RateLimiter>(services => services
     .GetRequiredService<AnonymousWorkspaceIngressPolicy>()
     .CreateLimiter());
-builder.Services
-    .AddOptions<ProjectExportOptions>()
-    .BindConfiguration(
-        ProjectExportOptions.ConfigurationSectionName,
-        static binder => binder.ErrorOnUnknownConfiguration = true)
-    .Validate(
-        static options => options.IsValid(),
-        "Project export limits and durations must be positive.")
-    .ValidateOnStart();
-builder.Services.AddSingleton(services => services
-    .GetRequiredService<IOptions<ProjectExportOptions>>()
-    .Value
-    .CreateTransferPolicy());
-builder.Services.AddSingleton(services => services
-    .GetRequiredService<IOptions<ProjectExportOptions>>()
-    .Value
-    .CreateStoragePolicy());
-builder.Services.AddSingleton(services => services
-    .GetRequiredService<IOptions<ProjectExportOptions>>()
-    .Value
-    .CreatePreparationPolicy());
+builder.Services.AddProjectExportPolicies();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider,

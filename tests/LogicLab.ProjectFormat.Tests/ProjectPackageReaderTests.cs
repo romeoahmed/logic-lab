@@ -45,6 +45,32 @@ internal sealed class ProjectPackageReaderTests
     }
 
     [Test]
+    public async Task ReadAsync_ConnectedDefinitionInstance_RoundTripsOpaquePortIdentity()
+    {
+        var revision = ProjectPackageWriterTests.CreateFullyPopulatedRevision();
+        var main = revision.Document.EntryCircuitDefinition;
+        var child = revision.Document.CircuitDefinitions.Single(item => item.DisplayName == "Child");
+        var call = main.ComponentInstances.Single(item => item.DisplayName == "Child call");
+        var clock = main.ComponentInstances.Single(item => item.DisplayName == "Clock");
+        var terminal = new InstanceTerminalReference(main.Id, call.Id, child.Ports[0].Id.Value);
+        revision = ((EditCommitted)ProjectEditor.Apply(
+            revision, new ConnectTerminalsIntent(
+                [new InstanceTerminalReference(main.Id, clock.Id, "Q"), terminal]))).Revision;
+        await using var carrier = await WriteAsync(revision);
+
+        var outcome = await ReadAsync(carrier.Stream);
+
+        var read = (await Assert.That(outcome).IsTypeOf<PackageReadSucceeded>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(read.ProjectContentDigest)
+                .IsEqualTo(((PackageWriteSucceeded)carrier.Outcome).ProjectContentDigest);
+            await Assert.That(read.ImportCandidate.Document.EntryCircuitDefinition.Nets
+                .SelectMany(net => net.Terminals)).Contains(terminal);
+        }
+    }
+
+    [Test]
     public async Task ReadAsync_NonSeekableCarrierBeyondPolicy_RejectsObservedActualBytes()
     {
         var revision = BeginProject("Bounded spool", "Main");
@@ -553,6 +579,63 @@ internal sealed class ProjectPackageReaderTests
     }
 
     [Test]
+    [Arguments("manifest.json", false)]
+    [Arguments("project.json", false)]
+    [Arguments("manifest.json", true)]
+    [Arguments("project.json", true)]
+    public async Task ReadAsync_EveryNestedRecord_RejectsUnknownAndMissingMembers(
+        string partName,
+        bool removeRequiredMember)
+    {
+        await using var carrier = await WriteAsync(
+            ProjectPackageWriterTests.CreateFullyPopulatedRevision());
+        var entries = ReadEntries(carrier.Stream);
+        var original = JsonNode.Parse(entries[partName])!;
+        var records = JsonObjects(original).Select((record, index) => (record, index))
+            .DistinctBy(item => string.Join(',', item.record.Select(property => property.Key)))
+            .ToArray();
+        foreach (var (record, index) in records)
+        {
+            var members = removeRequiredMember
+                ? record.Select(property => property.Key).ToArray()
+                : ["unexpected"];
+            foreach (var member in members)
+            {
+                var changed = original.DeepClone();
+                var target = JsonObjects(changed).ElementAt(index);
+                if (removeRequiredMember)
+                {
+                    _ = target.Remove(member);
+                }
+                else
+                {
+                    target[member] = 0;
+                }
+
+                entries[partName] = Encoding.UTF8.GetBytes(changed.ToJsonString());
+                if (partName == "project.json")
+                {
+                    RefreshIntegrity(entries);
+                }
+
+                await using var tampered = WriteEntries(entries);
+                var outcome = await ReadAsync(tampered);
+
+                if (outcome is PackageReadSucceeded)
+                {
+                    throw new InvalidOperationException(
+                        $"Accepted {partName} record {record} with member '{member}' "
+                        + (removeRequiredMember ? "removed." : "added."));
+                }
+
+                await AssertDiagnostic(outcome, removeRequiredMember
+                    ? "package_json_invalid"
+                    : "package_unknown_member");
+            }
+        }
+    }
+
+    [Test]
     public async Task ReadAsync_UnknownTargetDiscriminator_RejectsClosedUnion()
     {
         var revision = BeginProject("Unknown discriminator", "Main");
@@ -938,6 +1021,25 @@ internal sealed class ProjectPackageReaderTests
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8, 4), 1);
         BinaryPrimitives.WriteUInt64LittleEndian(bytes.AsSpan(12, 8), 1);
         return bytes;
+    }
+
+    private static IEnumerable<JsonObject> JsonObjects(JsonNode? node)
+    {
+        if (node is JsonObject record)
+        {
+            yield return record;
+            foreach (var child in record.SelectMany(property => JsonObjects(property.Value)))
+            {
+                yield return child;
+            }
+        }
+        else if (node is JsonArray array)
+        {
+            foreach (var child in array.SelectMany(JsonObjects))
+            {
+                yield return child;
+            }
+        }
     }
 
     private static async Task<WrittenCarrier> WriteAsync(ProjectRevision revision)

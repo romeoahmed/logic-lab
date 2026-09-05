@@ -11,6 +11,19 @@ namespace LogicLab.Domain.Tests;
 internal sealed class ComponentContractSchemaTests
 {
     [Test]
+    public async Task ResolvePorts_NullParameterElement_RejectsInvalidArgument()
+    {
+        var contract = RequireCoreContract("logic.not");
+        using (Assert.Multiple())
+        {
+            await Assert.That(() => contract.ResolvePorts([null!]))
+                .ThrowsExactly<ArgumentException>();
+            await Assert.That(() => contract.TryResolvePort([null!], "A", out _))
+                .ThrowsExactly<ArgumentException>();
+        }
+    }
+
+    [Test]
     public async Task CoreContracts_ExposeCatalogStateShapesAndSemanticVersion()
     {
         var split = await FindCoreContract("topology.split");

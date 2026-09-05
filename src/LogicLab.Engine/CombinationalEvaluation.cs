@@ -32,8 +32,8 @@ internal static class CombinationalEvaluation
                 kind,
                 "The evaluator is not a gate family."),
         };
-        var result = VectorLogic.NormalizeInput(inputs[0]);
-        for (var index = 1; index < inputs.Count; index++)
+        var result = operation(inputs[0], inputs[1]);
+        for (var index = 2; index < inputs.Count; index++)
         {
             result = operation(result, inputs[index]);
         }
@@ -53,13 +53,12 @@ internal static class CombinationalEvaluation
         ArgumentNullException.ThrowIfNull(data);
         var normalizedEnable = ScalarLogic.NormalizeInput(enable);
         var isActive = activeHigh ? normalizedEnable : ScalarLogic.Not(normalizedEnable);
-        var enabled = VectorLogic.NormalizeInput(data);
-        var disabled = LogicVector.CreateFilled(data.Width, LogicValue.Z);
         return isActive switch
         {
-            LogicValue.One => enabled,
-            LogicValue.Zero => disabled,
-            LogicValue.X => VectorConservativeMerge.Merge([enabled, disabled]),
+            LogicValue.One => VectorLogic.NormalizeInput(data),
+            LogicValue.Zero => LogicVector.CreateFilled(data.Width, LogicValue.Z),
+            // Normalized data never contains Z, so every enabled/disabled pair meets at X.
+            LogicValue.X => LogicVector.CreateFilled(data.Width, LogicValue.X),
             _ => throw new InvalidOperationException("Enable normalization failed."),
         };
     }

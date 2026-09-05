@@ -88,6 +88,12 @@ The Probe point must equal the current Schematic Projection's available `NetTopo
 
 Every intent carries the build fingerprint, Scene Version, Projection Version, and Circuit Definition ID from which it began. Every scoped authored reference must name that same Circuit Definition. Coordinate-bearing placement, move, route, and Junction intents additionally carry only their final checked 32-bit grid coordinates and the closed modifier `None | DisableSnap`; `SelectSources` and `ToggleProbe` carry neither gesture coordinates nor a snap modifier. `SelectSources` additionally carries selection mode `Replace | Add | Toggle`. Pan/zoom, hover, marquee preview, route preview, pointer samples, and cancelled gestures remain local and emit no intent.
 
+For a terminal-to-terminal drag, `CommitWire` lists the Terminals in start/end order.
+Without a separately named destination Net, Web resolves the end Terminal's existing
+Net as the explicit destination for `ConnectTerminals`. If it has none, Project Editor's ordinary
+create/extend rules apply. This preserves the drop target's Net identity when the
+drag joins two existing Nets.
+
 A `PlaceComponent` parameter value is either one complete persisted parameter value or `newMemoryImage { displayName, width, depth, words }`, whose `words` value is complete. The latter is valid only once, for a library memory-image parameter, and translates to the atomic convenience intent above; Web never first publishes an unbound Memory Image.
 
 Web rejects a stale version, missing source, invalid coordinate, unknown modifier, or intent that cannot translate to exactly one typed Workspace command. It discards the Transient Preview and refreshes the Scene Snapshot; it never guesses a replacement source, splits one gesture into independently committed edits, or forwards the browser record as a Domain patch. An unknown kind or build mismatch requires a hard reload.

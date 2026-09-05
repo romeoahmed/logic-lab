@@ -204,18 +204,9 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
     [Test]
     public async Task Plan_TwoInputHighestPriorityEncoder_DowngradesUnmodeledStandardNotation()
     {
-        var template = Request("logic.priority_encoder");
-        var request = new ComponentSymbolRequestV1(
-            template.Contract,
-            [U32("inputCount", 2), Choice("priority", "highestIndex")],
-            template.Profile,
-            template.SymbolVariantId,
-            template.Facing,
-            template.IsReflected,
-            template.MetricSet,
-            template.FontFingerprint,
-            template.LocaleId,
-            template.BaseDirection);
+        var request = RequestWithParameters(
+            "logic.priority_encoder",
+            [U32("inputCount", 2), Choice("priority", "highestIndex")]);
 
         var plan = Plan(request);
         var deviation = plan.Conformance.Deviations.Single(candidate =>
@@ -238,18 +229,9 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
     [Test]
     public async Task Plan_LowestPriorityEncoder_PublishesExplicitExtensionInsteadOfHpri()
     {
-        var template = Request("logic.priority_encoder");
-        var request = new ComponentSymbolRequestV1(
-            template.Contract,
-            [U32("inputCount", 5), Choice("priority", "lowestIndex")],
-            template.Profile,
-            template.SymbolVariantId,
-            template.Facing,
-            template.IsReflected,
-            template.MetricSet,
-            template.FontFingerprint,
-            template.LocaleId,
-            template.BaseDirection);
+        var request = RequestWithParameters(
+            "logic.priority_encoder",
+            [U32("inputCount", 5), Choice("priority", "lowestIndex")]);
 
         var plan = Plan(request);
 
@@ -306,6 +288,9 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
         var violations = new List<string>();
 
         Check(plan.Key == repeated.Key, "repeated plan key changed", violations);
+        Check(PlansShareGeometry(plan, repeated), "repeated geometry changed", violations);
+        Check(HasCompleteCrossReferences(plan), "cross-reference graph is incomplete", violations);
+        Check(AllGeometryIsInsideBounds(plan), "published geometry escapes Bounds", violations);
         Check(
             plan.PortAnchors.Select(anchor => anchor.PortId)
                 .SequenceEqual(ports.Select(port => port.Id)),
@@ -356,23 +341,16 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
     public async Task Plan_AsymmetricUprightMetrics_PreservesEveryFacingEnvelope()
     {
         var template = Request("logic.mux");
-        var textMeasurer = new AsymmetricTextMeasurer(FontFingerprint);
+        var textMeasurer = new ConstantTextMeasurer(
+            FontFingerprint,
+            TeachingMixedMetricSets.AnnexA100,
+            new SymbolTextMeasurementV1(40, new RectV1(-10, -1000, 30, 400)));
 
         foreach (var facing in Enum.GetValues<SymbolFacingV1>())
         {
             foreach (var isReflected in new[] { false, true })
             {
-                var request = new ComponentSymbolRequestV1(
-                    template.Contract,
-                    template.Parameters,
-                    template.Profile,
-                    template.SymbolVariantId,
-                    facing,
-                    isReflected,
-                    template.MetricSet,
-                    template.FontFingerprint,
-                    template.LocaleId,
-                    template.BaseDirection);
+                var request = WithPresentation(template, facing, isReflected);
                 var outcome = TeachingMixedGeometryPlanner.Plan(request, 64, textMeasurer);
                 var plan = (outcome as GeometryPlanSucceededV1)?.Plan;
 
@@ -393,18 +371,9 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
     [Test]
     public async Task Plan_ThreeStateOutput_UsesTransverseQualifier()
     {
-        var template = Request("logic.tristate");
-        var request = new ComponentSymbolRequestV1(
-            template.Contract,
-            [U32("width", 1), Choice("enablePolarity", "activeHigh")],
-            template.Profile,
-            template.SymbolVariantId,
-            template.Facing,
-            template.IsReflected,
-            template.MetricSet,
-            template.FontFingerprint,
-            template.LocaleId,
-            template.BaseDirection);
+        var request = RequestWithParameters(
+            "logic.tristate",
+            [U32("width", 1), Choice("enablePolarity", "activeHigh")]);
 
         var plan = Plan(request);
         var output = plan.PortAnchors.Single(anchor => anchor.PortId == "Q");
@@ -664,7 +633,6 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
         }
     }
 
-
     private static GeometryPlanV1 Plan(ComponentSymbolRequestV1 request)
     {
         var outcome = TeachingMixedGeometryPlanner.Plan(request, 64, TextMeasurer);
@@ -685,7 +653,7 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
                     _ => argument.Value.GetType().Name,
                 }))));
         throw new InvalidOperationException(string.Concat(
-            "The item 24 symbol request was rejected: ",
+            "The component symbol request was rejected: ",
             string.Join(", ", diagnostics)));
     }
 
@@ -964,25 +932,6 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
             return new SymbolTextMeasurementV1(
                 Math.Max(70, width),
                 new RectV1(-Math.Max(35, width / 2), -80, Math.Max(35, width / 2), 40));
-        }
-    }
-
-    private sealed class AsymmetricTextMeasurer(FontFingerprintV1 fontFingerprint)
-        : ISymbolTextMeasurerV1
-    {
-        public FontFingerprintV1 FontFingerprint { get; } = fontFingerprint;
-
-        public SymbolMetricSetV1 MetricSet { get; } = TeachingMixedMetricSets.AnnexA100;
-
-        public SymbolTextMeasurementV1 Measure(
-            SymbolTextMeasurementRequestV1 request,
-            CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(request);
-            cancellationToken.ThrowIfCancellationRequested();
-            return new SymbolTextMeasurementV1(
-                40,
-                new RectV1(-10, -1000, 30, 400));
         }
     }
 

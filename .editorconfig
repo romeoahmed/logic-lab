@@ -36,7 +36,7 @@ dotnet_code_quality.CA1852.ignore_internalsvisibleto = true
 [src/LogicLab.Web/{AntiforgeryProblemDetailsMiddleware.cs,RequestBodyBufferingMiddleware.cs,RequestBodyLimitProblemDetailsMiddleware.cs,SecurityHeadersMiddleware.cs,Transfers/AnonymousWorkspaceCallerMiddleware.cs}]
 dotnet_diagnostic.CA1812.severity = none
 
-[src/LogicLab.Web/{Data/ApplicationIdentityDbContext.cs,Identity/IdentityRedirectManager.cs,Identity/IdentityRevalidatingAuthenticationStateProvider.cs,Projects/DataProtectionProjectCatalogCursorProtector.cs,Transfers/ProjectExportOptions.cs}]
+[src/LogicLab.Web/{Identity/IdentityRedirectManager.cs,Identity/IdentityRevalidatingAuthenticationStateProvider.cs,Projects/DataProtectionProjectCatalogCursorProtector.cs,Transfers/ProjectExportOptions.cs}]
 dotnet_diagnostic.CA1812.severity = none
 
 [*.{json,yml,yaml}]

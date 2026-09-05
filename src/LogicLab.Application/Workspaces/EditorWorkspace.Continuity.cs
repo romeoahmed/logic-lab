@@ -583,68 +583,6 @@ internal sealed partial class EditorWorkspace
             state.ProjectionVersion);
     }
 
-    private WorkspaceCommandOutcome OpenSessionWithPrecondition(
-        WorkspaceState state,
-        CreateSession command,
-        CancellationToken cancellationToken)
-    {
-        if (state.Artifact?.Key != command.Precondition.CompilationArtifactKey)
-        {
-            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
-        }
-
-        return OpenSession(state, cancellationToken);
-    }
-
-    private WorkspaceCommandOutcome ScheduleWithPrecondition(
-        WorkspaceState state,
-        ScheduleInputStimulus command,
-        CancellationToken cancellationToken)
-    {
-        if (!MatchesSessionPrecondition(state, command.Precondition))
-        {
-            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
-        }
-
-        return Schedule(state, command, cancellationToken);
-    }
-
-    private WorkspaceCommandOutcome StepWithPrecondition(
-        WorkspaceState state,
-        StepSession command,
-        CancellationToken cancellationToken)
-    {
-        if (!MatchesSessionPrecondition(state, command.Precondition))
-        {
-            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
-        }
-
-        return Step(state, cancellationToken);
-    }
-
-    private WorkspaceCommandOutcome ReplaceProbesWithPrecondition(
-        WorkspaceState state,
-        ReplaceProbes command,
-        CancellationToken cancellationToken)
-    {
-        if (!MatchesSessionPrecondition(state, command.Precondition))
-        {
-            return Reject(WorkspaceOutcomeReasons.SessionPreconditionFailed);
-        }
-
-        return ReplaceProbeBindings(state, command, cancellationToken);
-    }
-
-    private static bool MatchesSessionPrecondition(
-        WorkspaceState state,
-        SessionMutationPrecondition precondition)
-    {
-        return state.ActiveSession?.Artifact.Key == precondition.CompilationArtifactKey
-            && state.Simulation is { } simulation
-            && simulation.SessionId == precondition.SessionId
-            && simulation.SessionVersion == precondition.SessionVersion;
-    }
-
     private static async Task<WorkspaceCommandOutcome> AwaitReplayAsync(
         WorkspaceState state,
         ContextualIntentReplay replay,
@@ -812,18 +750,32 @@ internal sealed partial class EditorWorkspace
                 nameof(CreateSession),
                 JsonSerializer.Serialize(
                     create.Precondition.CompilationArtifactKey,
-                    CanonicalJsonOptions)),
-            ScheduleInputStimulus schedule => SerializeCanonicalIdentity(
-                nameof(ScheduleInputStimulus),
+                    CanonicalJsonOptions),
+                JsonSerializer.Serialize(create.Configuration, CanonicalJsonOptions)),
+            RestartSession restart => SerializeCanonicalIdentity(
+                nameof(RestartSession),
+                JsonSerializer.Serialize(restart.Precondition, CanonicalJsonOptions),
+                JsonSerializer.Serialize(restart.TargetCompilationArtifactKey, CanonicalJsonOptions),
+                JsonSerializer.Serialize(restart.Configuration, CanonicalJsonOptions)),
+            CloseSession close => SerializeCanonicalIdentity(
+                nameof(CloseSession),
+                JsonSerializer.Serialize(close.Precondition, CanonicalJsonOptions)),
+            ScheduleStimulusBatch schedule => SerializeCanonicalIdentity(
+                nameof(ScheduleStimulusBatch),
                 schedule.Precondition.SessionId.Value,
                 schedule.Precondition.SessionVersion.ToString(
                     CultureInfo.InvariantCulture),
                 JsonSerializer.Serialize(
                     schedule.Precondition.CompilationArtifactKey,
                     CanonicalJsonOptions),
-                schedule.LogicalTime.ToString(CultureInfo.InvariantCulture),
+                schedule.Batch.LogicalTime.ToString(CultureInfo.InvariantCulture),
                 JsonSerializer.Serialize(
-                    schedule.Assignments,
+                    schedule.Batch.Assignments.Select(assignment => new
+                    {
+                        assignment.DriverSource,
+                        // LogicVector exposes Width as a property; serialize its values explicitly.
+                        Value = Values(assignment.Value),
+                    }),
                     CanonicalJsonOptions)),
             StepSession step => SerializeCanonicalIdentity(
                 nameof(StepSession),

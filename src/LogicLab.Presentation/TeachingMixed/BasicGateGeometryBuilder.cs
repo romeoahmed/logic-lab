@@ -245,7 +245,7 @@ internal static class BasicGateGeometryBuilder
                 "body",
                 HitRegionKindV1.Body,
                 null,
-                new RectHitShapeV1(Inflate(body, metrics.BodyHitPadding))),
+                new RectHitShapeV1(body.Inflate(metrics.BodyHitPadding))),
         };
         var inputIndex = 0;
         foreach (var port in ports)
@@ -286,7 +286,7 @@ internal static class BasicGateGeometryBuilder
                     port.Id,
                     FontRoleV1.PortLabel,
                     labelOrigin,
-                    Translate(labelEnvelope, labelOrigin),
+                    labelEnvelope.Translate(labelOrigin),
                     TextAlignmentV1.Center,
                     TextOrientationV1.UprightReading,
                     request.BaseDirection,
@@ -357,7 +357,7 @@ internal static class BasicGateGeometryBuilder
                 definition.FunctionText,
                 FontRoleV1.Symbol,
                 center,
-                Translate(measuredBounds, center),
+                measuredBounds.Translate(center),
                 TextAlignmentV1.Center,
                 TextOrientationV1.UprightReading,
                 request.BaseDirection,
@@ -608,17 +608,6 @@ internal static class BasicGateGeometryBuilder
         return checked(2 * (clearance + Math.Max(leadingExtent, trailingExtent)));
     }
 
-    private static RectV1 Translate(RectV1 bounds, PointV1 origin) => new(
-        checked(bounds.Left + origin.X),
-        checked(bounds.Top + origin.Y),
-        checked(bounds.Right + origin.X),
-        checked(bounds.Bottom + origin.Y));
-
-    private static RectV1 Inflate(RectV1 bounds, int padding) => new(
-        checked(bounds.Left - padding),
-        checked(bounds.Top - padding),
-        checked(bounds.Right + padding),
-        checked(bounds.Bottom + padding));
 
     private static int ScaleUp(int value, int numerator, int denominator = 1) =>
         checked((int)((((long)value * numerator) + denominator - 1) / denominator));

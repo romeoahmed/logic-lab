@@ -6,6 +6,44 @@ namespace LogicLab.Web.BrowserTests;
 internal sealed class CircuitSceneSurfaceTests : PageTest
 {
     [Test]
+    public async Task ZeroSize_ReplacementSuspendsPainting_AndShowingResumesIt()
+    {
+        var scene = new CircuitSceneTestPage(Page);
+        await scene.OpenAsync();
+        await scene.MountAsync();
+        await scene.PublishAsync();
+        await WaitForFramesAsync();
+        await scene.Canvas.EvaluateAsync("""
+            canvas => {
+              const context = canvas.getContext('2d');
+              const fillRect = context.fillRect.bind(context);
+              window.scenePaintCount = 0;
+              context.fillRect = (...args) => {
+                window.scenePaintCount++;
+                return fillRect(...args);
+              };
+              document.querySelector('[data-testid="scene-host"]').style.display = 'none';
+            }
+            """);
+        await WaitForFramesAsync();
+
+        await scene.PublishAsync(sceneVersion: 2);
+        await WaitForFramesAsync();
+        var hiddenPaints = await Page.EvaluateAsync<int>("() => window.scenePaintCount");
+        await Page.EvaluateAsync("""
+            () => document.querySelector('[data-testid="scene-host"]').style.display = ''
+            """);
+        await WaitForFramesAsync();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(hiddenPaints).IsEqualTo(0);
+            await Assert.That(await Page.EvaluateAsync<int>("() => window.scenePaintCount"))
+                .IsGreaterThan(0);
+        }
+    }
+
+    [Test]
     public async Task SceneCanvas_ProductionStylesReservePointerGesturesForTheEditor()
     {
         var scene = await ReadySceneAsync(Page);
@@ -49,4 +87,7 @@ internal sealed class CircuitSceneSurfaceTests : PageTest
         await scene.PublishAsync();
         return scene;
     }
+    private async Task WaitForFramesAsync() => await Page.EvaluateAsync("""
+        () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        """);
 }

@@ -316,7 +316,7 @@ internal sealed class CanonicalJsonWriter
     private void ObserveProperty(string propertyName)
     {
         ObserveToken();
-        ObserveDecodedString(propertyName);
+        _ = MeasureString(propertyName);
     }
 
     private void ObserveValueToken()
@@ -348,27 +348,6 @@ internal sealed class CanonicalJsonWriter
             checked((ulong)containers.Count + 1));
         ThrowIfExceeded(PackageDimension.JsonDepth);
         ThrowIfExceeded(PackageDimension.JsonTokens);
-    }
-
-    private void ObserveDecodedString(string value)
-    {
-        var remaining = value.AsSpan();
-        while (!remaining.IsEmpty)
-        {
-            Checkpoint();
-            var status = Rune.DecodeFromUtf16(
-                remaining,
-                out var rune,
-                out var charactersConsumed);
-            if (status != OperationStatus.Done)
-            {
-                throw new InvalidOperationException(
-                    "A canonical JSON string must contain only Unicode scalar values.");
-            }
-
-            ObserveScalar(rune);
-            remaining = remaining[charactersConsumed..];
-        }
     }
 
     private void ObserveScalar(Rune rune)

@@ -55,7 +55,7 @@ internal sealed class ProjectEditorResourceTests
             new PlaceComponentInstanceIntent(
                 definitionId,
                 Contract("memory.rom"),
-                MemoryParameters(0, 1, staleImageId),
+                MemoryParameters(1, 1, staleImageId),
                 new ComponentPlacement(new GridPoint(8, 0))));
 
         var committed = (await Assert.That(matching).IsTypeOf<EditCommitted>())!;
@@ -66,15 +66,9 @@ internal sealed class ProjectEditorResourceTests
             await Assert.That(committed.Revision.Document.EntryCircuitDefinition
                 .ComponentInstances.Single().Parameters.Last().Value)
                 .IsEqualTo(new MemoryImageParameterValue(exactImageId));
-            await Assert.That(rejectedShape.Diagnostics.SelectMany(item => item.Arguments)
-                .OfType<AuthoringDiagnosticArgument>()
-                .Select(item => item.Value)
-                .OfType<StableTokenDiagnosticValue>()
-                .Any(item => item.Value == "memoryImageShape")).IsTrue();
-            await Assert.That(rejectedMissing.Diagnostics.SelectMany(item => item.Arguments)
-                .Select(item => item.Value)
-                .OfType<StableTokenDiagnosticValue>()
-                .Any(item => item.Value == "memoryImageReference")).IsTrue();
+            await AssertParameterDiagnostic(rejectedShape, "initialImage", "memoryImageShape");
+            await AssertParameterDiagnostic(rejectedMissing, "initialImage", "memoryImageReference");
+            await Assert.That(revision.Document.EntryCircuitDefinition.ComponentInstances).IsEmpty();
         }
     }
 
@@ -140,18 +134,23 @@ internal sealed class ProjectEditorResourceTests
         var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Diagnostics.SelectMany(item => item.Arguments)
-                .Select(item => item.Value)
-                .OfType<StableTokenDiagnosticValue>()
-                .Any(item => item.Value == "memoryImageShape")).IsTrue();
-            await Assert.That(revision.Document.MemoryImages.Single().Width).IsEqualTo(2u);
-            await Assert.That(revision.Document.MemoryImages.Single().Depth).IsEqualTo(2u);
-            await Assert.That(committed.Revision.Document.MemoryImages.Single().Width)
-                .IsEqualTo(4u);
-            await Assert.That(committed.Revision.Document.MemoryImages.Single().Depth)
-                .IsEqualTo(4u);
-            await Assert.That(committed.ChangedSources)
-                .Contains(new ComponentInstanceSourceIdentity(definitionId, instanceId));
+            await AssertParameterDiagnostic(rejected, "initialImage", "memoryImageShape");
+            await AssertImageWords(revision.Document.MemoryImages.Single(), CreateUnknownWords(2, 2));
+            await Assert.That(revision.Document.EntryCircuitDefinition.ComponentInstances.Single().Parameters)
+                .IsEquivalentTo(MemoryParameters(1, 2, imageId), CollectionOrdering.Matching);
+            var image = committed.Revision.Document.MemoryImages.Single();
+            await Assert.That(image.Id).IsEqualTo(imageId);
+            await Assert.That(image.DisplayName).IsEqualTo("Program v2");
+            await AssertImageWords(image, replacementWords);
+            await Assert.That(committed.Revision.Document.EntryCircuitDefinition.ComponentInstances.Single().Parameters)
+                .IsEquivalentTo(MemoryParameters(2, 4, imageId), CollectionOrdering.Matching);
+            AuthoredSourceIdentity[] changedSources =
+            [
+                new MemoryImageSourceIdentity(revision.Document.ProjectId, imageId),
+                new ComponentInstanceSourceIdentity(definitionId, instanceId),
+            ];
+            await Assert.That(committed.ChangedSources).IsEquivalentTo(changedSources, CollectionOrdering.Matching);
+            await Assert.That(committed.RemovedSources).IsEmpty();
         }
     }
 
@@ -232,10 +231,7 @@ internal sealed class ProjectEditorResourceTests
         var rejected = (await Assert.That(rejectedOutcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Diagnostics.SelectMany(item => item.Arguments)
-                .Select(item => item.Value)
-                .OfType<StableTokenDiagnosticValue>()
-                .Any(item => item.Value == "connectedPortSchemaChanged")).IsTrue();
+            await AssertParameterDiagnostic(rejected, "migration", "connectedPortSchemaChanged");
             await Assert.That(permitted.Revision.Document.MemoryImages.Single().Width)
                 .IsEqualTo(2u);
             await Assert.That(permitted.Revision.Document.MemoryImages.Single().Depth)
@@ -245,12 +241,10 @@ internal sealed class ProjectEditorResourceTests
                 .IsEquivalentTo(
                     MemoryParameters(2, 2, imageId),
                     CollectionOrdering.Matching);
-            await Assert.That(permitted.Revision.Document.EntryCircuitDefinition
-                .Nets.Single().Width)
-                .IsEqualTo(originalNet.Width);
-            await Assert.That(permitted.Revision.Document.EntryCircuitDefinition
-                .Nets.Single().Terminals)
-                .Contains(new InstanceTerminalReference(definitionId, rom.Id, "Q"));
+            var net = permitted.Revision.Document.EntryCircuitDefinition.Nets.Single();
+            await Assert.That(net.Id).IsEqualTo(originalNet.Id);
+            await Assert.That(net.Width).IsEqualTo(originalNet.Width);
+            await Assert.That(net.Terminals).IsEquivalentTo(originalNet.Terminals, CollectionOrdering.Matching);
         }
     }
 
@@ -264,6 +258,7 @@ internal sealed class ProjectEditorResourceTests
             new MemoryImageWord([LogicValue.X, LogicValue.Zero]),
         };
 
+        var expectedOriginalWords = inputWords.ToArray();
         var created = (EditCommitted)ProjectEditor.Apply(
             revision,
             new CreateMemoryImageIntent("Program", 2, 2, inputWords));
@@ -274,6 +269,7 @@ internal sealed class ProjectEditorResourceTests
             new MemoryImageWord([LogicValue.One, LogicValue.Zero]),
             new MemoryImageWord([LogicValue.Zero, LogicValue.One]),
         };
+        var expectedReplacementWords = replacementWords.ToArray();
         var replaced = (EditCommitted)ProjectEditor.Apply(
             created.Revision,
             new ReplaceMemoryImageIntent(
@@ -283,6 +279,7 @@ internal sealed class ProjectEditorResourceTests
                 2,
                 replacementWords,
                 []));
+        replacementWords[0] = new MemoryImageWord([LogicValue.X, LogicValue.X]);
         var removed = ProjectEditor.Apply(
             replaced.Revision,
             new RemoveMemoryImageIntent(image.Id));
@@ -290,17 +287,16 @@ internal sealed class ProjectEditorResourceTests
         var committedRemoval = (await Assert.That(removed).IsTypeOf<EditCommitted>())!;
         using (Assert.Multiple())
         {
-            await Assert.That(image[0, 0]).IsEqualTo(LogicValue.Zero);
-            await Assert.That(image[0, 1]).IsEqualTo(LogicValue.One);
+            await AssertImageWords(image, expectedOriginalWords);
+            await AssertImageWords(replaced.Revision.Document.MemoryImages.Single(), expectedReplacementWords);
             await Assert.That(replaced.Revision.Document.MemoryImages.Single().DisplayName)
                 .IsEqualTo("Program v2");
             await Assert.That(replaced.Revision.Document.MemoryImages.Single().Id)
                 .IsEqualTo(image.Id);
             await Assert.That(committedRemoval.Revision.Document.MemoryImages).IsEmpty();
-            await Assert.That(committedRemoval.RemovedSources)
-                .Contains(new MemoryImageSourceIdentity(
-                    replaced.Revision.Document.ProjectId,
-                    image.Id));
+            await Assert.That(committedRemoval.RemovedSources.Single())
+                .IsEqualTo(new MemoryImageSourceIdentity(replaced.Revision.Document.ProjectId, image.Id));
+            await Assert.That(committedRemoval.ChangedSources).IsEmpty();
         }
     }
 
@@ -328,8 +324,8 @@ internal sealed class ProjectEditorResourceTests
         {
             await Assert.That(rejected.Diagnostics.Single().Code)
                 .IsEqualTo("authoring_invalid_memory_image");
-            await Assert.That(((StableTokenDiagnosticValue)rejected.Diagnostics.Single()
-                .Arguments.Single().Value).Value).IsEqualTo(expectedRule);
+            await Assert.That(rejected.Diagnostics.Single().Arguments.Single())
+                .IsEqualTo(new AuthoringDiagnosticArgument("rule", new StableTokenDiagnosticValue(expectedRule)));
             await Assert.That(revision.Document.MemoryImages).IsEmpty();
         }
     }
@@ -445,6 +441,32 @@ internal sealed class ProjectEditorResourceTests
                 .IsEqualTo(TeachingMixedProfile());
             await Assert.That(committedProfile.ChangedSources)
                 .Contains(new ProjectRootSourceIdentity(revision.Document.ProjectId));
+        }
+    }
+
+    private static async Task AssertParameterDiagnostic(EditRejected rejected, string parameterId, string rule)
+    {
+        var diagnostic = rejected.Diagnostics.Single();
+        await Assert.That(diagnostic.Code).IsEqualTo("authoring_invalid_parameter");
+        await Assert.That(diagnostic.Arguments).IsEquivalentTo(
+            [
+                new AuthoringDiagnosticArgument("contractKey", new ContractKeyDiagnosticValue(Contract("memory.rom"))),
+                new AuthoringDiagnosticArgument("parameterId", new StableTokenDiagnosticValue(parameterId)),
+                new AuthoringDiagnosticArgument("rule", new StableTokenDiagnosticValue(rule)),
+            ],
+            CollectionOrdering.Matching);
+    }
+
+    private static async Task AssertImageWords(MemoryImage image, MemoryImageWord[] expected)
+    {
+        await Assert.That(image.Depth).IsEqualTo(checked((uint)expected.Length));
+        for (var address = 0; address < expected.Length; address++)
+        {
+            var word = expected[address];
+            await Assert.That(image.Width).IsEqualTo(checked((uint)word.Values.Count));
+            await Assert.That(Enumerable.Range(0, word.Values.Count)
+                    .Select(bit => image[checked((uint)address), checked((uint)bit)]))
+                .IsEquivalentTo(word.Values, CollectionOrdering.Matching);
         }
     }
 

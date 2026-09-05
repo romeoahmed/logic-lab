@@ -14,6 +14,9 @@ public sealed partial class ComponentPalette
     public SceneToolV1 ActiveTool { get; set; } = SceneSelectToolV1.Instance;
 
     [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
     public EventCallback<SceneToolV1> ActiveToolChanged { get; set; }
 
     [Inject]
@@ -132,8 +135,9 @@ public sealed partial class ComponentPalette
     private bool IsActive(ScenePlaceOptionV1 option) => ActiveTool is ScenePlaceToolV1 place
         && place.Target == option.Tool.Target;
 
-    private Task SelectAsync(ScenePlaceOptionV1 option) =>
-        ActiveToolChanged.InvokeAsync(option.Tool);
+    private Task SelectAsync(ScenePlaceOptionV1 option) => Disabled
+        ? Task.CompletedTask
+        : ActiveToolChanged.InvokeAsync(option.Tool);
 
     private sealed record PaletteGroup(
         string Id,

@@ -4,6 +4,7 @@ using FsCheck;
 using FsCheck.Fluent;
 using LogicLab.Web.Scene;
 using Microsoft.JSInterop;
+using TUnit.Assertions.Enums;
 using TUnit.FsCheck;
 
 namespace LogicLab.Web.Tests;
@@ -44,20 +45,20 @@ internal sealed class BrowserCandidateTransferTests
                 .SequenceEqual(Enumerable.Range(0, chunks.Length))
                 .Label("append ordinals are contiguous in invocation order"))
             .And(chunks.All(call =>
-                    string.Equals(
-                        transferId,
-                        call.Arguments[0] as string,
-                        StringComparison.Ordinal)
-                    && checked((ulong)Encoding.UTF8.GetByteCount(
+                    checked((ulong)Encoding.UTF8.GetByteCount(
                             (string)call.Arguments[2]!))
                         + BrowserPolicy.InteropEnvelopeBytes
                         <= policy.Limit(BrowserLimitDimension.InteropBatchBytes))
-                .Label("every chunk belongs to the transfer and fits the interop budget"))
+                .Label("every chunk fits the interop budget"))
             .And(reconstructed.SequenceEqual(payload)
                 .Label("ordered Base64 chunks reconstruct the candidate exactly"))
-            .And((handle.Calls.Count(call => call.Identifier == "commitTransfer") == 1
-                    && handle.Calls.All(call => call.Identifier != "abortTransfer"))
-                .Label("an accepted candidate commits exactly once without aborting"))
+            .And(handle.Calls.Select(call => call.Identifier).SequenceEqual(
+                    Enumerable.Repeat("appendTransfer", chunks.Length)
+                        .Prepend("beginTransfer")
+                        .Append("commitTransfer"))
+                .Label("all chunks follow begin and precede the sole commit"))
+            .And(handle.Calls.All(call => call.Arguments[0] as string == transferId)
+                .Label("begin, append, and commit share one transfer identity"))
             .Collect($"payload-bytes={payload.Length}");
     }
 
@@ -80,6 +81,43 @@ internal sealed class BrowserCandidateTransferTests
             await Assert.That(exception!.TransferKind).IsEqualTo("candidate");
             await Assert.That(handle.Calls.Count(call => call.Identifier == "abortTransfer"))
                 .IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task SendAsync_CancelledDuringAppend_AbortsWithoutMaskingCancellation(bool abortFails)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var handle = new RecordingTransferHandle(beforeInvoke: identifier =>
+        {
+            if (identifier == "appendTransfer")
+            {
+                cancellation.Cancel();
+            }
+            else if (identifier == "abortTransfer" && abortFails)
+            {
+                throw new JSDisconnectedException("The browser disconnected during cleanup.");
+            }
+        });
+
+        var exception = await Assert.That(() => BrowserCandidateTransfer.SendAsync(
+                handle,
+                TransferPolicy(),
+                "candidate",
+                [1, 2, 3, 4],
+                kind => new InvalidOperationException(kind),
+                cancellation.Token))
+            .ThrowsExactly<OperationCanceledException>();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(exception!.CancellationToken).IsEqualTo(cancellation.Token);
+            await Assert.That(handle.Calls.Select(call => call.Identifier))
+                .IsEquivalentTo(["beginTransfer", "appendTransfer", "abortTransfer"], CollectionOrdering.Matching);
+            await Assert.That(handle.Calls[^1].CancellationToken.CanBeCanceled).IsFalse();
+            await Assert.That(handle.Calls[^1].Arguments[0]).IsEqualTo(handle.Calls[0].Arguments[0]);
         }
     }
 
@@ -123,9 +161,11 @@ internal sealed class BrowserCandidateTransferTests
             _ => limit,
         })]);
 
-    private sealed record JsCall(string Identifier, object?[] Arguments);
+    private sealed record JsCall(string Identifier, object?[] Arguments, CancellationToken CancellationToken);
 
-    private sealed class RecordingTransferHandle(bool commitAccepted = true)
+    private sealed class RecordingTransferHandle(
+        bool commitAccepted = true,
+        Action<string>? beforeInvoke = null)
         : IJSObjectReference
     {
         public List<JsCall> Calls { get; } = [];
@@ -138,8 +178,9 @@ internal sealed class BrowserCandidateTransferTests
             CancellationToken cancellationToken,
             object?[]? args)
         {
+            Calls.Add(new JsCall(identifier, args ?? [], cancellationToken));
+            beforeInvoke?.Invoke(identifier);
             cancellationToken.ThrowIfCancellationRequested();
-            Calls.Add(new JsCall(identifier, args ?? []));
             return identifier == "commitTransfer" && typeof(TValue) == typeof(bool)
                 ? ValueTask.FromResult((TValue)(object)commitAccepted)
                 : ValueTask.FromResult(default(TValue)!);

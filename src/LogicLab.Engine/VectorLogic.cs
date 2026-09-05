@@ -85,13 +85,12 @@ internal static class VectorLogic
         var offset = 0;
         foreach (var input in inputs)
         {
-            var normalized = NormalizeInput(input);
-            for (var index = 0; index < normalized.Width; index++)
+            for (var index = 0; index < input.Width; index++)
             {
-                values[offset + index] = normalized[index];
+                values[offset + index] = ScalarLogic.NormalizeInput(input[index]);
             }
 
-            offset = checked(offset + normalized.Width);
+            offset = checked(offset + input.Width);
         }
 
         return new LogicVector(values);
@@ -120,17 +119,16 @@ internal static class VectorLogic
                 "The extension width must exceed the input width.");
         }
 
-        var normalized = NormalizeInput(input);
         var values = new LogicValue[outputWidth];
-        for (var index = 0; index < normalized.Width; index++)
+        for (var index = 0; index < input.Width; index++)
         {
-            values[index] = normalized[index];
+            values[index] = ScalarLogic.NormalizeInput(input[index]);
         }
 
         var fill = signExtend
-            ? normalized[normalized.Width - 1]
+            ? values[input.Width - 1]
             : LogicValue.Zero;
-        Array.Fill(values, fill, normalized.Width, outputWidth - normalized.Width);
+        Array.Fill(values, fill, input.Width, outputWidth - input.Width);
         return new LogicVector(values);
     }
 

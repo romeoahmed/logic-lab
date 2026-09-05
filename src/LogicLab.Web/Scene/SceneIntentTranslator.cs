@@ -57,14 +57,7 @@ internal sealed class SceneIntentTranslator
                 [.. move.Moves.Select(item => new AnnotationMove(
                     ResolveAnnotation(item.Annotation).Id,
                     TranslatePoint(item.Position)))]),
-            CommitWireSceneIntentV1 wire => new ConnectTerminalsIntent(
-                [.. wire.Terminals.Select(TranslateTerminal)],
-                wire.DestinationNet is null
-                    ? null
-                    : ResolveNet(wire.DestinationNet).Id,
-                [.. wire.NewJunctionPositions.Select(TranslatePoint)],
-                [.. wire.RouteAdditions.Select(TranslateRoute)],
-                [.. wire.RouteReplacements.Select(TranslateReplacement)]),
+            CommitWireSceneIntentV1 wire => TranslateWire(wire),
             AddJunctionSceneIntentV1 add => new AddJunctionIntent(
                 definition.Id,
                 ResolveNet(add.Net).Id,
@@ -83,27 +76,6 @@ internal sealed class SceneIntentTranslator
                 ResolveWireGeometry(route.WireGeometry).Id,
                 TranslateRoute(route.Route)),
             _ => throw new InvalidOperationException("The Scene Intent variant is undefined."),
-        };
-    }
-
-    public EditIntent? TranslateRemoval(SceneSourceRefV1 source)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        return source.EntityKind switch
-        {
-            "componentInstance" => definition.ComponentInstances.SingleOrDefault(item =>
-                IsSource(source, "componentInstance", item.Id.Value)) is { } component
-                    ? new RemoveComponentInstancesIntent(definition.Id, [component.Id])
-                    : null,
-            "wireGeometry" => definition.WireGeometries.SingleOrDefault(item =>
-                IsSource(source, "wireGeometry", item.Id.Value)) is { } wire
-                    ? new RemoveWireGeometryIntent(definition.Id, wire.Id)
-                    : null,
-            "annotation" => definition.Annotations.SingleOrDefault(item =>
-                IsSource(source, "annotation", item.Id.Value)) is { } annotation
-                    ? new RemoveAnnotationIntent(definition.Id, annotation.Id)
-                    : null,
-            _ => null,
         };
     }
 
@@ -156,6 +128,23 @@ internal sealed class SceneIntentTranslator
         return new CompilationSource(
             new NetSourceIdentity(definition.Id, net.Id),
             new HierarchyPath(document.EntryCircuitDefinitionId, steps));
+    }
+
+    private ConnectTerminalsIntent TranslateWire(CommitWireSceneIntentV1 wire)
+    {
+        var terminals = wire.Terminals.Select(TranslateTerminal).ToArray();
+        // Drag order identifies the destination; topology supplies its Net identity.
+        var destination = wire.DestinationNet is not null
+            ? ResolveNet(wire.DestinationNet).Id
+            : terminals.Length == 2
+                ? definition.Nets.FirstOrDefault(net => net.Terminals.Contains(terminals[1]))?.Id
+                : null;
+        return new ConnectTerminalsIntent(
+            terminals,
+            destination,
+            [.. wire.NewJunctionPositions.Select(TranslatePoint)],
+            [.. wire.RouteAdditions.Select(TranslateRoute)],
+            [.. wire.RouteReplacements.Select(TranslateReplacement)]);
     }
 
     private EditIntent TranslatePlace(PlaceComponentSceneIntentV1 intent)

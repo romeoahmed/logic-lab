@@ -94,36 +94,19 @@ public sealed class ComponentPortSchema
         ComponentPortIndexing indexing,
         ComponentPortWidthSource widthSource)
     {
-        return (cardinality, indexing, widthSource) is
-            (ComponentPortCardinality.Fixed,
-                ComponentPortIndexing.None,
-                ComponentPortWidthSource.ParameterValue)
-            or (ComponentPortCardinality.Fixed,
-                ComponentPortIndexing.None,
-                ComponentPortWidthSource.WidthSum)
-            or (ComponentPortCardinality.ParameterItems,
-                ComponentPortIndexing.ZeroBasedDecimal,
-                ComponentPortWidthSource.SliceLength)
-            or (ComponentPortCardinality.ParameterItems,
-                ComponentPortIndexing.ZeroBasedDecimal,
-                ComponentPortWidthSource.WidthItem)
-            or (ComponentPortCardinality.ParameterValue,
-                ComponentPortIndexing.ZeroBasedDecimal,
-                ComponentPortWidthSource.ParameterValue)
-            or (ComponentPortCardinality.ParameterValue,
-                ComponentPortIndexing.ZeroBasedDecimal,
-                ComponentPortWidthSource.FixedOne)
-            or (ComponentPortCardinality.PowerOfTwoParameterValue,
-                ComponentPortIndexing.ZeroBasedDecimal,
-                ComponentPortWidthSource.ParameterValue)
-            or (ComponentPortCardinality.PowerOfTwoParameterValue,
-                ComponentPortIndexing.ZeroBasedDecimal,
-                ComponentPortWidthSource.FixedOne)
-            or (ComponentPortCardinality.Fixed,
-                ComponentPortIndexing.None,
-                ComponentPortWidthSource.FixedOne)
-            or (ComponentPortCardinality.Fixed,
-                ComponentPortIndexing.None,
-                ComponentPortWidthSource.CeilingLog2ParameterValue);
+        return cardinality switch
+        {
+            ComponentPortCardinality.Fixed => indexing == ComponentPortIndexing.None
+                && widthSource is ComponentPortWidthSource.ParameterValue
+                    or ComponentPortWidthSource.WidthSum
+                    or ComponentPortWidthSource.FixedOne
+                    or ComponentPortWidthSource.CeilingLog2ParameterValue,
+            ComponentPortCardinality.ParameterItems => indexing == ComponentPortIndexing.ZeroBasedDecimal
+                && widthSource is ComponentPortWidthSource.SliceLength or ComponentPortWidthSource.WidthItem,
+            ComponentPortCardinality.ParameterValue or ComponentPortCardinality.PowerOfTwoParameterValue =>
+                indexing == ComponentPortIndexing.ZeroBasedDecimal
+                && widthSource is ComponentPortWidthSource.ParameterValue or ComponentPortWidthSource.FixedOne,
+            _ => false,
+        };
     }
 }

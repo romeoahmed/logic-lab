@@ -69,7 +69,7 @@ internal sealed class CompilerRejectionTests
         var second = (CompilationRejected)Compiler.Compile(
             request,
             CancellationToken.None);
-        var expectedPorts = new[]
+        var expectedLocations = new[]
             {
                 new InstancePortSourceIdentity(
                     revision.Document.EntryCircuitDefinitionId,
@@ -81,35 +81,30 @@ internal sealed class CompilerRejectionTests
                     "D"),
             }
             .OrderBy(item => item.ComponentInstanceId.Value, StringComparer.Ordinal)
-            .ToArray();
-        var actualPorts = first.Diagnostics
-            .Select(item => ((CompilerCircuitLocation)item.Primary!).Source.Identity)
-            .Cast<InstancePortSourceIdentity>()
-            .ToArray();
-        var repeatedPorts = second.Diagnostics
-            .Select(item => ((CompilerCircuitLocation)item.Primary!).Source.Identity)
-            .Cast<InstancePortSourceIdentity>()
+            .Select(identity => (CompilerSourceLocation?)new CompilerCircuitLocation(new CompilationSource(
+                identity, new HierarchyPath(revision.Document.EntryCircuitDefinitionId, []))))
             .ToArray();
 
-        using (Assert.Multiple())
+        foreach (var rejected in new[] { first, second })
         {
-            await Assert.That(first.Reason).IsEqualTo("compilation_invalid");
-            await Assert.That(first.Diagnostics.Select(item => item.Code).ToArray())
-                .IsEquivalentTo(
-                    [
-                        "compiler_required_terminal_unconnected",
-                        "compiler_required_terminal_unconnected",
-                    ],
-                    CollectionOrdering.Matching);
-            await Assert.That(actualPorts)
-                .IsEquivalentTo(expectedPorts, CollectionOrdering.Matching);
-            await Assert.That(repeatedPorts)
-                .IsEquivalentTo(actualPorts, CollectionOrdering.Matching);
-            await Assert.That(first.Diagnostics.All(item => item.Arguments.Count == 0))
-                .IsTrue();
-            await Assert.That(first.Diagnostics.All(item =>
-                ((CompilerCircuitLocation)item.Primary!).Source.HierarchyPath.Steps.Count == 0))
-                .IsTrue();
+            using (Assert.Multiple())
+            {
+                await Assert.That(rejected.Reason).IsEqualTo("compilation_invalid");
+                await Assert.That(rejected.Diagnostics.Select(item => item.Primary))
+                    .IsEquivalentTo(expectedLocations, CollectionOrdering.Matching);
+            }
+
+            foreach (var diagnostic in rejected.Diagnostics)
+            {
+                using (Assert.Multiple())
+                {
+                    await Assert.That(diagnostic.Code)
+                        .IsEqualTo("compiler_required_terminal_unconnected");
+                    await Assert.That(diagnostic.Severity).IsEqualTo(CompilerDiagnosticSeverity.Error);
+                    await Assert.That(diagnostic.Arguments).IsEmpty();
+                    await Assert.That(diagnostic.Related).IsEmpty();
+                }
+            }
         }
     }
 

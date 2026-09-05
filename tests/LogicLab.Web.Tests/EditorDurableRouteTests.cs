@@ -385,9 +385,11 @@ internal sealed class EditorDurableRouteTests
             })));
         workspace.ReleaseAttach();
 
-        await rendered.WaitForStateAsync(() => workspace.DetachRequest is not null);
+        // Detachment is a Workspace operation, not a render notification.
+        var detached = await workspace.DetachCompleted.WaitAsync(cancellationToken);
+        await Assert.That(detached).IsTypeOf<Detached>();
+        await rendered.WaitForStateAsync(() => ShowsWorkspaceRecoveryWithoutEditor(rendered));
         var attached = (Attached)workspace.AttachOutcomes.Single();
-        await Assert.That(ShowsWorkspaceRecoveryWithoutEditor(rendered)).IsTrue();
         await Assert.That(workspace.DetachRequest).IsNotNull();
         var detach = workspace.DetachRequest!;
         using (Assert.Multiple())
@@ -674,6 +676,8 @@ internal sealed class EditorDurableRouteTests
             TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource releaseRead = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<WorkspaceDetachOutcome> detachCompleted = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         private int shouldBlockAttach = blockFirstAttach ? 1 : 0;
         private int shouldBlockReattach = blockFirstReattach ? 1 : 0;
         private int shouldRejectDispatch = rejectFirstDispatchWithReattach ? 1 : 0;
@@ -723,6 +727,8 @@ internal sealed class EditorDurableRouteTests
         public Task ReattachStarted => reattachStarted.Task;
 
         public Task ReadStarted => readStarted.Task;
+
+        public Task<WorkspaceDetachOutcome> DetachCompleted => detachCompleted.Task;
 
         public void ReleaseAttach() => releaseAttach.TrySetResult();
 
@@ -809,13 +815,15 @@ internal sealed class EditorDurableRouteTests
             return outcome;
         }
 
-        public override Task<WorkspaceDetachOutcome> DetachAsync(
+        public override async Task<WorkspaceDetachOutcome> DetachAsync(
             DetachRequest request,
             CancellationToken cancellationToken)
         {
             DetachCaller = request.Caller;
             DetachRequest = request;
-            return base.DetachAsync(request, cancellationToken);
+            var outcome = await base.DetachAsync(request, cancellationToken);
+            detachCompleted.TrySetResult(outcome);
+            return outcome;
         }
     }
 

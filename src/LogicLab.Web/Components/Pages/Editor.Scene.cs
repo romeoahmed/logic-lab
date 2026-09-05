@@ -10,6 +10,10 @@ public sealed partial class Editor
     private async Task HandleSceneIntentAsync(SceneIntentV1 intent)
     {
         ArgumentNullException.ThrowIfNull(intent);
+        if (!CanMutateWorkspace)
+        {
+            return;
+        }
         try
         {
             var definition = ResolveIntentDefinition(intent);
@@ -37,7 +41,7 @@ public sealed partial class Editor
 
     private async Task ToggleProbeAsync(CompilationSource target)
     {
-        if (Projection?.Simulation is not { } simulation)
+        if (!CanMutateWorkspace || Projection?.Simulation is not { } simulation)
         {
             return;
         }

@@ -3,6 +3,7 @@ using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Engine.Compilation;
 using TUnit.Assertions.Enums;
+using static LogicLab.Engine.Tests.CompilerTestCircuit;
 
 namespace LogicLab.Engine.Tests;
 
@@ -43,25 +44,25 @@ internal sealed class CompilerHierarchyTests
         {
             await Assert.That(artifact.SimulationIr.Evaluators).Count().IsEqualTo(3);
             await Assert.That(artifact.SimulationIr.Nets).Count().IsEqualTo(2);
-            await Assert.That(nestedEvaluator.Source.HierarchyPath.EntryCircuitDefinitionId)
-                .IsEqualTo(circuit.MainDefinition.Id);
-            await Assert.That(nestedEvaluator.Source.HierarchyPath.Steps)
-                .IsEquivalentTo(childPath.Steps, CollectionOrdering.Matching);
+            await Assert.That(nestedEvaluator.Source.HierarchyPath).IsEqualTo(childPath);
             await Assert.That(succeeded.Evidence.ObservedDimensions.Single(dimension =>
                 dimension.Dimension == ProjectScaleDimension.HierarchyDepth).Observed)
                 .IsEqualTo((ulong)2);
             await Assert.That(succeeded.Evidence.ObservedDimensions.Single(dimension =>
                 dimension.Dimension == ProjectScaleDimension.EntityCount).Observed)
                 .IsEqualTo((ulong)10);
-            await Assert.That(allSources.All(source =>
-                source.HierarchyPath.EntryCircuitDefinitionId == circuit.MainDefinition.Id
-                && source.HierarchyPath.Steps.Count == (CircuitId(source.Identity) ==
-                    circuit.ChildDefinition.Id ? 1 : 0))).IsTrue();
+        }
+
+        var rootPath = new HierarchyPath(circuit.MainDefinition.Id, []);
+        foreach (var source in allSources)
+        {
+            await Assert.That(source.HierarchyPath).IsEqualTo(
+                CircuitId(source.Identity) == circuit.ChildDefinition.Id ? childPath : rootPath);
         }
 
         foreach (var scopedNet in circuit.MainDefinition.Nets.Select(net => (
                      Net: net,
-                     Path: new HierarchyPath(circuit.MainDefinition.Id, [])))
+                     Path: rootPath))
                  .Concat(circuit.ChildDefinition.Nets.Select(net => (
                      Net: net,
                      Path: childPath))))
@@ -105,18 +106,15 @@ internal sealed class CompilerHierarchyTests
                 circuit.ChildNot.Id))
             .Select(entry => entry.Source.HierarchyPath)
             .ToArray();
+        var expectedPaths = circuit.ChildInstances.Select(instance => new HierarchyPath(
+            circuit.MainDefinition.Id,
+            [new HierarchyPathStep(circuit.MainDefinition.Id, instance.Id)]));
 
         using (Assert.Multiple())
         {
             await Assert.That(artifact.SimulationIr.Evaluators).Count().IsEqualTo(4);
-            await Assert.That(nestedSources).Count().IsEqualTo(2);
-            await Assert.That(nestedSources.All(path => path.Steps.Count == 1)).IsTrue();
-            await Assert.That(nestedSources
-                .Select(path => path.Steps[0].ComponentInstanceId)
-                .ToArray())
-                .IsEquivalentTo(
-                    circuit.ChildInstances.Select(instance => instance.Id).ToArray(),
-                    CollectionOrdering.Any);
+            await Assert.That(nestedSources)
+                .IsEquivalentTo(expectedPaths, CollectionOrdering.Any);
         }
     }
 
@@ -149,18 +147,19 @@ internal sealed class CompilerHierarchyTests
 
         var rejected = (await Assert.That(outcome).IsTypeOf<CompilationRejected>())!;
         var diagnostic = rejected.Diagnostics.Single();
+        CompilerSourceLocation expectedLocation = new CompilerCircuitLocation(new CompilationSource(
+            new ComponentInstanceSourceIdentity(recursive.Id, recursiveInstance.Id),
+            new HierarchyPath(recursive.Id, [])));
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason).IsEqualTo("compilation_invalid");
             await Assert.That(diagnostic.Code).IsEqualTo("compiler_hierarchy_recursion");
-            await Assert.That(((CompilerUnsignedDecimalValue)
-                diagnostic.Arguments.Single(argument => argument.Name == "cycleLength").Value)
-                .Value).IsEqualTo((ulong)1);
-            await Assert.That(diagnostic.Related).Count().IsEqualTo(1);
-            await Assert.That(((CompilerCircuitLocation)diagnostic.Related[0]).Source.Identity)
-                .IsEqualTo(new ComponentInstanceSourceIdentity(
-                    recursive.Id,
-                    recursiveInstance.Id));
+            await Assert.That(diagnostic.Arguments).IsEquivalentTo(
+                [new CompilerDiagnosticArgument("cycleLength", new CompilerUnsignedDecimalValue(1))],
+                CollectionOrdering.Matching);
+            await Assert.That(diagnostic.Primary).IsEqualTo(expectedLocation);
+            await Assert.That(diagnostic.Related)
+                .IsEquivalentTo([expectedLocation], CollectionOrdering.Matching);
         }
     }
 
@@ -200,26 +199,25 @@ internal sealed class CompilerHierarchyTests
 
         var rejected = (await Assert.That(outcome).IsTypeOf<CompilationRejected>())!;
         var diagnostic = rejected.Diagnostics.Single();
-        var relatedIdentities = diagnostic.Related
-            .Cast<CompilerCircuitLocation>()
-            .Select(location => location.Source.Identity)
-            .ToArray();
+        CompilerSourceLocation[] expectedLocations =
+        [
+            new CompilerCircuitLocation(new CompilationSource(
+                new ComponentInstanceSourceIdentity(entryId, entryCall.Id),
+                new HierarchyPath(entryId, []))),
+            new CompilerCircuitLocation(new CompilationSource(
+                new ComponentInstanceSourceIdentity(nested.Id, nestedCall.Id),
+                new HierarchyPath(entryId, [new HierarchyPathStep(entryId, entryCall.Id)]))),
+        ];
         using (Assert.Multiple())
         {
             await Assert.That(diagnostic.Code).IsEqualTo("compiler_hierarchy_recursion");
-            await Assert.That(((CompilerUnsignedDecimalValue)diagnostic.Arguments.Single(
-                argument => argument.Name == "cycleLength").Value).Value)
-                .IsEqualTo((ulong)2);
-            await Assert.That(relatedIdentities).IsEquivalentTo(
-                [
-                    (AuthoredSourceIdentity)new ComponentInstanceSourceIdentity(
-                        entryId,
-                        entryCall.Id),
-                    new ComponentInstanceSourceIdentity(nested.Id, nestedCall.Id),
-                ],
+            await Assert.That(rejected.Reason).IsEqualTo("compilation_invalid");
+            await Assert.That(diagnostic.Arguments).IsEquivalentTo(
+                [new CompilerDiagnosticArgument("cycleLength", new CompilerUnsignedDecimalValue(2))],
                 CollectionOrdering.Matching);
-            await Assert.That(((CompilerCircuitLocation)diagnostic.Related[1])
-                .Source.HierarchyPath.Steps).Count().IsEqualTo(1);
+            await Assert.That(diagnostic.Primary).IsEqualTo(expectedLocations[0]);
+            await Assert.That(diagnostic.Related)
+                .IsEquivalentTo(expectedLocations, CollectionOrdering.Matching);
         }
     }
 
@@ -384,11 +382,6 @@ internal sealed class CompilerHierarchyTests
             [.. childInstances]);
     }
 
-    private static ProjectRevision BeginProject()
-    {
-        return CompilerTestCircuit.BeginProject();
-    }
-
     private static CircuitDefinitionId CircuitId(AuthoredSourceIdentity identity)
     {
         return identity switch
@@ -435,11 +428,6 @@ internal sealed class CompilerHierarchyTests
             await Assert.That(rejected.Evidence.PolicyLimitBreach)
                 .IsEqualTo(new ObservedProjectScaleDimension(dimension, observed));
         }
-    }
-
-    private static ProjectRevision Commit(EditOutcome outcome)
-    {
-        return ((EditCommitted)outcome).Revision;
     }
 
     private sealed record HierarchicalCircuit(

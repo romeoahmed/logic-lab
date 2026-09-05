@@ -8,6 +8,51 @@ namespace LogicLab.Domain.Tests;
 internal sealed class ProjectEditorMigrationTests
 {
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Apply_RemoveSharedCallSitePorts_ReportsOnlyFinalTopology(
+        bool selfReference)
+    {
+        var revision = BeginProject();
+        revision = Commit(ProjectEditor.Apply(revision,
+            new CreateCircuitDefinitionIntent("Child", [Port("A", PortDirection.Input, 1)])));
+        var child = revision.Document.CircuitDefinitions.Single(definition =>
+            definition.Id != revision.Document.EntryCircuitDefinitionId);
+        var parentId = selfReference ? child.Id : revision.Document.EntryCircuitDefinitionId;
+        for (var index = 0; index < 2; index++)
+        {
+            revision = Commit(ProjectEditor.Apply(revision,
+                new PlaceComponentInstanceIntent(
+                    parentId,
+                    new CircuitDefinitionComponentTarget(child.Id),
+                    [],
+                    new ComponentPlacement(new GridPoint(index, 0)))));
+        }
+
+        var instances = revision.Document.FindCircuitDefinition(parentId)!.ComponentInstances;
+        revision = Commit(ProjectEditor.Apply(revision, new ConnectTerminalsIntent(
+            [.. instances.Select(instance => new InstanceTerminalReference(
+                parentId, instance.Id, child.Ports[0].Id.Value))])));
+        var netId = revision.Document.FindCircuitDefinition(parentId)!.Nets.Single().Id;
+
+        var committed = (EditCommitted)ProjectEditor.Apply(revision,
+            new ChangePublicPortContractIntent(child.Id, [],
+                [.. instances.Select(instance => new CallSiteTerminalMigration(
+                    parentId, instance.Id, [new PortTerminalMigration(child.Ports[0].Id, null)]))]));
+        var removedNet = new NetSourceIdentity(parentId, netId);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(committed.Revision.Document.FindCircuitDefinition(parentId)!.Nets)
+                .IsEmpty();
+            await Assert.That(committed.RemovedSources).Contains(removedNet);
+            await Assert.That(committed.ChangedSources).DoesNotContain(removedNet);
+            await Assert.That(revision.Document.FindCircuitDefinition(parentId)!.Nets.Single().Terminals)
+                .Count().IsEqualTo(2);
+        }
+    }
+
+    [Test]
     public async Task Apply_ChangePublicPortContract_RemovesObsoleteBoundaryTerminal()
     {
         var revision = BeginProject();
@@ -117,7 +162,7 @@ internal sealed class ProjectEditorMigrationTests
     }
 
     [Test]
-    public async Task Apply_ChangePublicPortContract_MigratesEveryCallSiteAtomically()
+    public async Task Apply_ChangePublicPortContract_MigratesRetainedAndNewPortsAtomically()
     {
         var revision = BeginProject();
         revision = Commit(ProjectEditor.Apply(
@@ -173,7 +218,10 @@ internal sealed class ProjectEditorMigrationTests
                     new InstanceTerminalReference(parent.Id, callSite.Id, oldOutput.Id.Value),
                     new InstanceTerminalReference(parent.Id, sink.Id, "D"),
                 ])));
-        var sourceRevision = revision;
+        var originalNets = revision.Document.EntryCircuitDefinition.Nets;
+        var inputNetId = originalNets.Single(net => net.Terminals.Contains(
+            new InstanceTerminalReference(parent.Id, source.Id, "Q"))).Id;
+        var outputNetId = originalNets.Single(net => net.Id != inputNetId).Id;
 
         var outcome = ProjectEditor.Apply(
             revision,
@@ -207,17 +255,19 @@ internal sealed class ProjectEditorMigrationTests
             await Assert.That(changedChild.Ports[1].Id).IsNotEqualTo(oldOutput.Id);
             await Assert.That(changedCallSite.Target)
                 .IsEqualTo(new CircuitDefinitionComponentTarget(child.Id));
-            await Assert.That(committed.Revision.Document.EntryCircuitDefinition.Nets
-                .SelectMany(net => net.Terminals)
-                .OfType<InstanceTerminalReference>()
-                .Any(terminal => terminal.ComponentInstanceId == callSite.Id
-                    && terminal.PortId == changedChild.Ports[1].Id.Value)).IsTrue();
-            await Assert.That(committed.Revision.Document.EntryCircuitDefinition.Nets
-                .SelectMany(net => net.Terminals)
-                .OfType<InstanceTerminalReference>()
-                .Any(terminal => terminal.ComponentInstanceId == callSite.Id
-                    && terminal.PortId == oldOutput.Id.Value)).IsFalse();
-            await Assert.That(sourceRevision.Document.FindCircuitDefinition(child.Id)!.Ports[1].Id)
+            var changedNets = committed.Revision.Document.EntryCircuitDefinition.Nets;
+            await Assert.That(changedNets).Count().IsEqualTo(2);
+            await Assert.That(changedNets.Single(net => net.Id == inputNetId).Terminals)
+                .IsEquivalentTo(originalNets.Single(net => net.Id == inputNetId).Terminals, CollectionOrdering.Matching);
+            await Assert.That(changedNets.Single(net => net.Id == outputNetId).Terminals)
+                .IsEquivalentTo(
+                    new AuthoredTerminalReference[]
+                    {
+                        new InstanceTerminalReference(parent.Id, callSite.Id, changedChild.Ports[1].Id.Value),
+                        new InstanceTerminalReference(parent.Id, sink.Id, "D"),
+                    },
+                    CollectionOrdering.Matching);
+            await Assert.That(revision.Document.FindCircuitDefinition(child.Id)!.Ports[1].Id)
                 .IsEqualTo(oldOutput.Id);
             await Assert.That(committed.RemovedSources)
                 .Contains(new DefinitionPortSourceIdentity(child.Id, oldOutput.Id));
@@ -293,6 +343,7 @@ internal sealed class ProjectEditorMigrationTests
                     new InstanceTerminalReference(definitionId, sink.Id, "D"),
                 ])));
 
+        var originalNet = revision.Document.EntryCircuitDefinition.Nets.Single();
         var outcome = ProjectEditor.Apply(
             revision,
             new ChangeInstanceContractIntent(
@@ -308,10 +359,12 @@ internal sealed class ProjectEditorMigrationTests
         using (Assert.Multiple())
         {
             var changedInstance = changed.FindComponentInstance(not.Id)!;
-            await Assert.That(((LibraryComponentTarget)changedInstance.Target)
-                .ContractKey.ContractId).IsEqualTo("logic.buffer");
-            await Assert.That(changed.Nets.Single().Terminals)
-                .Contains(new InstanceTerminalReference(definitionId, not.Id, "Q"));
+            await Assert.That(changedInstance.Target).IsEqualTo(new LibraryComponentTarget(Contract("logic.buffer")));
+            await Assert.That(changedInstance.Parameters).IsEquivalentTo(WidthParameters(1), CollectionOrdering.Matching);
+            var net = changed.Nets.Single();
+            await Assert.That(net.Id).IsEqualTo(originalNet.Id);
+            await Assert.That(net.Width).IsEqualTo(originalNet.Width);
+            await Assert.That(net.Terminals).IsEquivalentTo(originalNet.Terminals, CollectionOrdering.Matching);
         }
     }
 

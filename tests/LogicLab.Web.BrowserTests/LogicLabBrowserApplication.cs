@@ -26,6 +26,20 @@ internal sealed class LogicLabBrowserApplication : TestWebApplicationFactory<Pro
         }
     }
 
+    public HttpClient CreateHttpsClient()
+    {
+        StartServer();
+        return new HttpClient(new HttpClientHandler
+        {
+            AllowAutoRedirect = false,
+            ServerCertificateCustomValidationCallback = (_, presented, _, _) =>
+                presented?.Thumbprint == certificate.Thumbprint,
+        })
+        {
+            BaseAddress = ClientOptions.BaseAddress,
+        };
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);

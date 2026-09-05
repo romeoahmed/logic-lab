@@ -18,9 +18,6 @@ public sealed class ProjectRevision
 
 public sealed class ProjectDocument
 {
-    private readonly CircuitDefinition[] circuitDefinitions;
-    private readonly MemoryImage[] memoryImages;
-
     internal ProjectDocument(
         ProjectId projectId,
         string displayName,
@@ -35,10 +32,26 @@ public sealed class ProjectDocument
         LibrarySnapshot = librarySnapshot;
         SymbolProfile = symbolProfile;
         EntryCircuitDefinitionId = entryCircuitDefinitionId;
-        this.circuitDefinitions = (CircuitDefinition[])circuitDefinitions.Clone();
-        this.memoryImages = (MemoryImage[])memoryImages.Clone();
-        CircuitDefinitions = Array.AsReadOnly(this.circuitDefinitions);
-        MemoryImages = Array.AsReadOnly(this.memoryImages);
+        CircuitDefinitions = [.. circuitDefinitions];
+        MemoryImages = [.. memoryImages];
+    }
+
+    // Collections are owned at construction; revisions share every unchanged collection.
+    private ProjectDocument(
+        ProjectDocument source,
+        string? displayName = null,
+        SymbolProfileReference? symbolProfile = null,
+        CircuitDefinitionId? entryCircuitDefinitionId = null,
+        ReadOnlyCollection<CircuitDefinition>? circuitDefinitions = null,
+        ReadOnlyCollection<MemoryImage>? memoryImages = null)
+    {
+        ProjectId = source.ProjectId;
+        DisplayName = displayName ?? source.DisplayName;
+        LibrarySnapshot = source.LibrarySnapshot;
+        SymbolProfile = symbolProfile ?? source.SymbolProfile;
+        EntryCircuitDefinitionId = entryCircuitDefinitionId ?? source.EntryCircuitDefinitionId;
+        CircuitDefinitions = circuitDefinitions ?? source.CircuitDefinitions;
+        MemoryImages = memoryImages ?? source.MemoryImages;
     }
 
     public ProjectId ProjectId { get; }
@@ -63,22 +76,19 @@ public sealed class ProjectDocument
     public CircuitDefinition? FindCircuitDefinition(CircuitDefinitionId id)
     {
         ArgumentNullException.ThrowIfNull(id);
-        return Array.Find(circuitDefinitions, definition => definition.Id == id);
+        return CircuitDefinitions.FirstOrDefault(definition => definition.Id == id);
     }
 
     public MemoryImage? FindMemoryImage(MemoryImageId id)
     {
         ArgumentNullException.ThrowIfNull(id);
-        return Array.Find(memoryImages, image => image.Id == id);
+        return MemoryImages.FirstOrDefault(image => image.Id == id);
     }
 
     internal ProjectDocument ReplaceCircuitDefinition(CircuitDefinition replacement)
     {
-        var definitions = (CircuitDefinition[])circuitDefinitions.Clone();
-        var index = Array.FindIndex(
-            definitions,
-            definition => definition.Id == replacement.Id);
-
+        var definitions = CircuitDefinitions.ToArray();
+        var index = Array.FindIndex(definitions, definition => definition.Id == replacement.Id);
         if (index < 0)
         {
             throw new InvalidOperationException(
@@ -89,127 +99,41 @@ public sealed class ProjectDocument
         Array.Sort(
             definitions,
             static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
-
-        return new ProjectDocument(
-            ProjectId,
-            DisplayName,
-            LibrarySnapshot,
-            SymbolProfile,
-            EntryCircuitDefinitionId,
-            definitions,
-            memoryImages);
+        return new(this, circuitDefinitions: Array.AsReadOnly(definitions));
     }
 
-    internal ProjectDocument AddCircuitDefinition(CircuitDefinition definition)
-    {
-        var definitions = new CircuitDefinition[circuitDefinitions.Length + 1];
-        circuitDefinitions.CopyTo(definitions, 0);
-        definitions[^1] = definition;
-        Array.Sort(
-            definitions,
-            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
-
-        return new ProjectDocument(
-            ProjectId,
-            DisplayName,
-            LibrarySnapshot,
-            SymbolProfile,
-            EntryCircuitDefinitionId,
-            definitions,
-            memoryImages);
-    }
+    internal ProjectDocument AddCircuitDefinition(CircuitDefinition definition) => new(
+        this,
+        circuitDefinitions: [.. CircuitDefinitions.Append(definition)
+            .OrderBy(item => item.Id.Value, StringComparer.Ordinal)]);
 
     internal ProjectDocument WithEntryCircuitDefinition(
-        CircuitDefinitionId entryCircuitDefinitionId)
-    {
-        return new ProjectDocument(
-            ProjectId,
-            DisplayName,
-            LibrarySnapshot,
-            SymbolProfile,
-            entryCircuitDefinitionId,
-            circuitDefinitions,
-            memoryImages);
-    }
+        CircuitDefinitionId entryCircuitDefinitionId) =>
+        new(this, entryCircuitDefinitionId: entryCircuitDefinitionId);
 
-    internal ProjectDocument WithDisplayName(string displayName)
-    {
-        return new ProjectDocument(
-            ProjectId,
-            displayName,
-            LibrarySnapshot,
-            SymbolProfile,
-            EntryCircuitDefinitionId,
-            circuitDefinitions,
-            memoryImages);
-    }
+    internal ProjectDocument WithDisplayName(string displayName) =>
+        new(this, displayName: displayName);
 
-    internal ProjectDocument WithSymbolProfile(SymbolProfileReference symbolProfile)
-    {
-        return new ProjectDocument(
-            ProjectId,
-            DisplayName,
-            LibrarySnapshot,
-            symbolProfile,
-            EntryCircuitDefinitionId,
-            circuitDefinitions,
-            memoryImages);
-    }
+    internal ProjectDocument WithSymbolProfile(SymbolProfileReference symbolProfile) =>
+        new(this, symbolProfile: symbolProfile);
 
     internal ProjectDocument ReplaceCircuitDefinitions(
         IReadOnlyList<CircuitDefinition> replacements)
     {
         var replacementById = replacements.ToDictionary(definition => definition.Id);
-        var definitions = circuitDefinitions
-            .Select(definition => replacementById.GetValueOrDefault(definition.Id, definition))
-            .ToArray();
-        return new ProjectDocument(
-            ProjectId,
-            DisplayName,
-            LibrarySnapshot,
-            SymbolProfile,
-            EntryCircuitDefinitionId,
-            definitions,
-            memoryImages);
+        return new(this, circuitDefinitions: [.. CircuitDefinitions.Select(definition =>
+            replacementById.GetValueOrDefault(definition.Id, definition))]);
     }
 
-    internal ProjectDocument RemoveCircuitDefinition(CircuitDefinitionId id)
-    {
-        return new ProjectDocument(
-            ProjectId,
-            DisplayName,
-            LibrarySnapshot,
-            SymbolProfile,
-            EntryCircuitDefinitionId,
-            [.. circuitDefinitions.Where(definition => definition.Id != id)],
-            memoryImages);
-    }
+    internal ProjectDocument RemoveCircuitDefinition(CircuitDefinitionId id) =>
+        new(this, circuitDefinitions: [.. CircuitDefinitions.Where(definition => definition.Id != id)]);
 
-    internal ProjectDocument WithMemoryImages(MemoryImage[] images)
-    {
-        Array.Sort(
-            images,
-            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
-        return new ProjectDocument(
-            ProjectId,
-            DisplayName,
-            LibrarySnapshot,
-            SymbolProfile,
-            EntryCircuitDefinitionId,
-            circuitDefinitions,
-            images);
-    }
+    internal ProjectDocument WithMemoryImages(MemoryImage[] images) =>
+        new(this, memoryImages: [.. images.OrderBy(image => image.Id.Value, StringComparer.Ordinal)]);
 }
 
 public sealed class CircuitDefinition
 {
-    private readonly DefinitionPort[] ports;
-    private readonly ComponentInstance[] componentInstances;
-    private readonly Net[] nets;
-    private readonly Junction[] junctions;
-    private readonly WireGeometry[] wireGeometries;
-    private readonly Annotation[] annotations;
-
     internal CircuitDefinition(
         CircuitDefinitionId id,
         string displayName,
@@ -222,18 +146,32 @@ public sealed class CircuitDefinition
     {
         Id = id;
         DisplayName = displayName;
-        this.ports = (DefinitionPort[])ports.Clone();
-        this.componentInstances = (ComponentInstance[])componentInstances.Clone();
-        this.nets = (Net[])nets.Clone();
-        this.junctions = (Junction[])junctions.Clone();
-        this.wireGeometries = (WireGeometry[])wireGeometries.Clone();
-        this.annotations = (Annotation[])annotations.Clone();
-        Ports = Array.AsReadOnly(this.ports);
-        ComponentInstances = Array.AsReadOnly(this.componentInstances);
-        Nets = Array.AsReadOnly(this.nets);
-        Junctions = Array.AsReadOnly(this.junctions);
-        WireGeometries = Array.AsReadOnly(this.wireGeometries);
-        Annotations = Array.AsReadOnly(this.annotations);
+        Ports = [.. ports];
+        ComponentInstances = [.. componentInstances];
+        Nets = [.. nets];
+        Junctions = [.. junctions];
+        WireGeometries = [.. wireGeometries];
+        Annotations = [.. annotations];
+    }
+
+    private CircuitDefinition(
+        CircuitDefinition source,
+        string? displayName = null,
+        ReadOnlyCollection<DefinitionPort>? ports = null,
+        ReadOnlyCollection<ComponentInstance>? componentInstances = null,
+        ReadOnlyCollection<Net>? nets = null,
+        ReadOnlyCollection<Junction>? junctions = null,
+        ReadOnlyCollection<WireGeometry>? wireGeometries = null,
+        ReadOnlyCollection<Annotation>? annotations = null)
+    {
+        Id = source.Id;
+        DisplayName = displayName ?? source.DisplayName;
+        Ports = ports ?? source.Ports;
+        ComponentInstances = componentInstances ?? source.ComponentInstances;
+        Nets = nets ?? source.Nets;
+        Junctions = junctions ?? source.Junctions;
+        WireGeometries = wireGeometries ?? source.WireGeometries;
+        Annotations = annotations ?? source.Annotations;
     }
 
     public CircuitDefinitionId Id { get; }
@@ -255,168 +193,84 @@ public sealed class CircuitDefinition
     public ComponentInstance? FindComponentInstance(ComponentInstanceId id)
     {
         ArgumentNullException.ThrowIfNull(id);
-        return Array.Find(componentInstances, instance => instance.Id == id);
+        return ComponentInstances.FirstOrDefault(instance => instance.Id == id);
     }
 
     public Net? FindNet(NetId id)
     {
         ArgumentNullException.ThrowIfNull(id);
-        return Array.Find(nets, net => net.Id == id);
+        return Nets.FirstOrDefault(net => net.Id == id);
     }
 
     public Junction? FindJunction(JunctionId id)
     {
         ArgumentNullException.ThrowIfNull(id);
-        return Array.Find(junctions, junction => junction.Id == id);
+        return Junctions.FirstOrDefault(junction => junction.Id == id);
     }
 
     public WireGeometry? FindWireGeometry(WireGeometryId id)
     {
         ArgumentNullException.ThrowIfNull(id);
-        return Array.Find(wireGeometries, geometry => geometry.Id == id);
+        return WireGeometries.FirstOrDefault(geometry => geometry.Id == id);
     }
 
     public DefinitionPort? FindPort(DefinitionPortId id)
     {
         ArgumentNullException.ThrowIfNull(id);
-        return Array.Find(ports, port => port.Id == id);
+        return Ports.FirstOrDefault(port => port.Id == id);
     }
 
     public DefinitionPort? FindPort(string id)
     {
         ArgumentNullException.ThrowIfNull(id);
-        return Array.Find(
-            ports,
-            port => string.Equals(port.Id.Value, id, StringComparison.Ordinal));
+        return Ports.FirstOrDefault(port => string.Equals(port.Id.Value, id, StringComparison.Ordinal));
     }
 
     public Annotation? FindAnnotation(AnnotationId id)
     {
         ArgumentNullException.ThrowIfNull(id);
-        return Array.Find(annotations, annotation => annotation.Id == id);
+        return Annotations.FirstOrDefault(annotation => annotation.Id == id);
     }
 
-    internal CircuitDefinition AddComponentInstance(ComponentInstance instance)
-    {
-        var instances = new ComponentInstance[componentInstances.Length + 1];
-        componentInstances.CopyTo(instances, 0);
-        instances[^1] = instance;
-        Array.Sort(
-            instances,
-            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
-
-        return new CircuitDefinition(
-            Id,
-            DisplayName,
-            ports,
-            instances,
-            nets,
-            junctions,
-            wireGeometries,
-            annotations);
-    }
+    internal CircuitDefinition AddComponentInstance(ComponentInstance instance) => new(
+        this,
+        componentInstances: [.. ComponentInstances.Append(instance)
+            .OrderBy(item => item.Id.Value, StringComparer.Ordinal)]);
 
     internal CircuitDefinition ReplaceComponentInstances(ComponentInstance[] replacements)
     {
         var replacementById = replacements.ToDictionary(instance => instance.Id);
-        var instances = componentInstances
-            .Select(instance => replacementById.GetValueOrDefault(instance.Id, instance))
-            .ToArray();
-        return new CircuitDefinition(
-            Id,
-            DisplayName,
-            ports,
-            instances,
-            nets,
-            junctions,
-            wireGeometries,
-            annotations);
+        return new(this, componentInstances: [.. ComponentInstances.Select(instance =>
+            replacementById.GetValueOrDefault(instance.Id, instance))]);
     }
 
     internal CircuitDefinition WithTopology(
         Net[] updatedNets,
         Junction[] updatedJunctions,
-        WireGeometry[] updatedWireGeometries)
-    {
-        Array.Sort(
-            updatedNets,
-            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
-        Array.Sort(
-            updatedJunctions,
-            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
-        Array.Sort(
-            updatedWireGeometries,
-            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
-        return new CircuitDefinition(
-            Id,
-            DisplayName,
-            ports,
-            componentInstances,
-            updatedNets,
-            updatedJunctions,
-            updatedWireGeometries,
-            annotations);
-    }
+        WireGeometry[] updatedWireGeometries) => new(
+            this,
+            nets: [.. updatedNets.OrderBy(net => net.Id.Value, StringComparer.Ordinal)],
+            junctions: [.. updatedJunctions.OrderBy(junction => junction.Id.Value, StringComparer.Ordinal)],
+            wireGeometries: [.. updatedWireGeometries.OrderBy(wire => wire.Id.Value, StringComparer.Ordinal)]);
 
-    internal CircuitDefinition WithDisplayName(string displayName)
-    {
-        return new CircuitDefinition(
-            Id,
-            displayName,
-            ports,
-            componentInstances,
-            nets,
-            junctions,
-            wireGeometries,
-            annotations);
-    }
+    internal CircuitDefinition WithNets(Net[] updatedNets) =>
+        new(this, nets: [.. updatedNets.OrderBy(net => net.Id.Value, StringComparer.Ordinal)]);
 
-    internal CircuitDefinition WithPorts(DefinitionPort[] updatedPorts)
-    {
-        return new CircuitDefinition(
-            Id,
-            DisplayName,
-            updatedPorts,
-            componentInstances,
-            nets,
-            junctions,
-            wireGeometries,
-            annotations);
-    }
+    internal CircuitDefinition WithDisplayName(string displayName) =>
+        new(this, displayName: displayName);
+
+    internal CircuitDefinition WithPorts(DefinitionPort[] updatedPorts) =>
+        new(this, ports: [.. updatedPorts]);
 
     internal CircuitDefinition WithComponentsAndTopology(
         ComponentInstance[] updatedInstances,
-        Net[] updatedNets)
-    {
-        Array.Sort(
-            updatedInstances,
-            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
-        Array.Sort(
-            updatedNets,
-            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
-        return new CircuitDefinition(
-            Id,
-            DisplayName,
-            ports,
-            updatedInstances,
-            updatedNets,
-            junctions,
-            wireGeometries,
-            annotations);
-    }
+        Net[] updatedNets) => new(
+            this,
+            componentInstances: [.. updatedInstances.OrderBy(instance => instance.Id.Value, StringComparer.Ordinal)],
+            nets: [.. updatedNets.OrderBy(net => net.Id.Value, StringComparer.Ordinal)]);
 
-    internal CircuitDefinition WithAnnotations(Annotation[] updatedAnnotations)
-    {
-        return new CircuitDefinition(
-            Id,
-            DisplayName,
-            ports,
-            componentInstances,
-            nets,
-            junctions,
-            wireGeometries,
-            updatedAnnotations);
-    }
+    internal CircuitDefinition WithAnnotations(Annotation[] updatedAnnotations) =>
+        new(this, annotations: [.. updatedAnnotations]);
 }
 
 public sealed class DefinitionPort
@@ -593,8 +447,6 @@ public sealed record ComponentParameterBinding
 
 public sealed class ComponentInstance
 {
-    private readonly ComponentParameterBinding[] parameters;
-
     internal ComponentInstance(
         ComponentInstanceId id,
         ComponentTarget target,
@@ -602,11 +454,22 @@ public sealed class ComponentInstance
         ComponentPlacement placement,
         string? displayName,
         string? symbolVariantId = null)
+        : this(id, target, Array.AsReadOnly((ComponentParameterBinding[])parameters.Clone()),
+            placement, displayName, symbolVariantId)
+    {
+    }
+
+    private ComponentInstance(
+        ComponentInstanceId id,
+        ComponentTarget target,
+        ReadOnlyCollection<ComponentParameterBinding> parameters,
+        ComponentPlacement placement,
+        string? displayName,
+        string? symbolVariantId)
     {
         Id = id;
         Target = target;
-        this.parameters = (ComponentParameterBinding[])parameters.Clone();
-        Parameters = Array.AsReadOnly(this.parameters);
+        Parameters = parameters;
         Placement = placement;
         DisplayName = displayName;
         SymbolVariantId = symbolVariantId;
@@ -624,63 +487,23 @@ public sealed class ComponentInstance
 
     public string? SymbolVariantId { get; }
 
-    internal ComponentInstance WithPlacement(ComponentPlacement placement)
-    {
-        return new ComponentInstance(
-            Id,
-            Target,
-            parameters,
-            placement,
-            DisplayName,
-            SymbolVariantId);
-    }
+    internal ComponentInstance WithPlacement(ComponentPlacement placement) =>
+        new(Id, Target, Parameters, placement, DisplayName, SymbolVariantId);
 
-    internal ComponentInstance WithDisplayName(string? displayName)
-    {
-        return new ComponentInstance(
-            Id,
-            Target,
-            parameters,
-            Placement,
-            displayName,
-            SymbolVariantId);
-    }
+    internal ComponentInstance WithDisplayName(string? displayName) =>
+        new(Id, Target, Parameters, Placement, displayName, SymbolVariantId);
 
-    internal ComponentInstance WithParameters(ComponentParameterBinding[] updatedParameters)
-    {
-        return new ComponentInstance(
-            Id,
-            Target,
-            updatedParameters,
-            Placement,
-            DisplayName,
-            SymbolVariantId);
-    }
+    internal ComponentInstance WithParameters(ComponentParameterBinding[] updatedParameters) =>
+        new(Id, Target, updatedParameters, Placement, DisplayName, SymbolVariantId);
 
     internal ComponentInstance WithContract(
         ComponentTarget target,
         ComponentParameterBinding[] updatedParameters,
-        string? symbolVariantId)
-    {
-        return new ComponentInstance(
-            Id,
-            target,
-            updatedParameters,
-            Placement,
-            DisplayName,
-            symbolVariantId);
-    }
+        string? symbolVariantId) =>
+        new(Id, target, updatedParameters, Placement, DisplayName, symbolVariantId);
 
-    internal ComponentInstance WithSymbolVariant(string? symbolVariantId)
-    {
-        return new ComponentInstance(
-            Id,
-            Target,
-            parameters,
-            Placement,
-            DisplayName,
-            symbolVariantId);
-    }
+    internal ComponentInstance WithSymbolVariant(string? symbolVariantId) =>
+        new(Id, Target, Parameters, Placement, DisplayName, symbolVariantId);
 }
 
 public sealed class Net

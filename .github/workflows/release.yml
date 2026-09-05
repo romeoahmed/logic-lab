@@ -398,30 +398,15 @@ jobs:
           bicep-version: ${{ env.BICEP_VERSION }}
 
       - name: Verify readiness and stability
+        timeout-minutes: 12
         shell: bash
         env:
+          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          WEB_APP_NAME: ${{ steps.application.outputs.webName }}
+          WEB_REVISION_NAME: ${{ steps.application.outputs.webRevisionName }}
           WEB_FQDN: ${{ steps.application.outputs.webFqdn }}
-        run: |
-          set -euo pipefail
-
-          if [[ -z "$WEB_FQDN" ]]; then
-            printf 'Application deployment did not return a Web FQDN.\n' >&2
-            exit 1
-          fi
-
-          for ((attempt = 1; attempt <= 60; attempt++)); do
-            if curl --fail --silent --show-error --max-time 10 "https://$WEB_FQDN/health/ready" >/dev/null; then
-              for _ in 1 2 3; do
-                sleep 10
-                curl --fail --silent --show-error --max-time 10 "https://$WEB_FQDN/health/ready" >/dev/null
-              done
-              exit 0
-            fi
-            sleep 10
-          done
-
-          printf 'Web readiness did not succeed within ten minutes.\n' >&2
-          exit 1
+          WEB_IMAGE: ${{ steps.images.outputs.web_image }}
+        run: bash .github/scripts/verify-web-release.sh
 
       - name: Record release summary
         shell: bash
@@ -431,6 +416,7 @@ jobs:
           WEB_IMAGE: ${{ steps.images.outputs.web_image }}
           MIGRATOR_IMAGE: ${{ steps.images.outputs.migrator_image }}
           WEB_FQDN: ${{ steps.application.outputs.webFqdn }}
+          WEB_REVISION_NAME: ${{ steps.application.outputs.webRevisionName }}
         run: |
           set -euo pipefail
 
@@ -440,5 +426,6 @@ jobs:
             printf -- "- Commit: \`%s\`\n" "$RELEASE_COMMIT"
             printf -- "- Web: \`%s\`\n" "$WEB_IMAGE"
             printf -- "- Migrator: \`%s\`\n" "$MIGRATOR_IMAGE"
+            printf -- '- Revision: %s\n' "$WEB_REVISION_NAME"
             printf -- '- Endpoint: https://%s\n' "$WEB_FQDN"
           } >> "$GITHUB_STEP_SUMMARY"

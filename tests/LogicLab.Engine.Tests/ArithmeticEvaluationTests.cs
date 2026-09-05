@@ -140,11 +140,6 @@ internal sealed class ArithmeticEvaluationTests
 
     private static LogicVector Vector(params LogicValue[] values) => new(values);
 
-    private static LogicValue[] Values(LogicVector vector)
-    {
-        return [.. Enumerable.Range(0, vector.Width).Select(index => vector[index])];
-    }
-
     private static LogicValue[] CreateShiftAmount(
         uint encodedAmount,
         uint unknownMask,
@@ -198,7 +193,7 @@ internal sealed class ArithmeticEvaluationTests
                     shift |= (ulong)((combination >> index) & 1) << unknownBits[index];
                 }
 
-                return new LogicVector([.. Enumerable.Range(0, data.Length)
+                return Enumerable.Range(0, data.Length)
                     .Select(outputBit =>
                     {
                         if (shift >= (ulong)data.Length)
@@ -213,10 +208,14 @@ internal sealed class ArithmeticEvaluationTests
                         return sourceBit >= 0 && sourceBit < data.Length
                             ? ScalarLogic.NormalizeInput(data[sourceBit])
                             : LogicValue.Zero;
-                    })]);
+                    }).ToArray();
             })
             .ToArray();
-        return Values(VectorConservativeMerge.Merge(possible));
+        // Compare scalar candidates directly, without sharing the packed merge implementation.
+        return [.. Enumerable.Range(0, data.Length).Select(bit =>
+            possible.All(candidate => candidate[bit] == possible[0][bit])
+                ? possible[0][bit]
+                : LogicValue.X)];
     }
 
     private static UnsignedComparisonResult ScalarCompareOracle(

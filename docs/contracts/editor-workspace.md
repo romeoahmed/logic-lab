@@ -160,7 +160,7 @@ typed command payload
 | `CloseWorkspace`        | none                                                         | current attachment |
 | `RequestCompilation`    | entry Circuit Definition ID                                  | Compilation        |
 | `CreateSession`         | `SessionConfigurationV1` and target Compilation Artifact Key | Session Creation   |
-| `RestartSession`        | `SessionConfigurationV1`                                     | Session Mutation   |
+| `RestartSession`        | `SessionConfigurationV1` and target Compilation Artifact Key | Session Mutation   |
 | `ScheduleStimulusBatch` | one complete future Stimulus Batch                           | Session Mutation   |
 | `StepSession`           | none                                                         | Session Mutation   |
 | `StartRun`              | none                                                         | Session Mutation   |
@@ -171,6 +171,13 @@ typed command payload
 | `PrepareExport`         | Project Revision ID                                          | Authoring          |
 
 Unknown variants fail before dispatch. Import is deliberately absent: it validates an external carrier and opens a separate Workspace. Selection, viewport, panels, waveform cursor, and Transient Preview are browser/Web state and are not Workspace commands.
+
+`ScheduleStimulusBatch` carries the immutable Runtime `StimulusBatch`. Each assignment
+names a Driver by complete `CompilationSource`, including its Hierarchy Path, and
+supplies a `LogicVector`. Repeated instances of one Circuit Definition therefore
+remain independently addressable. Runtime validates the batch against the active
+Session artifact using the [stimulus rules](../specs/simulation-runtime.md#3-session-creation-and-event-calendar);
+an invalid batch returns `session_precondition_failed` without changing the Session.
 
 `DurableDisplayName` is nonempty NFC Unicode without NUL, isolated surrogate code points, or C0 controls and must satisfy both Workspace Policy scalar-count and UTF-8-byte dimensions. Malformed input returns `durable_display_name_invalid`; scalar-count or UTF-8-byte exhaustion returns `workspace_admission_rejected` with Workspace Policy evidence. Input is rejected rather than silently trimmed or normalized. It is the immutable V1 catalog label, not the authored Project display name or a filename.
 
@@ -183,24 +190,39 @@ SessionConfigurationV1
   initialProbes: ElaboratedNetRefV1[]
 ```
 
-`initialProbes` is an ordered source-only list and contains no Probe ID. The selected policy snapshots must resolve exactly at admission; Application rejects an unknown or changed revision rather than silently substituting current policy. Creating or restarting a Session allocates one fresh Probe ID per source in the same order. Restart retires every Probe ID from the previous Session; a caller that wants the same sources supplies them again in the new configuration.
+`initialProbes` is an ordered source-only list, possibly empty, with no Probe IDs.
+Application admits only exact known policy IDs/revisions. `ForWorkbench` and
+`ForEntryOutputs` construct explicit requests with the current workbench policies;
+execution never substitutes policies or chooses additional Probes.
+
+Create and Restart allocate fresh Probe IDs in the requested source order. Restart
+validates both the old Session precondition and the target published Compilation
+Artifact Key, then opens a candidate from authored initial state. Only a fully
+initialized candidate replaces the old Session; failure or cancellation before
+publication preserves the old state, queued stimuli, and Trace. Success retires the
+old Session and its Probe IDs. Close retires the Session while retaining the Project
+Revision and published Compilation. Restart and Close require a non-running Session.
 
 `WorkspaceOutcome` is a closed union of the outcome families defined in Sections 4–7 plus these immediate dispatch results:
 
 ```text
 CompilationAccepted { CompilationGeneration, requested ProjectRevisionId }
 Claimed { DurableProjectId, DurableVersion, ProjectRevisionId, DurableDisplayName }
-SessionCreated { SessionId, SessionVersion, CompilationArtifactKey, LogicalTime, TraceCursor, ordered ProbeIds[] }
-SessionRestarted { previousSessionId, SessionId, SessionVersion, CompilationArtifactKey, LogicalTime, TraceCursor, ordered ProbeIds[] }
-SessionClosed { SessionId, ProjectionVersion }
+SimulationSessionCreated { SimulationProjection, ProjectionVersion }
+SimulationSessionRestarted { previousSessionId, SimulationProjection, ProjectionVersion }
+SimulationSessionClosed { SessionId, ProjectionVersion }
 WorkspaceClosed { WorkspaceId }
 RunStarted { RunGeneration, SessionVersion }
-StimulusScheduled { SessionVersion, LogicalTime, stableSequence }
+StimulusScheduled { SessionVersion, LogicalTime, stableSequence, ProjectionVersion }
 ProbesReplaced { SessionVersion, ordered ProbeIds[] }
 HotSwapCommitted { SessionVersion, CompilationArtifactKey, migrationEvidence }
 ExportPrepared { ProjectRevisionId, ExportTicket, expiresAfterSeconds }
 Rejected { reason, diagnostics[], RetryDisposition, policyEvidence? }
 ```
+
+Creation and Restart return the complete immutable Simulation Projection, including
+Session ID/version, Compilation Artifact Key, Logical Time, Trace Cursor, ordered
+Probe IDs and values, and the initial `NotRunning` state.
 
 If the staging store's independent published-ticket or published-byte boundary
 is full, publication returns the typed `export_capacity_unavailable` rejection,
@@ -302,7 +324,7 @@ Claim stores the originating Workspace ID as an immutable unique claim key in th
 
 Only a failure observed from the repository transaction's commit operation marks commit acknowledgement as uncertain; the repository reports that phase explicitly as `DurableProjectCommitUncertainException`. Application then uses a fresh repository context and a non-cancelled verification token to read the receipt without replaying the write. Context creation, transaction creation, query, serialization, and save failures occur before commit and retain their definite cancellation, infrastructure-failure, or internal-defect outcome without closing the idempotency window or preserving a Pending Claim. This follows EF Core's documented guidance to discard the failed context and [verify state with a new context](https://learn.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency#transaction-commit-failure-and-the-idempotency-issue).
 
-A found receipt restores its typed outcome. A missing receipt or failed verification after an uncertain commit returns `IdempotencyWindowExpired` because the prior commit cannot be proven either way, and closes the current attachment generation's idempotency window. Durable receipts are pruned in the same transaction to the Workspace Policy `idempotency_record_count`, newest first per Durable Project, so persistent recovery metadata cannot grow without bound. If a retained idempotency record cannot establish whether an old intent executed, return `IdempotencyWindowExpired`; never execute a possible duplicate.
+A found receipt restores its typed outcome. A missing receipt or failed verification after an uncertain commit returns `IdempotencyWindowExpired` because the prior commit cannot be proven either way, and closes the current attachment generation's idempotency window. Durable receipts are pruned in the same transaction to the Workspace Policy `idempotency_record_count`, newest first per Durable Project. Pruning is serialized per project even for unchanged saves and recovered Claims, so concurrent receipt publication cannot exceed the retention bound. If a retained idempotency record cannot establish whether an old intent executed, return `IdempotencyWindowExpired`; never execute a possible duplicate.
 
 Reusing a Client Intent ID for a different typed command returns `IdempotencyKeyConflict`. A new attachment generation starts a new scope and does not replay unacknowledged old commands automatically.
 
@@ -313,6 +335,8 @@ Workspace returns `WorkspaceClosed` without recreating state. Other commands aga
 the absent Workspace return `workspace_not_found`.
 
 Application enforces Workspace Policy authoring admission independently of browser shape validation and Compiler policy. It counts the complete nested Edit Intent before execution, then counts definitions and authored entities in the candidate Project Document before atomic publication. Exhaustion returns `workspace_admission_rejected`, publishes no Project Revision, and does not invalidate the current Compilation. Compiler Project Scale Policy remains the authority for compilation, hierarchy, elaborated slots, and memory cells. Deployments supply these authoring dimensions through the same Workspace Policy as Workspace count, retention, and Durable Display Name limits; `WorkspacePolicy.AuthoringLimits` groups the three authoring dimensions into one immutable value, and authoring admission is not a separate hidden policy. Constructing a custom `WorkspacePolicy` requires every policy dimension explicitly; only the canonical `WorkspacePolicy.Default` composition supplies development baseline limits.
+
+Import and durable reopen apply the same document admission before bootstrap Compilation. Rejection releases the reserved Workspace capacity without publishing a Workspace.
 
 ## 4. Authoring outcomes
 
@@ -366,6 +390,8 @@ V1 Session commands are:
 Callers cannot enqueue Delta Steps, resolve Nets, commit state, drive Hot Swap phases, or choose an SCC algorithm.
 
 ```text
+SessionStepped { Advance: AdvanceCommitted, ProjectionVersion }
+
 AdvanceCommitted
   SessionVersion
   LogicalTime
@@ -373,12 +399,20 @@ AdvanceCommitted
   diagnostics[]
   Trace cursor
 
-NoScheduledStimulus { SessionVersion, LogicalTime }
+NoScheduledStimulus { SessionVersion, LogicalTime, ProjectionVersion }
 Paused { RunGeneration, SessionVersion, LogicalTime, reason }
 AdvanceFailed { unchanged SessionVersion, unchanged LogicalTime, reason, policyEvidence }
 ```
 
+`SessionStepped` retains the complete immutable Runtime advance result. Its Probe
+patch, diagnostics, and Trace cursor belong to that committed boundary, including
+when an idempotent replay returns it after later Session mutations.
+
 Pause reason is exactly `UserRequested | NoScheduledStimulus | Detached`. `policyEvidence` is required only for `simulation_resource_limit` and absent for every other reason; it contains policy ID/revision, dimension, and observed work, never fleet capacity.
+
+An empty event queue returns `NoScheduledStimulus` with the unchanged boundary and
+Projection Version. Step remains available for a current, non-running Session;
+the browser does not infer pending clock or input events from its last command.
 
 Indeterminate Feedback can be committed with diagnostics because the Least Information Fixed Point is a valid Quiescent Boundary. Zero-time Oscillation, Resource Limit, cancellation, and infrastructure failure publish no working state or Trace. They remain distinct reasons.
 

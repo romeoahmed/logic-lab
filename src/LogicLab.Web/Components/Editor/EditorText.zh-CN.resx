@@ -4,16 +4,13 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="Add" xml:space="preserve"><value>添加</value></data>
   <data name="Arithmetic" xml:space="preserve"><value>算术</value></data>
   <data name="AuthorCircuit" xml:space="preserve"><value>编辑电路</value></data>
   <data name="Back" xml:space="preserve"><value>返回</value></data>
   <data name="Build" xml:space="preserve"><value>构建</value></data>
-  <data name="Cancel" xml:space="preserve"><value>取消</value></data>
   <data name="Circuit" xml:space="preserve"><value>电路</value></data>
   <data name="CircuitDefinitionInstance" xml:space="preserve"><value>电路定义实例</value></data>
   <data name="CircuitSceneEyebrow" xml:space="preserve"><value>电路图</value></data>
-  <data name="Commit" xml:space="preserve"><value>提交</value></data>
   <data name="Compilation" xml:space="preserve"><value>编译</value></data>
   <data name="CompilationNotRequested" xml:space="preserve"><value>尚未请求</value></data>
   <data name="CompilationPublished" xml:space="preserve"><value>已发布</value></data>
@@ -29,37 +26,27 @@
   <data name="CreateSession" xml:space="preserve"><value>开始仿真</value></data>
   <data name="DefinitionContext" xml:space="preserve"><value>电路导航</value></data>
   <data name="DefinitionView" xml:space="preserve"><value>定义视图</value></data>
-  <data name="Draft" xml:space="preserve"><value>草稿</value></data>
   <data name="DurableProjectName" xml:space="preserve"><value>项目名称</value></data>
   <data name="ElaboratedOccurrence" xml:space="preserve"><value>实例视图</value></data>
   <data name="EnterDefinition" xml:space="preserve"><value>进入 {0}</value></data>
   <data name="Entry" xml:space="preserve"><value>入口</value></data>
   <data name="EntryCircuitDefinition" xml:space="preserve"><value>入口电路定义</value></data>
-  <data name="Geometry" xml:space="preserve"><value>几何</value></data>
-  <data name="GeometryRule" xml:space="preserve"><value>只有端口连接会改变电气网络；线条外观不会。</value></data>
   <data name="ImportProject" xml:space="preserve"><value>导入项目</value></data>
   <data name="InputsHigh" xml:space="preserve"><value>输入 = 1</value></data>
   <data name="InstrumentBay" xml:space="preserve"><value>信号监视</value></data>
-  <data name="Junctions" xml:space="preserve"><value>结点</value></data>
   <data name="KeepDurable" xml:space="preserve"><value>保存项目</value></data>
   <data name="LiveReadout" xml:space="preserve"><value>实时</value></data>
   <data name="LogicalTime" xml:space="preserve"><value>逻辑时间</value></data>
-  <data name="Membership" xml:space="preserve"><value>成员关系</value></data>
-  <data name="MergeNets" xml:space="preserve"><value>合并网络</value></data>
   <data name="NoActiveSession" xml:space="preserve"><value>尚未开始仿真</value></data>
   <data name="NoDefinitions" xml:space="preserve"><value>没有打开的电路定义。</value></data>
   <data name="Output" xml:space="preserve"><value>输出</value></data>
   <data name="SignalOrdinal" xml:space="preserve"><value>信号 {0}</value></data>
-  <data name="Prepare" xml:space="preserve"><value>准备</value></data>
   <data name="PrepareExport" xml:space="preserve"><value>导出项目</value></data>
   <data name="Probe" xml:space="preserve"><value>探针</value></data>
   <data name="ProbeEmptyHelp" xml:space="preserve"><value>请先编译电路，再开始仿真。</value></data>
   <data name="Project" xml:space="preserve"><value>项目</value></data>
   <data name="Quiescence" xml:space="preserve"><value>求值状态</value></data>
   <data name="Quiescent" xml:space="preserve"><value>稳定</value></data>
-  <data name="Remove" xml:space="preserve"><value>移除</value></data>
-  <data name="Route" xml:space="preserve"><value>布线</value></data>
-  <data name="RoutePreview" xml:space="preserve"><value>布线预览：0,0 → 0,2 → 8,2。请提交或取消此本地草稿。</value></data>
   <data name="Save" xml:space="preserve"><value>保存</value></data>
   <data name="SaveDurable" xml:space="preserve"><value>保存</value></data>
   <data name="SaveDurableChanged" xml:space="preserve"><value>有未保存更改 · {0}</value></data>
@@ -71,14 +58,23 @@
   <data name="SessionVersion" xml:space="preserve"><value>会话版本</value></data>
   <data name="SetAsEntry" xml:space="preserve"><value>设为入口</value></data>
   <data name="Simulation" xml:space="preserve"><value>仿真</value></data>
-  <data name="SplitNet" xml:space="preserve"><value>拆分网络</value></data>
   <data name="Step" xml:space="preserve"><value>步进</value></data>
+  <data name="Run" xml:space="preserve"><value>运行</value></data>
+  <data name="Pause" xml:space="preserve"><value>暂停</value></data>
+  <data name="RunStarted" xml:space="preserve"><value>仿真正在运行。</value></data>
+  <data name="RunPaused" xml:space="preserve"><value>仿真已暂停。</value></data>
+  <data name="RunStopped" xml:space="preserve"><value>仿真已停止。</value></data>
+  <data name="RunFailed" xml:space="preserve"><value>运行失败：{0}。</value></data>
+  <data name="RunRejected" xml:space="preserve"><value>运行被拒绝：{0}。</value></data>
+  <data name="PauseRejected" xml:space="preserve"><value>暂停被拒绝：{0}。</value></data>
+  <data name="RunStateRunning" xml:space="preserve"><value>运行中</value></data>
+  <data name="RunStatePaused" xml:space="preserve"><value>已暂停</value></data>
+  <data name="RunStateFailed" xml:space="preserve"><value>失败</value></data>
+  <data name="RunStateReady" xml:space="preserve"><value>就绪</value></data>
+  <data name="NoScheduledStimulus" xml:space="preserve"><value>没有待处理的后续事件。</value></data>
   <data name="TabsHierarchyEntry" xml:space="preserve"><value>电路定义 · 层级 · 入口</value></data>
-  <data name="TopologyHeading" xml:space="preserve"><value>网络与布线工具</value></data>
-  <data name="TopologyEyebrow" xml:space="preserve"><value>网络结构</value></data>
   <data name="TraceRange" xml:space="preserve"><value>跟踪范围</value></data>
   <data name="Unavailable" xml:space="preserve"><value>不可用</value></data>
-  <data name="Unroute" xml:space="preserve"><value>取消布线</value></data>
   <data name="WireOrthogonal" xml:space="preserve"><value>正交 · {0}</value></data>
   <data name="ConflictDescription" xml:space="preserve"><value>本地修订仍然可用。请选择恢复方式。</value></data>
   <data name="ConflictExportLocal" xml:space="preserve"><value>导出本地版本</value></data>
@@ -193,15 +189,6 @@
   <data name="EntryDefinitionChanged" xml:space="preserve"><value>{0} 现在是入口电路定义。</value></data>
   <data name="HierarchyObserving" xml:space="preserve"><value>正在查看实例 {0}。</value></data>
   <data name="HierarchyReturned" xml:space="preserve"><value>已返回 {0}。</value></data>
-  <data name="JunctionAdded" xml:space="preserve"><value>已在网格 4, 2 添加结点。</value></data>
-  <data name="JunctionRemoved" xml:space="preserve"><value>已移除结点，未从几何形状推断连接关系。</value></data>
-  <data name="NetMerged" xml:space="preserve"><value>网络已合并。</value></data>
-  <data name="NetSplit" xml:space="preserve"><value>网络已拆分。</value></data>
-  <data name="RouteCancelled" xml:space="preserve"><value>已取消布线编辑。</value></data>
-  <data name="RouteCommitted" xml:space="preserve"><value>正交布线已提交。</value></data>
-  <data name="RouteDraftPrepared" xml:space="preserve"><value>布线预览已就绪。请提交或取消。</value></data>
-  <data name="RouteMarkedUnrouted" xml:space="preserve"><value>导线已标记为未布线。</value></data>
-  <data name="RouteRouted" xml:space="preserve"><value>导线已完成正交布线。</value></data>
   <data name="SteeringExampleAuthored" xml:space="preserve"><value>二选一复用器已创建。编译后可切换选择端，观察输出。</value></data>
   <data name="CanvasReady" xml:space="preserve"><value>电路画布已就绪。</value></data>
   <data name="CanvasStarting" xml:space="preserve"><value>正在准备电路画布。</value></data>
@@ -232,12 +219,10 @@
   <data name="StarterCarryLookaheadDescription" xml:space="preserve"><value>观察四位加法中的生成项、传播项与并行进位项。</value></data>
   <data name="StarterBitSerialTitle" xml:space="preserve"><value>位串行加法器</value></data>
   <data name="StarterBitSerialDescription" xml:space="preserve"><value>让两个四位操作数复用同一个一位全加器逐位相加。</value></data>
-  <data name="AdvancedTopology" xml:space="preserve"><value>高级布线</value></data>
-  <data name="AdvancedTopologyDescription" xml:space="preserve"><value>编辑网络、结点与导线路径</value></data>
   <data name="Library" xml:space="preserve"><value>元件库</value></data>
   <data name="Components" xml:space="preserve"><value>元件</value></data>
-  <data name="Inspector" xml:space="preserve"><value>学习与观察</value></data>
-  <data name="InspectorDescription" xml:space="preserve"><value>示例、信号值与高级布线</value></data>
+  <data name="Inspector" xml:space="preserve"><value>检查选区</value></data>
+  <data name="InspectorDescription" xml:space="preserve"><value>对象属性、信号与选区操作</value></data>
   <data name="SearchComponents" xml:space="preserve"><value>搜索元件</value></data>
   <data name="SearchComponentsPlaceholder" xml:space="preserve"><value>门、时钟、寄存器…</value></data>
   <data name="NoMatchingComponents" xml:space="preserve"><value>没有匹配的元件。</value></data>
@@ -334,4 +319,87 @@
   <data name="RetryWaveform" xml:space="preserve"><value>重试</value></data>
   <data name="ProbeRevealed" xml:space="preserve"><value>已在电路图中找到“{0}”。</value></data>
   <data name="ReturnToLive" xml:space="preserve"><value>回到实时波形</value></data>
+  <data name="RestartSession" xml:space="preserve"><value>重新开始仿真</value></data>
+  <data name="CloseSession" xml:space="preserve"><value>关闭仿真</value></data>
+  <data name="HotSwapSession" xml:space="preserve"><value>应用更改</value></data>
+  <data name="SessionRestarted" xml:space="preserve"><value>已从电路定义的初始状态重新开始仿真。</value></data>
+  <data name="SessionClosed" xml:space="preserve"><value>仿真已关闭，电路和编译结果仍然可用。</value></data>
+  <data name="SessionHotSwapped" xml:space="preserve"><value>更改已应用到仿真，兼容的状态已保留。</value></data>
+  <data name="InspectorSelectHint" xml:space="preserve"><value>在画布上选择对象以查看属性。按住 Shift 可多选。</value></data>
+  <data name="InspectorSelectionCount" xml:space="preserve"><value>已选 {0} 项</value></data>
+  <data name="InspectorKind_componentInstance" xml:space="preserve"><value>组件</value></data>
+  <data name="InspectorKind_instancePort" xml:space="preserve"><value>组件端口</value></data>
+  <data name="InspectorKind_definitionPort" xml:space="preserve"><value>定义端口</value></data>
+  <data name="InspectorKind_net" xml:space="preserve"><value>网络</value></data>
+  <data name="InspectorKind_junction" xml:space="preserve"><value>接点</value></data>
+  <data name="InspectorKind_wireGeometry" xml:space="preserve"><value>线路</value></data>
+  <data name="InspectorKind_annotation" xml:space="preserve"><value>注释</value></data>
+  <data name="InspectorType" xml:space="preserve"><value>类型 / 定义</value></data>
+  <data name="InspectorPosition" xml:space="preserve"><value>网格坐标</value></data>
+  <data name="InspectorDirection" xml:space="preserve"><value>方向</value></data>
+  <data name="InspectorInput" xml:space="preserve"><value>输入</value></data>
+  <data name="InspectorOutput" xml:space="preserve"><value>输出</value></data>
+  <data name="InspectorWidth" xml:space="preserve"><value>位宽</value></data>
+  <data name="InspectorRoute" xml:space="preserve"><value>布线</value></data>
+  <data name="InspectorRoutePoints" xml:space="preserve"><value>正交 · {0} 个点</value></data>
+  <data name="InspectorUnrouted" xml:space="preserve"><value>未布线</value></data>
+  <data name="InspectorAnnotationText" xml:space="preserve"><value>文本</value></data>
+  <data name="InspectorNet" xml:space="preserve"><value>所属网络</value></data>
+  <data name="InspectorDrivers" xml:space="preserve"><value>驱动端</value></data>
+  <data name="InspectorReceivers" xml:space="preserve"><value>接收端</value></data>
+  <data name="InspectorValue" xml:space="preserve"><value>值（二进制）</value></data>
+  <data name="InspectorNotProbed" xml:space="preserve"><value>此实例尚未设置探针</value></data>
+  <data name="InspectorValueRevision" xml:space="preserve"><value>值的来源</value></data>
+  <data name="InspectorPreviousRevision" xml:space="preserve"><value>会话仍使用旧修订</value></data>
+  <data name="InspectorDiagnostic" xml:space="preserve"><value>诊断代码</value></data>
+  <data name="InspectorRemoveComponents" xml:space="preserve"><value>删除选中组件</value></data>
+  <data name="InspectorRemoveJunction" xml:space="preserve"><value>移除接点</value></data>
+  <data name="InspectorRemoveJunctionDescription" xml:space="preserve"><value>移除此接点，其余网络成员保持连接。</value></data>
+  <data name="InspectorUnroute" xml:space="preserve"><value>标记为未布线</value></data>
+  <data name="InspectorUnrouteDescription" xml:space="preserve"><value>清除路径坐标，电气连接保持不变。</value></data>
+  <data name="InspectorRemoveRoute" xml:space="preserve"><value>删除线路</value></data>
+  <data name="InspectorRemoveRouteDescription" xml:space="preserve"><value>删除此线路，其余网络成员仍保持电气连接。</value></data>
+  <data name="InspectorRemoveAnnotation" xml:space="preserve"><value>删除注释</value></data>
+  <data name="InspectorMergeNets" xml:space="preserve"><value>合并选中网络</value></data>
+  <data name="InspectorMergeNetsDescription" xml:space="preserve"><value>仅合并选中的网络，保留第一个所选网络的标识。</value></data>
+  <data name="InspectorSplitMembers" xml:space="preserve"><value>分离选中成员</value></data>
+  <data name="InspectorSplitMembersDescription" xml:space="preserve"><value>将选中的端口、接点和线路与未选成员分成两个网络。</value></data>
+  <data name="InspectorEditApplied" xml:space="preserve"><value>已应用选区编辑。</value></data>
+  <data name="InspectorComponents" xml:space="preserve"><value>组件</value></data>
+  <data name="InspectorNets" xml:space="preserve"><value>网络</value></data>
+  <data name="InspectorPorts" xml:space="preserve"><value>定义端口</value></data>
+  <data name="InspectorUnconnected" xml:space="preserve"><value>未连接</value></data>
+  <data name="InspectorParameter_initialValue" xml:space="preserve"><value>初始值</value></data>
+  <data name="InspectorParameter_value" xml:space="preserve"><value>常量值</value></data>
+  <data name="InspectorParameter_initialState" xml:space="preserve"><value>初始状态</value></data>
+  <data name="InspectorParameter_radix" xml:space="preserve"><value>显示进制</value></data>
+  <data name="InspectorParameter_direction" xml:space="preserve"><value>方向</value></data>
+  <data name="InspectorParameter_edge" xml:space="preserve"><value>触发边沿</value></data>
+  <data name="InspectorParameter_firstTransition" xml:space="preserve"><value>首次跳变时间</value></data>
+  <data name="InspectorParameter_highDuration" xml:space="preserve"><value>高电平时长</value></data>
+  <data name="InspectorParameter_lowDuration" xml:space="preserve"><value>低电平时长</value></data>
+  <data name="InspectorParameter_inputWidths" xml:space="preserve"><value>输入位宽</value></data>
+  <data name="InspectorParameter_slices" xml:space="preserve"><value>位段（偏移:长度）</value></data>
+  <data name="InspectorParameter_inputWidth" xml:space="preserve"><value>输入位宽</value></data>
+  <data name="InspectorParameter_outputWidth" xml:space="preserve"><value>输出位宽</value></data>
+  <data name="InspectorParameter_addressWidth" xml:space="preserve"><value>地址位宽</value></data>
+  <data name="InspectorParameter_wordWidth" xml:space="preserve"><value>字位宽</value></data>
+  <data name="InspectorParameter_initialImage" xml:space="preserve"><value>初始存储映像</value></data>
+  <data name="InspectorParameter_selectorWidth" xml:space="preserve"><value>选择端位宽</value></data>
+  <data name="InspectorParameter_enablePolarity" xml:space="preserve"><value>使能极性</value></data>
+  <data name="InspectorParameter_inputCount" xml:space="preserve"><value>输入数量</value></data>
+  <data name="InspectorParameter_priority" xml:space="preserve"><value>优先级</value></data>
+  <data name="InspectorParameter_fanIn" xml:space="preserve"><value>输入数量</value></data>
+  <data name="InspectorChoice_up" xml:space="preserve"><value>递增</value></data>
+  <data name="InspectorChoice_down" xml:space="preserve"><value>递减</value></data>
+  <data name="InspectorChoice_towardHigh" xml:space="preserve"><value>向高位</value></data>
+  <data name="InspectorChoice_towardLow" xml:space="preserve"><value>向低位</value></data>
+  <data name="InspectorChoice_rising" xml:space="preserve"><value>上升沿</value></data>
+  <data name="InspectorChoice_falling" xml:space="preserve"><value>下降沿</value></data>
+  <data name="InspectorChoice_activeHigh" xml:space="preserve"><value>高电平有效</value></data>
+  <data name="InspectorChoice_activeLow" xml:space="preserve"><value>低电平有效</value></data>
+  <data name="InspectorChoice_lowestIndex" xml:space="preserve"><value>低索引优先</value></data>
+  <data name="InspectorChoice_highestIndex" xml:space="preserve"><value>高索引优先</value></data>
+  <data name="InspectorChoice_left" xml:space="preserve"><value>左移</value></data>
+  <data name="InspectorChoice_right" xml:space="preserve"><value>右移</value></data>
 </root>

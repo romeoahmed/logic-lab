@@ -1,4 +1,3 @@
-using System.Numerics;
 using FsCheck;
 using FsCheck.Fluent;
 using LogicLab.Domain.Authoring;
@@ -110,26 +109,25 @@ internal sealed class ArithmeticComponentContractTests
         PositiveUInt32 positiveWidth)
     {
         var width = positiveWidth.Value;
-        var expectedAmountWidth = width == 1
-            ? 1U
-            : (uint)BitOperations.Log2(width - 1) + 1;
         var ports = Resolve("logic.shift",
         [
             new ComponentParameterBinding("width", new Unsigned32ParameterValue(width)),
             new ComponentParameterBinding("direction", new ChoiceParameterValue("left")),
         ]);
-        var actualAmountWidth = ports.Single(port => port.Id == "AMOUNT").Width;
+        var amountWidth = ports.Single(port => port.Id == "AMOUNT").Width;
+        // The encoding must cover every bit index, and no smaller positive width may suffice.
+        var isMinimumWidth = amountWidth is >= 1 and <= 32
+            && (1UL << checked((int)amountWidth)) >= width
+            && (amountWidth == 1 || (1UL << checked((int)amountWidth - 1)) < width);
 
-        return ports.Select(port => (port.Id, port.Direction, port.Width))
+        return (isMinimumWidth && ports.Select(port => (port.Id, port.Direction, port.Width))
             .SequenceEqual(
                 [
                     ("D", PortDirection.Input, width),
-                    ("AMOUNT", PortDirection.Input, expectedAmountWidth),
+                    ("AMOUNT", PortDirection.Input, amountWidth),
                     ("Q", PortDirection.Output, width),
-                ])
-            .Label(
-                $"width={width}, expected amount width={expectedAmountWidth}, " +
-                $"actual={actualAmountWidth}")
+                ]))
+            .Label($"width={width}, amount width={amountWidth}")
             .Collect(width switch
             {
                 1 => "width=1",

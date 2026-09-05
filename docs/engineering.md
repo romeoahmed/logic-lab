@@ -126,6 +126,25 @@ collections, pooling, SIMD, parallelism, caching, and unsafe code are local choi
 backed by measurement. BenchmarkDotNet, browser traces, load tests, counters, and
 profiles answer different questions; no local mean becomes a product promise.
 
+Memory optimizations remain inside their owning module. A pooled buffer has one
+auditable rent/use/return scope, is sliced to its logical length, and cannot be
+returned until every consumer has stopped, including after cancellation. Published
+values never retain a pooled view. Clear the entire rental when cross-request data
+exposure matters; do not pool secrets without a reviewed lifetime and zeroization
+design. Stack scratch uses initialized spans and a measured byte bound, never an
+allocation inside a loop.
+
+An unsafe kernel requires a production-shaped profile, an end-to-end gain on each
+supported target, and a safe oracle and fallback. Differential tests, fuzzing, and
+mutation checks must exercise its relevant bounds, tails, overlap, byte order, and
+failure cleanup. Keep unsafe compilation disabled outside the owning project and
+recheck the comparison after runtime upgrades; remove a path whose gain disappears.
+Native interop requires an ADR covering pinning through completion and cleanup on
+every failure path. Binary formats remain field-by-field encodings, never raw CLR
+layouts. The [memory evidence](./research/dotnet-memory-and-unsafe.md) explains these
+constraints; Engine measurements belong in
+[Engine Performance](./research/engine-performance.md).
+
 The Web artifact is framework-dependent, untrimmed, and JIT-compiled. Trimming,
 single-file, ReadyToRun, self-contained, Native AOT, GC/ThreadPool tuning, or runtime
 switches require a named profile and warning-clean end-to-end evidence. Release images
@@ -137,7 +156,9 @@ provenance, and the symbols required by diagnostics.
 
 ## Verification
 
-- TUnit on Microsoft Testing Platform is the default executable test surface.
+- All executable tests use the centrally pinned TUnit stack on Microsoft Testing
+  Platform with source-generated discovery; reflection mode needs a demonstrated
+  compatibility requirement. Do not mix VSTest runners or coverage adapters into it.
 - `TUnit.FsCheck` proves genuine semantic properties with shrinking, replay, and an
   independent oracle; retain named boundary examples.
 - bUnit proves Razor projection, TUnit.AspNetCore proves host seams, and
@@ -147,6 +168,25 @@ provenance, and the symbols required by diagnostics.
 - Ordering, sleeps, repeats, and retries never repair deterministic failures.
 - Assert caller-visible behavior, not localized prose, private structure, or predicted
   performance. Coverage and test counts are telemetry rather than release gates.
+
+Await every fluent TUnit assertion. Prefer a complete typed value or ordered sequence
+to boolean reductions that hide the mismatch. Use exact exception and parameter
+checks only for a documented guard contract, and `Assert.Multiple()` only when the
+failures are independent. A property's oracle must not call the production operation
+it is checking; generators and shrinkers must preserve valid input shape.
+
+Named examples cover regressions and boundaries; argument tables cover finite cases;
+properties cover broader invariants. Dynamic discovery, custom assertion frameworks,
+and shared mutable fixtures need a concrete gap in the standard tools. Filtered jobs
+must fail on an empty match. Poll only real asynchronous observation seams, with a
+bounded diagnostic timeout; test dependencies are for intentional artifact handoffs.
+
+Fixtures own cleanup and propagate cancellation into long-running setup and I/O.
+Use user-facing or stable contract locators in browser tests, and keep bUnit tests
+in ordinary `.cs` files. The JIT/MTP suite remains authoritative;
+do not drop FsCheck properties to claim an all-AOT suite. The focused
+[testing-platform evidence](./research/testing-platform.md) records these platform
+constraints and their sources.
 
 Repository gates prove source health, not production qualification. Provider settings,
 migrations, recovery, browser/security/load evidence, telemetry, alerts, and drills

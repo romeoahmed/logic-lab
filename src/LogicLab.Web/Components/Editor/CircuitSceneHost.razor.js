@@ -17,7 +17,7 @@ import {
   rectFromPoints,
   selectionModeFromModifiers,
   terminalFromSource,
-  terminalWireRoute,
+  terminalWireRoutes,
   translateComponentPlacement,
   translateGridPoint,
   translateRect,
@@ -258,7 +258,10 @@ class CircuitSceneHandle {
   appendTransfer(transferId, ordinal, base64Chunk) {
     this.ensureLive();
     const transfer = this.transfers.get(transferId);
-    if (!transfer || ordinal !== transfer.nextOrdinal || typeof base64Chunk !== "string") {
+    if (
+      !transfer || transfer.committing ||
+      ordinal !== transfer.nextOrdinal || typeof base64Chunk !== "string"
+    ) {
       this.transfers.delete(transferId);
       this.rejectBatch("invalid scene transfer batch");
     }
@@ -290,11 +293,14 @@ class CircuitSceneHandle {
   async commitTransfer(transferId) {
     this.ensureLive();
     const transfer = this.transfers.get(transferId);
-    this.transfers.delete(transferId);
+    if (transfer?.committing) return false;
     if (!transfer || transfer.received !== transfer.byteLength) {
+      this.transfers.delete(transferId);
       await this.rejectCandidate("invalidBatch");
       return false;
     }
+    // Keep the candidate registered while hashing so abort/destroy can cancel it.
+    transfer.committing = true;
 
     const bytes = new Uint8Array(transfer.byteLength);
     let offset = 0;
@@ -305,14 +311,19 @@ class CircuitSceneHandle {
 
     let candidate;
     try {
-      if ((await sha256(bytes)) !== transfer.digest) {
+      const digest = await sha256(bytes);
+      if (this.transfers.get(transferId) !== transfer) return false;
+      if (digest !== transfer.digest) {
         throw new Error("scene transfer digest mismatch");
       }
 
       candidate = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
     } catch {
+      if (this.transfers.get(transferId) !== transfer) return false;
       await this.rejectCandidate("invalidBatch");
       return false;
+    } finally {
+      if (this.transfers.get(transferId) === transfer) this.transfers.delete(transferId);
     }
 
     if (candidate?.buildFingerprint !== this.buildFingerprint) {
@@ -611,6 +622,8 @@ class CircuitSceneHandle {
       rect.width <= 0 ||
       rect.height <= 0
     ) {
+      this.cssWidth = 0;
+      this.cssHeight = 0;
       return;
     }
 
@@ -657,7 +670,7 @@ class CircuitSceneHandle {
   }
 
   invalidate() {
-    if (this.destroyed) {
+    if (this.destroyed || this.contextIsLost) {
       return;
     }
 
@@ -887,7 +900,7 @@ class CircuitSceneHandle {
       return;
     }
     const startPoint = gridToWorld(start, snapshot);
-    const endPoint = gridToWorld(end, snapshot);
+    let endPoint = gridToWorld(end, snapshot);
     const previewColor = cssColor(styles, "--ll-signal", "#08788c");
     context.save();
     context.strokeStyle = previewColor;
@@ -929,11 +942,28 @@ class CircuitSceneHandle {
       context.globalAlpha = 0.75;
       context.strokeRect(endPoint.x - halfSize, endPoint.y - halfSize, halfSize * 2, halfSize * 2);
     } else if (gesture.tool.kind === "wire" && gesture.hit) {
-      context.beginPath();
-      context.moveTo(startPoint.x, startPoint.y);
-      context.lineTo(startPoint.x, endPoint.y);
-      context.lineTo(endPoint.x, endPoint.y);
-      context.stroke();
+      const endHit = this.hitTest(gesture.currentWorld);
+      const route =
+        terminalFromSource(gesture.hit.source) || terminalFromSource(endHit?.source)
+          ? terminalWireRoutes(
+              snapshot,
+              gesture.hit,
+              endHit,
+              gesture.startWorld,
+              gesture.currentWorld,
+              gesture.disableSnap,
+            )?.[0]
+          : orthogonalDragRoute(start, end);
+      if (route) {
+        const points = route.points.map((point) => gridToWorld(point, snapshot));
+        endPoint = points.at(-1);
+        context.beginPath();
+        context.moveTo(points[0].x, points[0].y);
+        for (const point of points.slice(1)) {
+          context.lineTo(point.x, point.y);
+        }
+        context.stroke();
+      }
     }
 
     if (["select", "placeComponent", "wire"].includes(gesture.tool.kind)) {
@@ -950,7 +980,13 @@ class CircuitSceneHandle {
   }
 
   pointerDown(event) {
-    if (this.destroyed || !event.isPrimary || event.button !== 0 || this.gesture) {
+    if (
+      this.destroyed ||
+      this.contextIsLost ||
+      !event.isPrimary ||
+      event.button !== 0 ||
+      this.gesture
+    ) {
       return;
     }
 
@@ -1156,8 +1192,8 @@ class CircuitSceneHandle {
     }
   }
 
-  // Canvas 2D context-loss cancellation prevents the user agent from restoring its
-  // backing store: https://html.spec.whatwg.org/multipage/canvas.html#context-lost-steps
+  // Cancelling contextlost prevents Canvas 2D backing-store restoration.
+  // https://html.spec.whatwg.org/multipage/webappapis.html#context-lost-steps
   contextLost() {
     this.contextIsLost = true;
     this.cancelGesture();
@@ -1191,6 +1227,7 @@ class CircuitSceneHandle {
       return;
     }
 
+    this.resize();
     this.invalidate();
   }
 
@@ -1202,6 +1239,7 @@ class CircuitSceneHandle {
     const snapshot = this.published;
     if (
       !snapshot ||
+      this.contextIsLost ||
       !this.connected ||
       !Array.isArray(sources) ||
       (sources.length === 0 && selectionMode !== "replace")
@@ -1342,51 +1380,35 @@ class CircuitSceneHandle {
     const endHit = this.hitTest(gesture.currentWorld);
     const startTerminal = terminalFromSource(hit.source);
     const endTerminal = endHit ? terminalFromSource(endHit.source) : null;
-    const terminalRoute = terminalWireRoute(
-      snapshot,
-      hit,
-      endHit,
-      gesture.startWorld,
-      gesture.currentWorld,
-      disableSnap,
-    );
-    if (startTerminal && endTerminal && sourceKey(hit.source) !== sourceKey(endHit.source)) {
+    if (startTerminal || endTerminal) {
+      if (startTerminal && endTerminal && sourceKey(hit.source) === sourceKey(endHit.source)) {
+        return;
+      }
+      const terminals = [startTerminal, endTerminal].filter(Boolean);
+      const destinationNet =
+        terminals.length === 2 ? null : netFromHit(startTerminal ? endHit : hit);
+      if (terminals.length === 1 && !destinationNet) return;
+
+      const routeAdditions = terminalWireRoutes(
+        snapshot,
+        hit,
+        endHit,
+        gesture.startWorld,
+        gesture.currentWorld,
+        disableSnap,
+      );
+      if (routeAdditions === null) return;
       this.emitIntent("commitWire", gesture, {
-        terminals: [startTerminal, endTerminal],
-        destinationNet: null,
+        terminals,
+        destinationNet,
         newJunctionPositions: [],
-        routeAdditions: terminalRoute ? [terminalRoute] : [],
+        routeAdditions,
         routeReplacements: [],
         snapModifier: disableSnap ? "disableSnap" : "none",
       });
-      return;
-    }
-    if (startTerminal) {
-      const destinationNet = netFromHit(endHit);
-      if (destinationNet) {
-        this.emitIntent("commitWire", gesture, {
-          terminals: [startTerminal],
-          destinationNet,
-          newJunctionPositions: [],
-          routeAdditions: terminalRoute ? [terminalRoute] : [],
-          routeReplacements: [],
-          snapModifier: disableSnap ? "disableSnap" : "none",
-        });
-      }
       return;
     }
     const startNet = netFromHit(hit);
-    if (startNet && endTerminal) {
-      this.emitIntent("commitWire", gesture, {
-        terminals: [endTerminal],
-        destinationNet: startNet,
-        newJunctionPositions: [],
-        routeAdditions: terminalRoute ? [terminalRoute] : [],
-        routeReplacements: [],
-        snapModifier: disableSnap ? "disableSnap" : "none",
-      });
-      return;
-    }
     const interaction = hit.item.interaction;
     const start = gridPoint(gesture.startWorld, snapshot, disableSnap);
     const end = gridPoint(gesture.currentWorld, snapshot, disableSnap);
@@ -1545,7 +1567,8 @@ class CircuitSceneHandle {
             (this.cssHeight - padding * 2) / boundsHeight,
           )
         : 1;
-    const zoom = Math.min(maximum, Math.max(minimum, fitZoom));
+    // Automatic grid spacing is a preference; the policy minimum is a hard limit.
+    const zoom = Math.max(minimum, Math.min(maximum, fitZoom));
     this.viewportIsUserControlled = false;
     this.viewport.zoom = zoom;
     this.viewport.x = this.cssWidth / 2 - ((bounds.left + bounds.right) / 2) * zoom;

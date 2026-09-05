@@ -474,10 +474,10 @@ internal sealed partial class EditorWorkspace
             state.ResourcesDisposed = true;
         }
 
-        if (state.ActiveSession is not null)
+        if (state.SessionHandle is not null)
         {
-            CloseSimulationForCleanup(state.ActiveSession.Handle);
-            state.ActiveSession = null;
+            CloseSimulationForCleanup(state.SessionHandle);
+            state.SessionHandle = null;
         }
 
         state.CommandGate.Dispose();
@@ -552,7 +552,7 @@ internal sealed partial class EditorWorkspace
 
         public ulong NextCompilationGeneration { get; set; }
 
-        public ActiveSessionContext? ActiveSession { get; set; }
+        public SimulationSessionHandle? SessionHandle { get; set; }
 
         public SimulationProjection? Simulation { get; set; }
 
@@ -704,11 +704,6 @@ internal sealed partial class EditorWorkspace
             };
         }
     }
-
-    private sealed record ActiveSessionContext(
-        SimulationSessionHandle Handle,
-        ProjectRevision ProjectRevision,
-        CompilationArtifact Artifact);
 
     private sealed class WorkspaceAcquisition : IDisposable
     {

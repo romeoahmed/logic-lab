@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Bunit;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
@@ -9,8 +10,54 @@ using Microsoft.AspNetCore.Components;
 
 namespace LogicLab.Web.Tests;
 
-internal sealed class CircuitSceneHostTests
+internal sealed partial class CircuitSceneHostTests
 {
+    [Test]
+    public async Task CircuitSceneHost_RevisionChangesDuringMeasurement_PublishesCurrentScene()
+    {
+        await using var context = WebTestContext.CreateBunitContext();
+        context.Renderer.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var module = context.JSInterop.SetupModule(BrowserSceneAdapter.ModulePath);
+        var handle = module.SetupModule("mount", static _ => true);
+        handle.Mode = JSRuntimeMode.Loose;
+        handle.Setup<bool>("commitTransfer", static _ => true).SetResult(true);
+        var pendingMeasurement = handle.Setup<JsonElement>("measureText", static _ => true);
+        var revision = WebTestCircuit.CreateCompleteCircuit();
+        var definition = revision.Document.EntryCircuitDefinition;
+        var rendered = context.Render<CircuitSceneHost>(parameters => parameters
+            .Add(host => host.ProjectRevision, revision)
+            .Add(host => host.ProjectionVersion, 1UL)
+            .Add(host => host.CircuitDefinitionId, definition.Id));
+        rendered.WaitForState(() => pendingMeasurement.Invocations.Count == 1);
+        var oldRequests = pendingMeasurement.Invocations.Single().Arguments.ToArray();
+        var renamed = WebTestCircuit.Commit(ProjectEditor.Apply(revision,
+            new RenameComponentInstanceIntent(
+                definition.Id, definition.ComponentInstances[0].Id, "Changed while measuring")));
+        var currentRequests = BrowserTextMeasurements.Collect(
+            renamed, definition.Id, "en-US",
+            (ulong)WorkspacePolicy.Default.AuthoringLimits.EntityCount,
+            CancellationToken.None);
+        handle.Setup<JsonElement>("measureText", invocation =>
+                ((IReadOnlyList<BrowserTextMeasurementRequestV1>)invocation.Arguments[0]!)
+                    .Any(request => request.Text == "Changed while measuring"))
+            .SetResult(BrowserMeasurementFixture.CreateRecord([currentRequests]));
+
+        rendered.Render(parameters => parameters
+            .Add(host => host.ProjectRevision, renamed)
+            .Add(host => host.ProjectionVersion, 2UL));
+        await rendered.InvokeAsync(() => pendingMeasurement.SetResult(
+            BrowserMeasurementFixture.CreateRecord(oldRequests)));
+
+        rendered.WaitForState(() => rendered.Find("[data-scene-renderer]")
+            .GetAttribute("data-scene-renderer") is "ready" or "unavailable");
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.Find("[data-scene-renderer]")
+                .GetAttribute("data-scene-renderer")).IsEqualTo("ready");
+            await Assert.That(handle.Invocations["commitTransfer"]).Count().IsEqualTo(1);
+        }
+    }
+
     [Test]
     public async Task CircuitSceneHost_StructuredCompilationDiagnostic_MapsToSceneOverlay()
     {

@@ -1,6 +1,5 @@
 using System.Numerics;
 using FsCheck;
-using FsCheck.Fluent;
 using LogicLab.Domain;
 using LogicLab.Engine.Simulation;
 using TUnit.Assertions.Enums;
@@ -39,14 +38,11 @@ internal sealed class SimulationTraceSummaryTests
 
         var available = (await Assert.That(outcome)
             .IsTypeOf<TraceTransitionsAvailable>())!;
-        using (Assert.Multiple())
-        {
-            await Assert.That(available.Transitions).Count().IsEqualTo(2);
-            await Assert.That(available.Transitions.Select(item => item.ProbeId))
-                .IsEquivalentTo(opened.ProbeIds);
-            await Assert.That(available.Transitions.Select(item => item.LogicalTime))
-                .IsEquivalentTo([4UL, 4UL], CollectionOrdering.Matching);
-        }
+        await Assert.That(available.Transitions.Select(item =>
+                (item.ProbeId, item.LogicalTime, Value: item.Value[0])))
+            .IsEquivalentTo(
+                [(opened.ProbeIds[0], 4UL, LogicValue.One), (opened.ProbeIds[1], 4UL, LogicValue.Zero)],
+                CollectionOrdering.Any);
     }
 
     [Test]
@@ -87,41 +83,27 @@ internal sealed class SimulationTraceSummaryTests
             CancellationToken.None);
 
         var summary = (await Assert.That(outcome).IsTypeOf<TraceSummaryAvailable>())!;
+        var input = opened.ProbeIds[0];
+        var output = opened.ProbeIds[1];
         using (Assert.Multiple())
         {
             await Assert.That(summary.Aggregation)
                 .IsEqualTo(TraceVisualSummaryRepresentation.LogicEnvelopeV1);
             await Assert.That(summary.CoveredRange).IsEqualTo(new LogicalTimeRange(0, 8));
-            await Assert.That(summary.Buckets).Count().IsEqualTo(8);
-            await Assert.That(summary.Buckets.Select(bucket => bucket.ProbeId))
-                .IsEquivalentTo(
-                    opened.ProbeIds.SelectMany(probeId => Enumerable.Repeat(probeId, 4)),
-                    CollectionOrdering.Matching);
-            await Assert.That(summary.Buckets.Take(4).Select(bucket => bucket.Range))
-                .IsEquivalentTo(
-                    [
-                        new LogicalTimeRange(0, 2),
-                        new LogicalTimeRange(2, 4),
-                        new LogicalTimeRange(4, 6),
-                        new LogicalTimeRange(6, 8),
-                    ],
-                    CollectionOrdering.Matching);
-        }
-
-        var inputBuckets = summary.Buckets.Take(4).ToArray();
-        using (Assert.Multiple())
-        {
-            await Assert.That(inputBuckets[0].FirstValue[0]).IsEqualTo(LogicValue.Zero);
-            await Assert.That(inputBuckets[0].LastValue[0]).IsEqualTo(LogicValue.Zero);
-            await Assert.That(inputBuckets[0].HadTransition).IsFalse();
-            await Assert.That(inputBuckets[2].FirstValue[0]).IsEqualTo(LogicValue.One);
-            await Assert.That(inputBuckets[2].LastValue[0]).IsEqualTo(LogicValue.One);
-            await Assert.That(inputBuckets[2].HadTransition).IsTrue();
-            await Assert.That(inputBuckets[2].HadMixedValues).IsFalse();
-            await Assert.That(inputBuckets[3].FirstValue[0]).IsEqualTo(LogicValue.One);
-            await Assert.That(inputBuckets[3].LastValue[0]).IsEqualTo(LogicValue.Zero);
-            await Assert.That(inputBuckets[3].HadTransition).IsTrue();
-            await Assert.That(inputBuckets[3].HadMixedValues).IsTrue();
+            await Assert.That(summary.Buckets.Select(bucket => (
+                bucket.ProbeId, bucket.Range, First: bucket.FirstValue[0], Last: bucket.LastValue[0],
+                bucket.HadTransition, bucket.HadMixedValues))).IsEquivalentTo(
+                [
+                    (input, new LogicalTimeRange(0, 2), LogicValue.Zero, LogicValue.Zero, false, false),
+                    (input, new LogicalTimeRange(2, 4), LogicValue.Zero, LogicValue.Zero, false, false),
+                    (input, new LogicalTimeRange(4, 6), LogicValue.One, LogicValue.One, true, false),
+                    (input, new LogicalTimeRange(6, 8), LogicValue.One, LogicValue.Zero, true, true),
+                    (output, new LogicalTimeRange(0, 2), LogicValue.One, LogicValue.One, false, false),
+                    (output, new LogicalTimeRange(2, 4), LogicValue.One, LogicValue.One, false, false),
+                    (output, new LogicalTimeRange(4, 6), LogicValue.Zero, LogicValue.Zero, true, false),
+                    (output, new LogicalTimeRange(6, 8), LogicValue.Zero, LogicValue.One, true, true),
+                ],
+                CollectionOrdering.Matching);
         }
     }
 
@@ -162,15 +144,33 @@ internal sealed class SimulationTraceSummaryTests
     }
 
     [Test, FsCheckProperty(MaxTest = 50)]
-    public Property Read_VisualSummary_GeneratedRangesExactlyCoverTheViewport(
-        NonNegativeInt generatedStart,
-        PositiveInt generatedSpan,
+    public async Task Read_VisualSummary_GeneratedRangesExactlyCoverTheViewport(
+        ulong generatedStart,
+        ulong generatedSpan,
         PositiveInt generatedMaxPoints)
     {
-        var start = checked((ulong)(generatedStart.Get % 1_024));
-        var span = checked((ulong)(generatedSpan.Get % 128 + 1));
+        var start = (UInt128)generatedStart;
+        var remaining = (UInt128)ulong.MaxValue + 1 - start;
+        var span = (UInt128)generatedSpan % remaining + 1;
         var maxPoints = generatedMaxPoints.Get % 128 + 1;
-        var end = checked(start + span);
+
+        await AssertSummaryPartition(start, start + span, maxPoints);
+    }
+
+    [Test]
+    [Arguments(0UL, ulong.MaxValue, 3)]
+    [Arguments(ulong.MaxValue - 4, ulong.MaxValue, 3)]
+    [Arguments(ulong.MaxValue, ulong.MaxValue, 8)]
+    public async Task Read_VisualSummaryAtLogicalTimeHorizon_PreservesExactBucketBoundaries(
+        ulong start,
+        ulong lastIncluded,
+        int maxPoints)
+    {
+        await AssertSummaryPartition(start, (UInt128)lastIncluded + 1, maxPoints);
+    }
+
+    private static async Task AssertSummaryPartition(UInt128 start, UInt128 end, int maxPoints)
+    {
         var context = SimulationTestContext.Create();
         var opened = (SimulationOpened)SimulationRuntime.Open(
             context.Request(context.NetSource(context.Circuit.InputNet.Id)),
@@ -187,27 +187,22 @@ internal sealed class SimulationTraceSummaryTests
                         TraceVisualSummaryRepresentation.LogicEnvelopeV1),
                     afterSequence: null)),
                 CancellationToken.None);
-            if (outcome is not TraceSummaryAvailable summary)
-            {
-                return false.Label("a valid summary request is available");
-            }
-
-            var bucketCount = checked((int)Math.Min((ulong)maxPoints, span));
+            var summary = (await Assert.That(outcome).IsTypeOf<TraceSummaryAvailable>())!;
+            var span = end - start;
+            var bucketCount = checked((int)UInt128.Min((UInt128)maxPoints, span));
+            // BigInteger multiplication is independent of the Runtime's bounded partition arithmetic.
             var expected = Enumerable.Range(0, bucketCount)
                 .Select(index => new LogicalTimeRange(
                     Boundary(start, span, index, bucketCount),
                     Boundary(start, span, index + 1, bucketCount)))
                 .ToArray();
-            var actual = summary.Buckets.Select(bucket => bucket.Range).ToArray();
 
-            return actual.SequenceEqual(expected)
-                .Label("summary buckets use the contract's exact floor partition")
-                .And((actual.Length == bucketCount)
-                    .Label("summary uses min(maxPoints, span) buckets"))
-                .And((actual.Length != 0
-                        && actual[0].StartInclusive == start
-                        && actual[^1].EndExclusive == end)
-                    .Label("summary covers both viewport boundaries"));
+            using (Assert.Multiple())
+            {
+                await Assert.That(summary.CoveredRange).IsEqualTo(new LogicalTimeRange(start, end));
+                await Assert.That(summary.Buckets.Select(bucket => bucket.Range))
+                    .IsEquivalentTo(expected, CollectionOrdering.Matching);
+            }
         }
         finally
         {
@@ -245,6 +240,6 @@ internal sealed class SimulationTraceSummaryTests
             ]));
     }
 
-    private static ulong Boundary(ulong start, ulong span, int index, int count) =>
-        checked(start + (ulong)(new BigInteger(index) * span / count));
+    private static UInt128 Boundary(UInt128 start, UInt128 span, int index, int count) =>
+        checked(start + (UInt128)(new BigInteger(index) * (BigInteger)span / count));
 }

@@ -1,7 +1,9 @@
+using System.Data.Common;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
 using LogicLab.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using TUnit.Assertions.Enums;
 
 namespace LogicLab.Infrastructure.Tests;
@@ -239,6 +241,178 @@ internal sealed class DurableProjectRepositoryTests(
         {
             await Assert.That(absent).IsTypeOf<DurableProjectOpenNotFound>();
             await Assert.That(unauthorized).IsTypeOf<DurableProjectOpenNotFound>();
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Commit_ConcurrentReceiptOnlyCommands_EnforcesRetention(
+        bool recoverClaim,
+        CancellationToken cancellationToken)
+    {
+        var repository = database.CreateRepository(receiptRetentionCount: 1);
+        var revision = CreateRevision();
+        var claim = ClaimRequest(revision, fingerprintCharacter: 'a');
+        _ = await repository.ClaimAsync(claim, cancellationToken);
+
+        var outcomes = await CommitOverlappingAsync(
+            target => Execute(target, "first"),
+            target => Execute(target, "second"),
+            receiptRetentionCount: 1,
+            cancellationToken);
+
+        await Assert.That(outcomes).IsEquivalentTo([true, true]);
+        await using var context = database.CreateContext();
+        var retained = await context.DurableCommandReceipts
+            .Select(receipt => receipt.ClientIntentId)
+            .ToArrayAsync(cancellationToken);
+        await Assert.That(retained).IsEquivalentTo(["second"]);
+
+        async Task<bool> Execute(DurableProjectRepository target, string intent)
+        {
+            if (recoverClaim)
+            {
+                return await target.ClaimAsync(new DurableProjectClaimRequest(
+                        new DurableProjectId(intent),
+                        claim.InitialDurableVersion,
+                        claim.SubjectId,
+                        claim.DisplayName,
+                        revision,
+                        ReceiptKey('b', intent)),
+                    cancellationToken) is DurableProjectClaimStored;
+            }
+
+            return await target.SaveAsync(new DurableProjectSaveRequest(
+                    claim.DurableProjectId,
+                    claim.SubjectId,
+                    claim.InitialDurableVersion,
+                    claim.InitialDurableVersion,
+                    revision,
+                    ReceiptKey('b', intent)),
+                cancellationToken) is DurableProjectSaveStored;
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task SaveAsync_OverlappingWrites_ResolveConflictOrReplayWithoutPartialRevision(
+        bool sameIntent,
+        CancellationToken cancellationToken)
+    {
+        var repository = database.CreateRepository();
+        var initial = CreateRevision();
+        var claim = ClaimRequest(initial, fingerprintCharacter: 'a');
+        _ = await repository.ClaimAsync(claim, cancellationToken);
+        var winnerRevision = RenameEntry(initial, "Winner");
+        var winner = new DurableProjectSaveRequest(
+            claim.DurableProjectId,
+            claim.SubjectId,
+            claim.InitialDurableVersion,
+            new DurableVersion("winner-version"),
+            winnerRevision,
+            ReceiptKey('b', "winner"));
+        var contender = sameIntent
+            ? winner
+            : new DurableProjectSaveRequest(
+                claim.DurableProjectId,
+                claim.SubjectId,
+                claim.InitialDurableVersion,
+                new DurableVersion("contender-version"),
+                RenameEntry(initial, "Contender"),
+                ReceiptKey('c', "contender"));
+
+        var outcomes = await CommitOverlappingAsync(
+            target => target.SaveAsync(winner, cancellationToken),
+            target => target.SaveAsync(contender, cancellationToken),
+            receiptRetentionCount: 3,
+            cancellationToken);
+
+        _ = await Assert.That(outcomes[0]).IsTypeOf<DurableProjectSaveStored>();
+        if (sameIntent)
+        {
+            await Assert.That(outcomes[1]).IsEqualTo(outcomes[0]);
+        }
+        else
+        {
+            await Assert.That(outcomes[1]).IsEqualTo(
+                new DurableProjectSaveRepositoryConflict(
+                    claim.InitialDurableVersion, winner.NextDurableVersion));
+        }
+
+        await using var context = database.CreateContext();
+        var project = await context.DurableProjects.SingleAsync(cancellationToken);
+        using (Assert.Multiple())
+        {
+            await Assert.That(project.CurrentProjectRevisionId)
+                .IsEqualTo(winnerRevision.RevisionId.Value);
+            await Assert.That(project.DurableVersion).IsEqualTo(winner.NextDurableVersion.Value);
+            await Assert.That(context.ProjectRevisions).Count().IsEqualTo(2);
+            await Assert.That(context.DurableCommandReceipts).Count()
+                .IsEqualTo(sameIntent ? 2 : 3);
+        }
+    }
+
+    private async Task<T[]> CommitOverlappingAsync<T>(
+        Func<DurableProjectRepository, Task<T>> firstOperation,
+        Func<DurableProjectRepository, Task<T>> secondOperation,
+        int receiptRetentionCount,
+        CancellationToken cancellationToken)
+    {
+        var commitGate = new CommitGate();
+        var first = firstOperation(database.CreateRepository(receiptRetentionCount, commitGate));
+        Task<T>? second = null;
+        try
+        {
+            await commitGate.Entered.WaitAsync(cancellationToken);
+            second = secondOperation(database.CreateRepository(receiptRetentionCount));
+            // Observe a real database wait before committing the first transaction.
+            await WaitForBlockedTransactionAsync(cancellationToken);
+        }
+        finally
+        {
+            commitGate.Release();
+            await Task.WhenAll(second is null ? [first] : [first, second]);
+        }
+
+        return [first.Result, second!.Result];
+    }
+
+    private async Task WaitForBlockedTransactionAsync(CancellationToken cancellationToken)
+    {
+        await using var context = database.CreateContext();
+        while (!await context.Database.SqlQuery<bool>($"""
+            SELECT EXISTS (
+                SELECT 1 FROM pg_stat_activity
+                WHERE datname = current_database() AND wait_event_type = 'Lock'
+            ) AS "Value"
+            """).SingleAsync(cancellationToken))
+        {
+            await Task.Delay(10, cancellationToken);
+        }
+    }
+
+    private sealed class CommitGate : DbTransactionInterceptor
+    {
+        private readonly TaskCompletionSource entered = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource released = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task Entered => entered.Task;
+
+        public void Release() => released.TrySetResult();
+
+        public override async ValueTask<InterceptionResult> TransactionCommittingAsync(
+            DbTransaction transaction,
+            TransactionEventData eventData,
+            InterceptionResult result,
+            CancellationToken cancellationToken = default)
+        {
+            entered.TrySetResult();
+            await released.Task.WaitAsync(cancellationToken);
+            return result;
         }
     }
 

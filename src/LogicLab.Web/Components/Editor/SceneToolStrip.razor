@@ -15,6 +15,7 @@
     </FluentButton>
     <FluentButton Class="scene-tool"
                   data-scene-tool="wire"
+                  Disabled="@(!CanWire)"
                   Title="@Text["WireTool"]"
                   Size="ButtonSize.Small"
                   Appearance="@(ActiveTool is SceneWireToolV1 ? ButtonAppearance.Primary : ButtonAppearance.Outline)"

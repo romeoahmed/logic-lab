@@ -5,7 +5,7 @@ Research records evidence, derivations, rejected alternatives, and dated qualifi
 | Record                                                          | Evidence scope                                                                   |
 | --------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | [Least-Fixed-Point Semantics](./least-fixed-point-semantics.md) | mathematical basis for zero-delay combinational feedback                         |
-| [.NET Memory and Unsafe Code](./dotnet-memory-and-unsafe.md)    | managed ownership, spans, pooling, pinning, and unsafe-code gates                |
+| [.NET Memory and Unsafe Code](./dotnet-memory-and-unsafe.md)    | buffer ownership, pool leases, stack storage, and binary-layout hazards          |
 | [.NET Testing Platform](./testing-platform.md)                  | MTP, TUnit, FsCheck, bUnit, and Playwright evidence                              |
 | [Compiler Representations](./compiler-representations.md)       | compiler pipeline and purpose-specific representation evidence                   |
 | [Boolean Analysis proposal](../future/boolean-analysis.md)      | consolidated future design, evidence boundary, and primary sources               |
@@ -20,7 +20,7 @@ qualification boundary, or dated measurement that the owner should not absorb.
 
 Keep dated measurements and source snapshots only while they support a live
 decision. Remove completed migration inventories, superseded setup instructions,
-and implementation-status snapshots; executable configuration and the Implementation
-Plan own current facts.
+and implementation-status snapshots; executable configuration and
+[Delivery](../delivery.md) own current facts.
 
 Cite each source at the claim it supports. Do not append a second link catalog when those sources are already cited inline; retain a closing bibliography only for whole-record primary material that cannot be attached to one claim.

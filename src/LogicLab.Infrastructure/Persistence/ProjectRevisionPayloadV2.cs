@@ -149,7 +149,10 @@ internal sealed record UnroutedWireRoutePayloadV2 : WireRoutePayloadV2;
 internal sealed record OrthogonalWireRoutePayloadV2(
     GridPointPayloadV2[] Points) : WireRoutePayloadV2;
 
-internal readonly record struct GridPointPayloadV2(int X, int Y);
+// Structs use their default constructor, so required constructor parameters do not apply.
+internal readonly record struct GridPointPayloadV2(
+    [property: JsonRequired] int X,
+    [property: JsonRequired] int Y);
 
 internal sealed record AnnotationPayloadV2(
     string Id,

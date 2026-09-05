@@ -2,7 +2,8 @@
 
 > Status: normative V1 authoring contract
 
-Circuit Authoring defines the valid Project Document and the atomic behavior of the Project Editor Module. Compilation, Simulation, Workspace continuity, persistence, and browser gestures are separate concerns.
+Project Editor owns valid Project Documents and atomic edits. Compilation,
+Simulation, Workspace history, persistence, and browser gestures have separate owners.
 
 ## 1. Project Editor interface
 
@@ -11,141 +12,189 @@ Begin(ProjectSeed) -> ProjectGenesisCommitted | ProjectGenesisRejected
 Apply(ProjectRevision, EditIntent) -> EditCommitted | EditRejected
 ```
 
-`ProjectSeed` is `NewProjectSeed` or `ImportedProjectSeed`. A new seed supplies the Project display name, exact Library Snapshot, Symbol Profile, and entry Circuit Definition display name. Project Editor allocates the authored Project ID, Project Revision ID, and one empty entry Circuit Definition ID; all other collections begin empty. An imported seed carries the validated Project Document established by the Project Format Import Candidate, preserves its authored IDs, and receives a new Project Revision ID. `Begin` trusts that capability boundary; it does not repeat validation, save, compile, authorize, publish a Workspace, or mutate an existing history.
+`NewProjectSeed` supplies the Project display name, exact Library Snapshot, Symbol
+Profile, and entry Circuit Definition display name. `Begin` allocates Project,
+Project Revision, and entry Circuit Definition IDs; all other collections are empty.
+`ImportedProjectSeed` carries the validated Project Document from a Project Format
+Import Candidate. `Begin` preserves its authored IDs and allocates a Project Revision
+ID, trusting that validation boundary. Neither path saves, compiles, authorizes,
+publishes a Workspace, or changes existing history.
 
-`EditIntent` is one closed variant describing one user intention. An intent may affect several entities or Circuit Definitions when that is necessary to preserve invariants; it is not an arbitrary patch or list of smaller commands.
+A committed result contains one new whole-Project Revision, canonical changed and
+removed source identities, and stable diagnostics. Identity sets describe the final
+committed state and are disjoint. A rejected result has reason `authoring_invalid`,
+diagnostics, and no revision or document changes. Application handles cancellation
+and infrastructure failures separately from authoring validation.
 
-`ProjectGenesisCommitted` or `EditCommitted` contains one new whole-Project Revision, the canonical changed and removed source identities, and stable diagnostics. A rejected result carries reason `authoring_invalid`, diagnostics, and no revision. Cancellation and infrastructure handling occur at the Application seam rather than being disguised as authoring validation. The Module hides identity allocation, structural sharing, topology normalization, and validation phases. Selection, viewport, pointer samples, Undo/Redo cursor, Compilation, and Session state never enter this interface.
+One closed `EditIntent` expresses one user intention, possibly spanning several
+entities or Circuit Definitions. All affected definitions commit together or none
+do. Project Editor hides ID allocation, structural sharing, topology normalization,
+and validation phases. Selection, viewport, pointer samples, history cursor,
+Compilation, and Session state do not enter this interface.
 
 ## 2. Identity and ordering
 
-- `ProjectId` is stable across Project Revisions. Every committed edit creates a new `ProjectRevisionId`; neither value is a content digest.
-- `CircuitDefinitionId` is project-wide. Component Instance, Net, Junction, and Wire Geometry IDs are stable within their Circuit Definition. Port IDs are stable within their owning Component Contract or Circuit Definition.
-- References always include enough containment and Hierarchy Path information to disambiguate a local ID. Display names, coordinates, array indexes, and runtime ordinals are never identity.
-- Ordinary creation intents receive new persistent IDs from the Project Editor and return them in the committed result. Import retains only IDs already decoded and validated by Project Format; a browser gesture cannot choose a persistent ID.
-- Ordered Ports, Terminal memberships, slices, routes, and other semantic sequences retain explicit authored order. Map-like collections and diagnostics use canonical order; hash enumeration is never observable.
+- `ProjectId` survives revisions; every commit receives a new `ProjectRevisionId`.
+  Neither is a content digest.
+- `CircuitDefinitionId` is project-wide. Component Instance, Net, Junction, and Wire
+  Geometry IDs are local to their Circuit Definition; Port IDs are local to their
+  Component Contract or Circuit Definition.
+- References include the containment and Hierarchy Path needed to distinguish local
+  IDs. Names, coordinates, array indexes, and runtime ordinals are never identity.
+- Project Editor allocates creation IDs and returns them as changed source identities.
+  Only validated import preserves supplied IDs; ordinary intents cannot choose them.
+- Ordered Ports, Terminal memberships, slices, and routes retain authored order.
+  Map-like collections and diagnostics use canonical order, never hash enumeration.
 
 ## 3. Project Document invariants
 
-Every Project Revision satisfies these local invariants even when Compiler later reports graph-wide errors:
+Every revision satisfies these local invariants:
 
-- every ID is unique in its declared scope and every reference resolves to the required entity kind;
-- widths are positive, checked values; a connected Terminal has exactly its Port width;
-- a Terminal belongs to at most one Net; an unconnected Terminal is valid;
-- one Net has one fixed width, owns at least one Terminal, Junction, or Wire Geometry, and explicitly owns its ordered Terminal and Junction membership;
-- each Junction and Wire Geometry names exactly one Net in the same Circuit Definition;
-- Wire Geometry is an orthogonal route or an explicit unrouted marker and never defines connectivity;
-- a geometric crossing creates no Junction, and moving geometry alone changes no Net membership;
-- each Component Instance names one exact Component Contract or Circuit Definition and has parameters valid for that local contract schema;
-- display text is nonempty NFC Unicode without NUL, isolated surrogate code points, or C0 controls; Annotation text is NFC and permits LF but no other C0 control;
-- authored grid coordinates fit signed 32-bit integers, and every Memory Image has positive checked width/depth with exactly one complete word per address;
-- Symbol Profile and explicit Symbol Variant references resolve exactly and preserve the Component Contract Port schema; and
-- the entry Circuit Definition and all directly authored references exist.
+- IDs are unique in their scope; references resolve to the required entity kind,
+  including the entry Circuit Definition.
+- Widths are positive checked values. A connected Terminal has its Port's width and
+  belongs to at most one Net; an unconnected Terminal is valid.
+- A Net has one fixed width, ordered Terminal and Junction memberships, and at least
+  one Terminal, Junction, or Wire Geometry. Each Junction and Wire Geometry names
+  exactly one Net in the same Circuit Definition.
+- Wire Geometry is an orthogonal route or explicit unrouted marker. Geometry never
+  defines connectivity: crossings create no Junction and movement changes no membership.
+- Each Component Instance names one exact Component Contract or Circuit Definition
+  and supplies parameters valid for its local schema.
+- Display text is nonempty NFC Unicode without NUL, isolated surrogates, or C0 controls.
+  Annotation text may be empty and permits LF, but otherwise follows the same rules.
+- Grid coordinates fit signed 32-bit integers. Memory Image width and depth are
+  positive checked values, with exactly one complete word per address.
+- Symbol Profile and explicit Symbol Variant references resolve exactly and preserve
+  the Component Contract Port schema.
 
-Impossible local values are rejected by Project Editor. Hierarchy recursion, whole-graph Driver rules, and other elaborated facts belong to Compiler, so a locally valid Project Revision may be non-executable.
+Project Editor rejects impossible local values. Compiler owns hierarchy recursion,
+elaborated Driver rules, and other graph-wide errors; a locally valid revision may
+remain non-executable.
 
 ## 4. Structural edits
 
-The V1 Edit Intent catalog is closed. All entity references include their containing Circuit Definition. Creation variants allocate IDs inside Project Editor and return them in `changed source identities`.
+The following V1 catalog is closed. References include their containing Circuit
+Definition. Each intent supplies complete replacement values for the facts it changes.
+There is no generic patch, entity update, cascade flag, nested intent list, or
+caller-supplied persistent ID. Dependents must migrate through a dedicated intent
+or the edit is rejected; Port and state changes never silently rebind or truncate data.
 
 ### 4.1 Circuit Definitions
 
-| Intent                      | Required facts                                                                                             | Atomic consequence                                                                                          |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `CreateCircuitDefinition`   | display name, ordered public Port contract, initial presentation                                           | creates one unreferenced definition                                                                         |
-| `RenameCircuitDefinition`   | definition ID, new display name                                                                            | changes no identity or call site                                                                            |
-| `ChangePublicPortContract`  | definition ID, retained Port IDs, new Port declarations without IDs, complete call-site Terminal migration | allocates new Port IDs and changes the definition and every selected instance call site together or rejects |
-| `MoveDefinitionPorts`       | definition ID, nonempty Port IDs with final placements                                                     | changes authored presentation only                                                                          |
-| `SetEntryCircuitDefinition` | existing definition ID                                                                                     | replaces the one entry reference                                                                            |
-| `RemoveCircuitDefinition`   | non-entry definition ID                                                                                    | succeeds only when no Component Instance references it                                                      |
+| Intent | Input and atomic effect |
+| --- | --- |
+| `CreateCircuitDefinition` | Display name, ordered public Ports, and initial presentation create an unreferenced definition. |
+| `RenameCircuitDefinition` | Changes the identified definition's display name, preserving identity and call sites. |
+| `ChangePublicPortContract` | Retained Port IDs, new declarations without IDs, and complete call-site migrations replace the contract and every call site together. |
+| `MoveDefinitionPorts` | Nonempty Port IDs and final placements change presentation only. |
+| `SetEntryCircuitDefinition` | An existing definition ID replaces the entry reference. |
+| `RemoveCircuitDefinition` | Removes a non-entry definition only when no Component Instance references it. |
 
-A public Port migration maps each retained old Port ID to exactly one compatible new Port ID or explicitly disconnects it. New Ports receive new IDs; a changed meaning never reuses an old ID merely because its array position matches.
+Retained Ports preserve direction and width. New Ports receive new IDs; array
+positions never preserve identity. Every call site must map **every old Port** to a
+distinct compatible destination in the new contract or explicitly disconnect it,
+including Ports that are currently unconnected. Removed definition-boundary Ports
+are disconnected in the same transaction.
 
 ### 4.2 Component Instances
 
-| Intent                             | Required facts                                                                                         | Atomic consequence                                                                                                      |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `PlaceComponentInstance`           | exact target, complete parameters, placement                                                           | validates the Component Contract or Circuit Definition and creates one instance                                         |
-| `PlaceComponentWithNewMemoryImage` | exact library target, complete non-memory parameters, one complete new Memory Image binding, placement | validates and creates the explicit Memory Image and bound instance together                                             |
-| `RenameComponentInstance`          | instance ID, display name or null                                                                      | changes no target, Port, or state fact                                                                                  |
-| `SetInstanceParameters`            | instance ID, complete parameter set                                                                    | valid only when resolved Port and state schemas remain identical                                                        |
-| `ChangeInstanceContract`           | instance ID, new exact target/parameters, complete Terminal migration                                  | changes target, parameters, connections, initial state, and Symbol Variant together                                     |
-| `MoveComponentInstances`           | nonempty instance IDs with final placements                                                            | changes presentation only                                                                                               |
-| `RemoveComponentInstances`         | nonempty instance IDs                                                                                  | removes their Terminal memberships and instances; removes a Net only if no Terminal, Junction, or Wire Geometry remains |
+| Intent | Input and atomic effect |
+| --- | --- |
+| `PlaceComponentInstance` | Exact target, complete parameters, and placement create a locally valid instance. |
+| `PlaceComponentWithNewMemoryImage` | Exact library target, non-memory parameters, a complete new Memory Image binding, and placement create both image and instance. |
+| `RenameComponentInstance` | Sets display name or null, preserving target, Ports, and state. |
+| `SetInstanceParameters` | Replaces complete parameters only when resolved Port and state schemas stay identical. |
+| `ChangeInstanceContract` | Exact target, complete parameters, Terminal migration, and Symbol Variant replace the contract, connections, and initial state together. |
+| `MoveComponentInstances` | Nonempty instance IDs and final placements change presentation only. |
+| `RemoveComponentInstances` | Removes the specified nonempty instance set and its Terminal memberships; a Net is removed only if no Terminal, Junction, or Wire Geometry remains. |
 
-Parameter bindings follow the exact [Component Contract Catalog V1](./component-contract-catalog-v1.md). A contract change cannot retain incompatible state or a Symbol Variant by coincidence.
+Parameter bindings follow [Component Contract Catalog V1](./component-contract-catalog-v1.md).
+Contract migrations map every old Port to a distinct compatible new Port or an
+explicit disconnection; incompatible state and Symbol Variants cannot survive by
+coincidence. `PlaceComponentWithNewMemoryImage` names the memory-image parameter
+and supplies display name, width, depth, and complete words. Project Editor allocates
+both IDs and rejects the whole intent if either image or binding is invalid.
 
 ### 4.3 Connectivity and geometry
 
-| Intent               | Required facts                                                                                                                                                        | Atomic consequence                                                                                                           |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `ConnectTerminals`   | compatible Terminals, optional existing destination Net, new Junction declarations without IDs, route additions without IDs, and complete affected route replacements | atomically creates/adds/merges connectivity and its authored route, allocating every new Net, Junction, and Wire Geometry ID |
-| `MergeNets`          | destination Net ID, nonempty source Net IDs                                                                                                                           | preserves only the destination ID and combines complete membership                                                           |
-| `SplitNet`           | Net ID, complete nonempty membership partitions                                                                                                                       | applies the identity rule in Section 5 and allocates remaining Net IDs                                                       |
-| `AddJunction`        | Net ID, position, route additions without IDs, and complete affected route replacements/removals                                                                      | allocates one Junction and any new Wire Geometry IDs without inferring membership from coordinates                           |
-| `RemoveJunction`     | Junction ID, resulting partitions if connectivity splits, route additions without IDs, and complete affected route replacements/removals                              | removes the Junction, allocates new Wire Geometry IDs, and leaves topology/geometry consistent                               |
-| `AddWireGeometry`    | Net ID, complete routed/unrouted value                                                                                                                                | allocates one Wire Geometry ID without changing Net membership                                                               |
-| `SetWireGeometry`    | existing geometry ID, complete routed/unrouted value                                                                                                                  | changes presentation of one Net without changing membership                                                                  |
-| `RemoveWireGeometry` | geometry ID                                                                                                                                                           | removes only that route; electrical membership is unchanged                                                                  |
+| Intent | Input and atomic effect |
+| --- | --- |
+| `ConnectTerminals` | Compatible Terminals, optional destination Net, new Junction declarations, route additions, and complete affected route replacements create, extend, or merge connectivity and its route. |
+| `MergeNets` | An existing destination Net and nonempty source Net IDs combine complete membership, preserving only the destination ID. |
+| `SplitNet` | A Net ID and complete nonempty membership partitions split the Net under Section 5's identity rule. |
+| `AddJunction` | A Net ID, position, route additions, and complete affected route replacements/removals add one Junction and update geometry. |
+| `RemoveJunction` | A Junction ID, resulting partitions if connectivity splits, route additions, and complete affected route replacements/removals remove the Junction and update topology. |
+| `AddWireGeometry` | A Net ID and complete routed/unrouted value add a route without changing electrical membership. |
+| `SetWireGeometry` | A geometry ID and complete routed/unrouted value replace that route only. |
+| `RemoveWireGeometry` | Removes the identified route without changing electrical membership; rejects removal of a Net's last remaining member. |
 
-`ConnectTerminals` requires at least two distinct electrical endpoints when the destination Net is counted. It rejects an ambiguous multi-Net merge without an explicit destination. New Junction positions are explicit authored topology, never inferred from route crossings. `SplitNet` partitions every current Terminal, Junction, and Wire Geometry exactly once; it is not a list of cut edges. Route additions and replacements are closed values attached to the topology intention, not nested arbitrary Edit Intents.
+`ConnectTerminals` requires at least two distinct electrical endpoints, counting the
+destination Net. A multi-Net merge requires an explicit destination. New Junctions
+have explicit positions; route crossings never imply them. Route additions have no
+IDs; replacements name existing geometry. Both are closed values within the topology
+intent, not nested Edit Intents.
 
 ### 4.4 Authored data and presentation
 
-| Intent               | Required facts                                                                                       | Atomic consequence                                         |
-| -------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `CreateMemoryImage`  | display name, width, depth, complete initial words                                                   | creates one Memory Image                                   |
-| `ReplaceMemoryImage` | image ID, same or new shape, complete initial words, complete affected instance parameter migrations | replaces content and every affected reference or rejects   |
-| `RemoveMemoryImage`  | image ID                                                                                             | succeeds only when no instance references it               |
-| `SetSymbolProfile`   | exact profile/version/convention, complete incompatible-override removals or replacements            | changes the project-wide profile without silent fallback   |
-| `SetSymbolVariant`   | instance ID, registered compatible variant or null                                                   | changes presentation only                                  |
-| `CreateAnnotation`   | exact annotation value without an ID                                                                 | allocates one Annotation ID and adds authored presentation |
-| `ChangeAnnotation`   | annotation ID and complete replacement value                                                         | changes authored presentation only                         |
-| `MoveAnnotations`    | nonempty Annotation IDs and final positions                                                          | changes authored presentation only                         |
-| `RemoveAnnotation`   | annotation ID                                                                                        | removes authored presentation only                         |
+| Intent | Input and atomic effect |
+| --- | --- |
+| `CreateMemoryImage` | Display name, width, depth, and complete initial words create an image. |
+| `ReplaceMemoryImage` | Image ID, replacement shape/content, and complete affected instance parameter migrations update the image and references together. |
+| `RemoveMemoryImage` | Removes the image only when no instance references it. |
+| `SetSymbolProfile` | Exact profile/version/convention and complete incompatible-override removals or replacements change the project-wide profile without fallback. |
+| `SetSymbolVariant` | Instance ID and registered compatible variant or null change presentation only. |
+| `CreateAnnotation` | A complete annotation without ID creates authored presentation. |
+| `ChangeAnnotation` | An Annotation ID and complete replacement change authored presentation. |
+| `MoveAnnotations` | Nonempty Annotation IDs and final positions change presentation only. |
+| `RemoveAnnotation` | Removes the identified Annotation. |
 
-Memory writes during Simulation and automated circuit replacement are not V1
-authoring intents.
-
-`PlaceComponentWithNewMemoryImage` is the one authoring convenience for a new explicit image. Its binding names the target memory-image parameter and carries the complete display name, width, depth, and words; Project Editor allocates both persistent IDs and rejects the whole intent if either the image or component binding is invalid. It is not a nested `CreateMemoryImage` plus `PlaceComponentInstance` sequence.
-
-An edit cannot leave a dangling reference. Deleting or changing an entity with dependents either uses a dedicated intent whose complete consequence is part of this contract or is rejected; there is no generic cascade-delete flag. A Port- or state-schema change never silently rebinds or truncates authored data.
-
-One Edit Transaction may update several Circuit Definitions, for example when changing a public Port contract and all call sites together. All affected definitions commit or none do. V1 has no `PatchProject`, generic `UpdateEntity`, cascade flag, nested intent list, or caller-supplied persistent ID.
+Simulation memory writes and automated circuit replacement are not V1 authoring intents.
 
 ## 5. Net identity through connectivity changes
 
-Connectivity intents operate on stable Terminals, Nets, and Junctions. They never ask Project Editor to infer membership from screen coordinates.
+- Connectivity without an existing Net receives a new Net ID.
+- A merge preserves the explicit destination Net ID and removes all source Net IDs.
+- A split partitions every Terminal, Junction, and Wire Geometry exactly once. The
+  partition with the lowest canonical Terminal reference retains the original ID.
+  With no Terminals, the lowest Junction ID decides; with neither, the lowest Wire
+  Geometry ID decides. IDs compare ordinally, independently of culture.
+- Remaining partitions receive new IDs in canonical partition-key order. Empty
+  partitions are never published.
+- Splits, merges, and Junction deletion update every affected Wire Geometry reference
+  in the same transaction.
 
-- Creating connectivity with no existing Net allocates one Net ID.
-- Merging Nets requires one existing destination Net. That ID survives; every source Net ID is removed.
-- Splitting a Net supplies the complete resulting membership partitions. The partition containing the lowest canonical Terminal reference retains the original Net ID. If no partition contains a Terminal, the lowest Junction ID breaks the tie, followed by the lowest Wire Geometry ID.
-- Other nonempty partitions receive new IDs in canonical partition-key order. A partition containing no Terminal, Junction, or Wire Geometry is not published.
-- A split, merge, or Junction deletion also leaves every affected Wire Geometry reference consistent in the same Edit Transaction.
-
-These rules make identity preservation independent of coordinate order, collection enumeration, and implementation traversal. Compiler rechecks the executable graph, while Project Format invokes the same Circuit Authoring invariant implementation when constructing an Import Candidate; neither chooses a different partition or reconstructs connectivity.
+Identity retention is independent of coordinates, input enumeration, and traversal.
+Project Format uses these same authoring invariants to construct an Import Candidate;
+Compiler rechecks the executable graph. Neither reconstructs connectivity or chooses
+a different retained partition.
 
 ## 6. Revision and history behavior
 
-One successful `Begin` produces the Project Genesis. One successful `Apply` produces exactly one later Project Revision and is the smallest Undo/Redo unit. Project Editor does not own Transaction History or idempotency. A Workspace created from Genesis starts history at that revision. Opening a Durable Project or copying a Workspace instead establishes its loaded or forked Project Revision as a new history base; prior private history is not transferred and Undo cannot cross that base. Workspace records later committed revisions, moves its cursor for Undo/Redo, truncates the abandoned Redo branch after a new edit, and returns a retained result for a duplicate `ClientIntentId`.
-
-A rejected edit consumes no visible revision and changes no Project Document. Because Compilation provenance includes Project Revision, Workspace marks the current Compilation stale after every committed edit.
+`Begin` produces one Project Genesis; each successful `Apply` produces exactly one
+later Project Revision and defines the smallest Undo/Redo unit. Rejection publishes
+no revision. [Editor Workspace](../contracts/editor-workspace.md) owns history bases,
+Undo/Redo, branch truncation, intent idempotency, and Compilation staleness.
 
 ## 7. Diagnostics and determinism
 
-Expected authoring mistakes return structured diagnostics rather than exceptions. Structure, codes, typed safe arguments, locations, and ordering follow [Diagnostics V1](./diagnostics-v1.md). Localized prose belongs to Web.
-
-At the Workspace seam, replay of the same retained intent identity returns the recorded outcome. Canonical ordering, identity-retention rules, and changed-identity sets do not depend on dictionary order, process state, or browser geometry.
+Expected authoring mistakes return structured diagnostics under
+[Diagnostics V1](./diagnostics-v1.md): stable codes, typed safe arguments, source
+locations, and canonical ordering. Web owns localization. Diagnostic witnesses,
+identity retention, and changed/removed identity sets are independent of input map
+order, process state, culture, and browser geometry.
 
 ## 8. Required evidence
 
-- model-based Edit Intent sequences that preserve every Project Document invariant;
-- Project Genesis from new and imported seeds, including rejection before Workspace publication;
-- one conformance case for every closed Edit Intent and rejection of generic or unknown variants;
-- atomic multi-definition commits and rejection without a partial revision;
-- merge/split permutations proving the destination and retained-partition rules;
-- deletion, Port-schema, width, duplicate-membership, and dangling-reference rejection matrices;
-- crossings, Junctions, unrouted geometry, and geometry-only movement cases;
-- stable diagnostics under input and collection-order permutations;
-- Workspace integration for idempotency, Undo/Redo, Redo truncation, and Compilation staleness;
-- Compiler integration proving that locally valid but recursive or electrically invalid revisions remain editable and fail with deterministic graph-wide diagnostics.
+- model-based Edit Intent sequences preserving every Project Document invariant;
+- new/imported Genesis, including rejection before Workspace publication;
+- each closed Edit Intent, generic/unknown variant rejection, and atomic commits
+  across multiple definitions with no partial revision on rejection;
+- merge/split permutations and culture changes proving identity retention;
+- deletion, Port/schema/width migration, duplicate membership, and dangling-reference
+  rejection, including shared Nets at multiple call sites;
+- crossings, Junctions, unrouted geometry, and geometry-only movement;
+- diagnostics and disjoint final source sets under input-order permutations;
+- Workspace idempotency, Undo/Redo, branch truncation, and Compilation staleness; and
+- locally valid recursive or electrically invalid revisions that remain editable
+  and receive deterministic Compiler diagnostics.

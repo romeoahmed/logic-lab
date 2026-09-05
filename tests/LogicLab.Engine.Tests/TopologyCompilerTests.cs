@@ -132,7 +132,7 @@ internal sealed class TopologyCompilerTests
             CompilerTestCircuit.Request(revision, SlotPolicy(maximum: 5)),
             CancellationToken.None);
 
-        await AssertSlotPolicyBreach(outcome, observed: 14);
+        await AssertSlotPolicyBreach(outcome, observed: 15);
     }
 
     [Test]

@@ -4,7 +4,6 @@ using System.Net.Http.Headers;
 using System.Resources;
 using LogicLab.Web.Components.Layout;
 using LogicLab.Web.Components.Pages;
-using Microsoft.AspNetCore.Mvc.Testing;
 using TUnit.AspNetCore;
 
 namespace LogicLab.Web.Tests;
@@ -37,20 +36,15 @@ internal sealed class WebHostRouteContractTests(LogicLabWebFactory factory)
         {
             await Assert.That(response.StatusCode)
                 .IsIn(HttpStatusCode.OK, HttpStatusCode.ServiceUnavailable);
-            await Assert.That(content).IsIn("Healthy", "Unhealthy");
-            await Assert.That(content).DoesNotContain("Exception");
-            await Assert.That(content).DoesNotContain("Data Source");
+            await Assert.That(content).IsEqualTo(
+                response.StatusCode == HttpStatusCode.OK ? "Healthy" : "Unhealthy");
         }
     }
 
     [Test]
     public async Task Post_CultureChoice_PersistsCookieAndRedirectsLocally()
     {
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost/"),
-        });
+        using var client = factory.CreateHttpsClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/");
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
@@ -82,6 +76,20 @@ internal sealed class WebHostRouteContractTests(LogicLabWebFactory factory)
                 .Contains("httponly", StringComparison.OrdinalIgnoreCase);
             await Assert.That(cultureCookie)
                 .Contains("samesite=lax", StringComparison.OrdinalIgnoreCase);
+        }
+
+        using var reload = new HttpRequestMessage(HttpMethod.Get, new Uri("/", UriKind.Relative));
+        reload.Headers.Add("Cookie", cultureCookie.Split(';', 2)[0]);
+        reload.Headers.AcceptLanguage.Add(new StringWithQualityHeaderValue("en-US"));
+        using var reloaded = await client.SendAsync(reload);
+        reloaded.EnsureSuccessStatusCode();
+        var document = WebTestMarkup.Parse(await reloaded.Content.ReadAsStringAsync());
+        using (Assert.Multiple())
+        {
+            await Assert.That(WebTestMarkup.RequireElement(document, "html").GetAttribute("lang"))
+                .IsEqualTo("zh-CN");
+            await Assert.That(WebTestMarkup.RequireElement(document, "#home-title").TextContent)
+                .IsEqualTo(Localized<SiteText>("HomeTitle", "zh-CN"));
         }
     }
 

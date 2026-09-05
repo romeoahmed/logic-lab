@@ -1,0 +1,49 @@
+<section class="selection-inspector" data-selection-inspector>
+    @if (items.Count == 0)
+    {
+        @if (Projection.ProjectRevision.Document.FindCircuitDefinition(DefinitionId) is { } definition)
+        {
+            <h3>@definition.DisplayName</h3>
+            <dl class="circuit-summary">
+                <div><dt>@Text["InspectorComponents"]</dt><dd>@definition.ComponentInstances.Count</dd></div>
+                <div><dt>@Text["InspectorNets"]</dt><dd>@definition.Nets.Count</dd></div>
+                <div><dt>@Text["InspectorPorts"]</dt><dd>@definition.Ports.Count</dd></div>
+            </dl>
+        }
+        <p class="selection-hint">@Text["InspectorSelectHint"]</p>
+    }
+    else
+    {
+        <p class="selection-count">@Text["InspectorSelectionCount", items.Count]</p>
+        @foreach (var item in items)
+        {
+            <article @key="item.Key" data-selection-item="@item.Key">
+                <h3>@item.Title</h3>
+                <dl>
+                    @foreach (var fact in item.Facts)
+                    {
+                        <div><dt>@fact.Label</dt><dd>@fact.Value</dd></div>
+                    }
+                </dl>
+            </article>
+        }
+        @if (actions.Count != 0)
+        {
+            <div class="selection-actions">
+                @foreach (var action in actions)
+                {
+                    <div @key="action.Id">
+                        <FluentButton data-command="@($"selection-{action.Id}")"
+                                      Appearance="ButtonAppearance.Outline"
+                                      Disabled="@(!CanEdit)"
+                                      OnClick="@(() => EditAsync(action))">@Text[action.LabelKey]</FluentButton>
+                        @if (action.Id is "merge" or "split" or "remove-junction" or "remove-route" or "unroute")
+                        {
+                            <p>@Text[action.LabelKey + "Description"]</p>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+</section>

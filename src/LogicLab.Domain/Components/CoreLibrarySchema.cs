@@ -16,385 +16,280 @@ public static class CoreLibrarySchema
     private const string MemoryStateShape =
         "memory-image.parameter.wordWidth.addressWidth";
 
-    private static readonly ComponentContractSchema SourceInput = CreateContract(
-        "source.input",
-        WidthStateShape,
-        [
-            new ComponentParameterSchema(
-                "width",
-                ComponentParameterKind.PositiveWidth),
-            new ComponentParameterSchema(
-                "initialValue",
-                ComponentParameterKind.LogicVector,
-                widthParameterId: "width"),
-        ],
-        [
-            new ComponentPortSchema("Q", PortDirection.Output, "width"),
-        ]);
-
-    private static readonly ComponentContractSchema SourceClock = CreateContract(
-        "source.clock",
-        ScalarStateShape,
-        [
-            new ComponentParameterSchema(
-                "initialValue",
-                ComponentParameterKind.BinaryLogicValue),
-            new ComponentParameterSchema(
-                "firstTransition",
-                ComponentParameterKind.PositiveUnsigned64),
-            new ComponentParameterSchema(
-                "highDuration",
-                ComponentParameterKind.PositiveUnsigned64),
-            new ComponentParameterSchema(
-                "lowDuration",
-                ComponentParameterKind.PositiveUnsigned64),
-        ],
-        [FixedOnePort("Q", PortDirection.Output)]);
-
-    private static readonly ComponentContractSchema LogicNot = CreateContract(
-        "logic.not",
-        StatelessStateShape,
-        [
-            new ComponentParameterSchema(
-                "width",
-                ComponentParameterKind.PositiveWidth),
-        ],
-        [
-            new ComponentPortSchema("A", PortDirection.Input, "width"),
-            new ComponentPortSchema("Q", PortDirection.Output, "width"),
-        ]);
-
-    private static readonly ComponentContractSchema LogicBuffer =
-        CreateUnaryLogicContract("logic.buffer");
-
-    private static readonly ComponentContractSchema LogicAnd =
-        CreateGateContract("logic.and");
-
-    private static readonly ComponentContractSchema LogicNand =
-        CreateGateContract("logic.nand");
-
-    private static readonly ComponentContractSchema LogicOr =
-        CreateGateContract("logic.or");
-
-    private static readonly ComponentContractSchema LogicNor =
-        CreateGateContract("logic.nor");
-
-    private static readonly ComponentContractSchema LogicXor =
-        CreateGateContract("logic.xor");
-
-    private static readonly ComponentContractSchema LogicXnor =
-        CreateGateContract("logic.xnor");
-
-    private static readonly ComponentContractSchema LogicTristate = CreateContract(
-        "logic.tristate",
-        StatelessStateShape,
-        [
-            WidthParameter("width"),
-            ChoiceParameter("enablePolarity", "activeHigh", "activeLow"),
-        ],
-        [
-            new ComponentPortSchema("D", PortDirection.Input, "width"),
-            FixedOnePort("EN", PortDirection.Input),
-            new ComponentPortSchema("Q", PortDirection.Output, "width"),
-        ]);
-
-    private static readonly ComponentContractSchema LogicMux = CreateContract(
-        "logic.mux",
-        StatelessStateShape,
-        [WidthParameter("width"), WidthParameter("selectorWidth")],
-        [
-            GeneratedPort("D", PortDirection.Input, "width", "selectorWidth", powerOfTwo: true),
-            new ComponentPortSchema("S", PortDirection.Input, "selectorWidth"),
-            new ComponentPortSchema("Q", PortDirection.Output, "width"),
-        ]);
-
-    private static readonly ComponentContractSchema LogicDemux = CreateContract(
-        "logic.demux",
-        StatelessStateShape,
-        [WidthParameter("width"), WidthParameter("selectorWidth")],
-        [
-            new ComponentPortSchema("D", PortDirection.Input, "width"),
-            new ComponentPortSchema("S", PortDirection.Input, "selectorWidth"),
-            GeneratedPort("Q", PortDirection.Output, "width", "selectorWidth", powerOfTwo: true),
-        ]);
-
-    private static readonly ComponentContractSchema LogicDecoder = CreateContract(
-        "logic.decoder",
-        StatelessStateShape,
-        [
-            WidthParameter("selectorWidth"),
-            ChoiceParameter("enablePolarity", "activeHigh", "activeLow"),
-        ],
-        [
-            new ComponentPortSchema("A", PortDirection.Input, "selectorWidth"),
-            FixedOnePort("EN", PortDirection.Input),
-            GeneratedOneBitPort(
-                "Q",
-                PortDirection.Output,
-                "selectorWidth",
-                powerOfTwo: true),
-        ]);
-
-    private static readonly ComponentContractSchema LogicPriorityEncoder = CreateContract(
-        "logic.priority_encoder",
-        StatelessStateShape,
-        [
-            WidthParameter("inputCount", minimumValue: 2),
-            ChoiceParameter("priority", "lowestIndex", "highestIndex"),
-        ],
-        [
-            GeneratedOneBitPort("A", PortDirection.Input, "inputCount"),
-            new ComponentPortSchema(
-                "Q",
-                PortDirection.Output,
-                ComponentPortCardinality.Fixed,
-                ComponentPortIndexing.None,
-                ComponentPortWidthSource.CeilingLog2ParameterValue,
-                "inputCount"),
-            FixedOnePort("VALID", PortDirection.Output),
-        ]);
-
-    private static readonly ComponentContractSchema LogicUnsignedCompare = CreateContract(
-        "logic.unsigned_compare",
-        StatelessStateShape,
-        [WidthParameter("width")],
-        [
-            new ComponentPortSchema("A", PortDirection.Input, "width"),
-            new ComponentPortSchema("B", PortDirection.Input, "width"),
-            FixedOnePort("LT", PortDirection.Output),
-            FixedOnePort("EQ", PortDirection.Output),
-            FixedOnePort("GT", PortDirection.Output),
-        ]);
-
-    private static readonly ComponentContractSchema LogicAdder =
-        CreateCarryContract("logic.adder", "CIN", "SUM", "COUT");
-
-    private static readonly ComponentContractSchema LogicSubtractor =
-        CreateCarryContract("logic.subtractor", "BIN", "DIFF", "BOUT");
-
-    private static readonly ComponentContractSchema LogicShift = CreateContract(
-        "logic.shift",
-        StatelessStateShape,
-        [WidthParameter("width"), ChoiceParameter("direction", "left", "right")],
-        [
-            new ComponentPortSchema("D", PortDirection.Input, "width"),
-            new ComponentPortSchema(
-                "AMOUNT",
-                PortDirection.Input,
-                ComponentPortCardinality.Fixed,
-                ComponentPortIndexing.None,
-                ComponentPortWidthSource.CeilingLog2ParameterValue,
-                "width"),
-            new ComponentPortSchema("Q", PortDirection.Output, "width"),
-        ]);
-
-    private static readonly ComponentContractSchema MemoryRom =
-        CreateMemoryContract("memory.rom", writable: false);
-
-    private static readonly ComponentContractSchema MemoryRamSinglePort =
-        CreateMemoryContract("memory.ram_single_port", writable: true);
-
-    private static readonly ComponentContractSchema SequentialDLatch = CreateContract(
-        "sequential.d_latch",
-        WidthStateShape,
-        [
-            WidthParameter("width"),
-            new ComponentParameterSchema(
-                "initialState",
-                ComponentParameterKind.LogicVector,
-                widthParameterId: "width"),
-        ],
-        [
-            new ComponentPortSchema("D", PortDirection.Input, "width"),
-            FixedOnePort("EN", PortDirection.Input),
-            new ComponentPortSchema("Q", PortDirection.Output, "width"),
-        ]);
-
-    private static readonly ComponentContractSchema SequentialDff =
-        CreateEdgeStateContract("sequential.dff", includeEnable: false);
-
-    private static readonly ComponentContractSchema SequentialSrLatch = CreateContract(
-        "sequential.sr_latch",
-        ScalarStateShape,
-        [FixedLogicParameter("initialState")],
-        [
-            FixedOnePort("S", PortDirection.Input),
-            FixedOnePort("R", PortDirection.Input),
-            FixedOnePort("Q", PortDirection.Output),
-            FixedOnePort("QN", PortDirection.Output),
-        ]);
-
-    private static readonly ComponentContractSchema SequentialJkff =
-        CreateScalarEdgeStateContract("sequential.jkff", "J", "K");
-
-    private static readonly ComponentContractSchema SequentialTff =
-        CreateScalarEdgeStateContract("sequential.tff", "T");
-
-    private static readonly ComponentContractSchema SequentialRegister =
-        CreateEdgeStateContract("sequential.register", includeEnable: true);
-
-    private static readonly ComponentContractSchema SequentialShiftRegister = CreateContract(
-        "sequential.shift_register",
-        WidthStateShape,
-        [
-            WidthParameter("width"),
-            ChoiceParameter("direction", "towardHigh", "towardLow"),
-            ChoiceParameter("edge", "rising", "falling"),
-            StateParameter("width"),
-        ],
-        [
-            new ComponentPortSchema("PARALLEL", PortDirection.Input, "width"),
-            FixedOnePort("SERIAL", PortDirection.Input),
-            FixedOnePort("LOAD", PortDirection.Input),
-            FixedOnePort("CLK", PortDirection.Input),
-            FixedOnePort("EN", PortDirection.Input),
-            new ComponentPortSchema("Q", PortDirection.Output, "width"),
-            FixedOnePort("SERIAL_OUT", PortDirection.Output),
-        ]);
-
-    private static readonly ComponentContractSchema SequentialCounter = CreateContract(
-        "sequential.counter",
-        WidthStateShape,
-        [
-            WidthParameter("width"),
-            ChoiceParameter("direction", "up", "down"),
-            ChoiceParameter("edge", "rising", "falling"),
-            StateParameter("width"),
-        ],
-        [
-            new ComponentPortSchema("LOAD_VALUE", PortDirection.Input, "width"),
-            FixedOnePort("LOAD", PortDirection.Input),
-            FixedOnePort("CLK", PortDirection.Input),
-            FixedOnePort("EN", PortDirection.Input),
-            new ComponentPortSchema("Q", PortDirection.Output, "width"),
-            FixedOnePort("TERMINAL", PortDirection.Output),
-        ]);
-
-    private static readonly ComponentContractSchema SourceConstant = CreateContract(
-        "source.constant",
-        StatelessStateShape,
-        [
-            new ComponentParameterSchema(
-                "width",
-                ComponentParameterKind.PositiveWidth),
-            new ComponentParameterSchema(
-                "value",
-                ComponentParameterKind.LogicVector,
-                widthParameterId: "width"),
-        ],
-        [
-            new ComponentPortSchema("Q", PortDirection.Output, "width"),
-        ]);
-
-    private static readonly ComponentContractSchema SinkOutput = CreateContract(
-        "sink.output",
-        StatelessStateShape,
-        [
-            new ComponentParameterSchema(
-                "width",
-                ComponentParameterKind.PositiveWidth),
-            new ComponentParameterSchema(
-                "radix",
-                ComponentParameterKind.Choice,
-                allowedValues: ["binary", "hex", "unsigned"]),
-        ],
-        [
-            new ComponentPortSchema("D", PortDirection.Input, "width"),
-        ]);
-
-    private static readonly ComponentContractSchema TopologySplit = CreateContract(
-        "topology.split",
-        StatelessStateShape,
-        [
-            new ComponentParameterSchema(
-                "width",
-                ComponentParameterKind.PositiveWidth),
-            new ComponentParameterSchema(
-                "slices",
-                ComponentParameterKind.Slices,
-                widthParameterId: "width",
-                minimumItemCount: 2),
-        ],
-        [
-            new ComponentPortSchema("D", PortDirection.Input, "width"),
-            new ComponentPortSchema(
-                "Q",
-                PortDirection.Output,
-                ComponentPortCardinality.ParameterItems,
-                ComponentPortIndexing.ZeroBasedDecimal,
-                ComponentPortWidthSource.SliceLength,
-                "slices"),
-        ]);
-
-    private static readonly ComponentContractSchema TopologyConcat = CreateContract(
-        "topology.concat",
-        StatelessStateShape,
-        [
-            new ComponentParameterSchema(
-                "inputWidths",
-                ComponentParameterKind.Widths,
-                minimumItemCount: 2),
-        ],
-        [
-            new ComponentPortSchema(
-                "D",
-                PortDirection.Input,
-                ComponentPortCardinality.ParameterItems,
-                ComponentPortIndexing.ZeroBasedDecimal,
-                ComponentPortWidthSource.WidthItem,
-                "inputWidths"),
-            new ComponentPortSchema(
-                "Q",
-                PortDirection.Output,
-                ComponentPortCardinality.Fixed,
-                ComponentPortIndexing.None,
-                ComponentPortWidthSource.WidthSum,
-                "inputWidths"),
-        ]);
-
-    private static readonly ComponentContractSchema TopologyZeroExtend =
-        CreateExtensionContract("topology.zero_extend");
-
-    private static readonly ComponentContractSchema TopologySignExtend =
-        CreateExtensionContract("topology.sign_extend");
-
+    // Canonical Contract ID order is part of the published library digest.
     private static readonly ComponentContractSchema[] ContractSchemas =
     [
-        LogicAdder,
-        LogicAnd,
-        LogicBuffer,
-        LogicDecoder,
-        LogicDemux,
-        LogicMux,
-        LogicNand,
-        LogicNor,
-        LogicNot,
-        LogicOr,
-        LogicPriorityEncoder,
-        LogicShift,
-        LogicSubtractor,
-        LogicTristate,
-        LogicUnsignedCompare,
-        LogicXnor,
-        LogicXor,
-        MemoryRamSinglePort,
-        MemoryRom,
-        SequentialCounter,
-        SequentialDLatch,
-        SequentialDff,
-        SequentialJkff,
-        SequentialRegister,
-        SequentialShiftRegister,
-        SequentialSrLatch,
-        SequentialTff,
-        SinkOutput,
-        SourceClock,
-        SourceConstant,
-        SourceInput,
-        TopologyConcat,
-        TopologySignExtend,
-        TopologySplit,
-        TopologyZeroExtend,
+        CreateCarryContract("logic.adder", "CIN", "SUM", "COUT"),
+        CreateGateContract("logic.and"),
+        CreateUnaryLogicContract("logic.buffer"),
+        CreateContract(
+            "logic.decoder",
+            StatelessStateShape,
+            [
+                WidthParameter("selectorWidth"),
+                ChoiceParameter("enablePolarity", "activeHigh", "activeLow"),
+            ],
+            [
+                new ComponentPortSchema("A", PortDirection.Input, "selectorWidth"),
+                FixedOnePort("EN", PortDirection.Input),
+                GeneratedOneBitPort(
+                    "Q",
+                    PortDirection.Output,
+                    "selectorWidth",
+                    powerOfTwo: true),
+            ]),
+        CreateContract(
+            "logic.demux",
+            StatelessStateShape,
+            [WidthParameter("width"), WidthParameter("selectorWidth")],
+            [
+                new ComponentPortSchema("D", PortDirection.Input, "width"),
+                new ComponentPortSchema("S", PortDirection.Input, "selectorWidth"),
+                GeneratedPort("Q", PortDirection.Output, "width", "selectorWidth", powerOfTwo: true),
+            ]),
+        CreateContract(
+            "logic.mux",
+            StatelessStateShape,
+            [WidthParameter("width"), WidthParameter("selectorWidth")],
+            [
+                GeneratedPort("D", PortDirection.Input, "width", "selectorWidth", powerOfTwo: true),
+                new ComponentPortSchema("S", PortDirection.Input, "selectorWidth"),
+                new ComponentPortSchema("Q", PortDirection.Output, "width"),
+            ]),
+        CreateGateContract("logic.nand"),
+        CreateGateContract("logic.nor"),
+        CreateUnaryLogicContract("logic.not"),
+        CreateGateContract("logic.or"),
+        CreateContract(
+            "logic.priority_encoder",
+            StatelessStateShape,
+            [
+                WidthParameter("inputCount", minimumValue: 2),
+                ChoiceParameter("priority", "lowestIndex", "highestIndex"),
+            ],
+            [
+                GeneratedOneBitPort("A", PortDirection.Input, "inputCount"),
+                new ComponentPortSchema(
+                    "Q",
+                    PortDirection.Output,
+                    ComponentPortCardinality.Fixed,
+                    ComponentPortIndexing.None,
+                    ComponentPortWidthSource.CeilingLog2ParameterValue,
+                    "inputCount"),
+                FixedOnePort("VALID", PortDirection.Output),
+            ]),
+        CreateContract(
+            "logic.shift",
+            StatelessStateShape,
+            [WidthParameter("width"), ChoiceParameter("direction", "left", "right")],
+            [
+                new ComponentPortSchema("D", PortDirection.Input, "width"),
+                new ComponentPortSchema(
+                    "AMOUNT",
+                    PortDirection.Input,
+                    ComponentPortCardinality.Fixed,
+                    ComponentPortIndexing.None,
+                    ComponentPortWidthSource.CeilingLog2ParameterValue,
+                    "width"),
+                new ComponentPortSchema("Q", PortDirection.Output, "width"),
+            ]),
+        CreateCarryContract("logic.subtractor", "BIN", "DIFF", "BOUT"),
+        CreateContract(
+            "logic.tristate",
+            StatelessStateShape,
+            [
+                WidthParameter("width"),
+                ChoiceParameter("enablePolarity", "activeHigh", "activeLow"),
+            ],
+            [
+                new ComponentPortSchema("D", PortDirection.Input, "width"),
+                FixedOnePort("EN", PortDirection.Input),
+                new ComponentPortSchema("Q", PortDirection.Output, "width"),
+            ]),
+        CreateContract(
+            "logic.unsigned_compare",
+            StatelessStateShape,
+            [WidthParameter("width")],
+            [
+                new ComponentPortSchema("A", PortDirection.Input, "width"),
+                new ComponentPortSchema("B", PortDirection.Input, "width"),
+                FixedOnePort("LT", PortDirection.Output),
+                FixedOnePort("EQ", PortDirection.Output),
+                FixedOnePort("GT", PortDirection.Output),
+            ]),
+        CreateGateContract("logic.xnor"),
+        CreateGateContract("logic.xor"),
+        CreateMemoryContract("memory.ram_single_port", writable: true),
+        CreateMemoryContract("memory.rom", writable: false),
+        CreateContract(
+            "sequential.counter",
+            WidthStateShape,
+            [
+                WidthParameter("width"),
+                ChoiceParameter("direction", "up", "down"),
+                ChoiceParameter("edge", "rising", "falling"),
+                StateParameter("width"),
+            ],
+            [
+                new ComponentPortSchema("LOAD_VALUE", PortDirection.Input, "width"),
+                FixedOnePort("LOAD", PortDirection.Input),
+                FixedOnePort("CLK", PortDirection.Input),
+                FixedOnePort("EN", PortDirection.Input),
+                new ComponentPortSchema("Q", PortDirection.Output, "width"),
+                FixedOnePort("TERMINAL", PortDirection.Output),
+            ]),
+        CreateContract(
+            "sequential.d_latch",
+            WidthStateShape,
+            [
+                WidthParameter("width"),
+                new ComponentParameterSchema(
+                    "initialState",
+                    ComponentParameterKind.LogicVector,
+                    widthParameterId: "width"),
+            ],
+            [
+                new ComponentPortSchema("D", PortDirection.Input, "width"),
+                FixedOnePort("EN", PortDirection.Input),
+                new ComponentPortSchema("Q", PortDirection.Output, "width"),
+            ]),
+        CreateEdgeStateContract("sequential.dff", includeEnable: false),
+        CreateScalarEdgeStateContract("sequential.jkff", "J", "K"),
+        CreateEdgeStateContract("sequential.register", includeEnable: true),
+        CreateContract(
+            "sequential.shift_register",
+            WidthStateShape,
+            [
+                WidthParameter("width"),
+                ChoiceParameter("direction", "towardHigh", "towardLow"),
+                ChoiceParameter("edge", "rising", "falling"),
+                StateParameter("width"),
+            ],
+            [
+                new ComponentPortSchema("PARALLEL", PortDirection.Input, "width"),
+                FixedOnePort("SERIAL", PortDirection.Input),
+                FixedOnePort("LOAD", PortDirection.Input),
+                FixedOnePort("CLK", PortDirection.Input),
+                FixedOnePort("EN", PortDirection.Input),
+                new ComponentPortSchema("Q", PortDirection.Output, "width"),
+                FixedOnePort("SERIAL_OUT", PortDirection.Output),
+            ]),
+        CreateContract(
+            "sequential.sr_latch",
+            ScalarStateShape,
+            [FixedLogicParameter("initialState")],
+            [
+                FixedOnePort("S", PortDirection.Input),
+                FixedOnePort("R", PortDirection.Input),
+                FixedOnePort("Q", PortDirection.Output),
+                FixedOnePort("QN", PortDirection.Output),
+            ]),
+        CreateScalarEdgeStateContract("sequential.tff", "T"),
+        CreateContract(
+            "sink.output",
+            StatelessStateShape,
+            [
+                WidthParameter("width"),
+                new ComponentParameterSchema(
+                    "radix",
+                    ComponentParameterKind.Choice,
+                    allowedValues: ["binary", "hex", "unsigned"]),
+            ],
+            [
+                new ComponentPortSchema("D", PortDirection.Input, "width"),
+            ]),
+        CreateContract(
+            "source.clock",
+            ScalarStateShape,
+            [
+                new ComponentParameterSchema(
+                    "initialValue",
+                    ComponentParameterKind.BinaryLogicValue),
+                new ComponentParameterSchema(
+                    "firstTransition",
+                    ComponentParameterKind.PositiveUnsigned64),
+                new ComponentParameterSchema(
+                    "highDuration",
+                    ComponentParameterKind.PositiveUnsigned64),
+                new ComponentParameterSchema(
+                    "lowDuration",
+                    ComponentParameterKind.PositiveUnsigned64),
+            ],
+            [FixedOnePort("Q", PortDirection.Output)]),
+        CreateContract(
+            "source.constant",
+            StatelessStateShape,
+            [
+                WidthParameter("width"),
+                new ComponentParameterSchema(
+                    "value",
+                    ComponentParameterKind.LogicVector,
+                    widthParameterId: "width"),
+            ],
+            [
+                new ComponentPortSchema("Q", PortDirection.Output, "width"),
+            ]),
+        CreateContract(
+            "source.input",
+            WidthStateShape,
+            [
+                WidthParameter("width"),
+                new ComponentParameterSchema(
+                    "initialValue",
+                    ComponentParameterKind.LogicVector,
+                    widthParameterId: "width"),
+            ],
+            [
+                new ComponentPortSchema("Q", PortDirection.Output, "width"),
+            ]),
+        CreateContract(
+            "topology.concat",
+            StatelessStateShape,
+            [
+                new ComponentParameterSchema(
+                    "inputWidths",
+                    ComponentParameterKind.Widths,
+                    minimumItemCount: 2),
+            ],
+            [
+                new ComponentPortSchema(
+                    "D",
+                    PortDirection.Input,
+                    ComponentPortCardinality.ParameterItems,
+                    ComponentPortIndexing.ZeroBasedDecimal,
+                    ComponentPortWidthSource.WidthItem,
+                    "inputWidths"),
+                new ComponentPortSchema(
+                    "Q",
+                    PortDirection.Output,
+                    ComponentPortCardinality.Fixed,
+                    ComponentPortIndexing.None,
+                    ComponentPortWidthSource.WidthSum,
+                    "inputWidths"),
+            ]),
+        CreateExtensionContract("topology.sign_extend"),
+        CreateContract(
+            "topology.split",
+            StatelessStateShape,
+            [
+                WidthParameter("width"),
+                new ComponentParameterSchema(
+                    "slices",
+                    ComponentParameterKind.Slices,
+                    widthParameterId: "width",
+                    minimumItemCount: 2),
+            ],
+            [
+                new ComponentPortSchema("D", PortDirection.Input, "width"),
+                new ComponentPortSchema(
+                    "Q",
+                    PortDirection.Output,
+                    ComponentPortCardinality.ParameterItems,
+                    ComponentPortIndexing.ZeroBasedDecimal,
+                    ComponentPortWidthSource.SliceLength,
+                    "slices"),
+            ]),
+        CreateExtensionContract("topology.zero_extend"),
     ];
 
     public static ReadOnlyCollection<ComponentContractSchema> Contracts { get; } =

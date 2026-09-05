@@ -13,10 +13,49 @@ using Microsoft.AspNetCore.Components;
 
 namespace LogicLab.Web.Tests;
 
-internal sealed class LogicAnalyzerTests
+internal sealed partial class LogicAnalyzerTests
 {
     private static readonly ProbePresentationLabels PresentationLabels =
         new("Input", "Output");
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ProbeControls_RunningOrDisconnected_DisablesSessionChanges(bool running)
+    {
+        await using var context = WebTestContext.CreateBunitContext();
+        context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
+        var fixture = Fixture.Create();
+        var simulation = fixture.Projection.Simulation!;
+        var projection = running
+            ? fixture.Projection with
+            {
+                Simulation = new SimulationProjection(
+                    simulation.SessionId, simulation.SessionVersion,
+                    simulation.CompilationArtifactKey, simulation.LogicalTime,
+                    simulation.TraceCursor, simulation.Probes,
+                    new RunRunningProjection(new RunGeneration(1))),
+            }
+            : fixture.Projection;
+        var rendered = context.Render<LogicAnalyzer>(parameters => parameters
+            .Add(component => component.Projection, projection)
+            .Add(component => component.IsConnected, running)
+            .Add(component => component.TraceReader, ReadTrace));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rendered.FindAll(".probe-icon-action")
+                .All(button => button.HasAttribute("disabled"))).IsTrue();
+            await Assert.That(rendered.FindAll(".probe-controls fluent-select")
+                .Any(select => select.HasAttribute("disabled"))).IsFalse();
+        }
+
+        rendered.Render(parameters => parameters
+            .Add(component => component.Projection, fixture.Projection)
+            .Add(component => component.IsConnected, true));
+        await Assert.That(rendered.Find(".probe-spine li:nth-child(2) [title='Move up']")
+            .HasAttribute("disabled")).IsFalse();
+    }
 
     [Test]
     public async Task StaticRender_NoProbes_SkipsTraceReadingAndWaveformRendering()

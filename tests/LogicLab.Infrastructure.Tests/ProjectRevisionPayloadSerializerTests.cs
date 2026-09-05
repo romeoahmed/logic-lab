@@ -185,6 +185,24 @@ internal sealed class ProjectRevisionPayloadSerializerTests
             .ThrowsExactly<JsonException>();
     }
 
+    [Test]
+    [Arguments("x")]
+    [Arguments("y")]
+    public async Task Deserialize_MissingCoordinate_RejectsPayload(string coordinate)
+    {
+        var payload = ProjectRevisionPayloadSerializer.Serialize(
+            CreateFullyPopulatedRevision());
+        var document = JsonNode.Parse(payload)!.AsObject();
+        var definitions = document["document"]!["circuitDefinitions"]!.AsArray();
+        var annotation = definitions.SelectMany(definition =>
+            definition!["annotations"]!.AsArray()).Single()!;
+        annotation["position"]!.AsObject().Remove(coordinate);
+
+        await Assert.That(() => ProjectRevisionPayloadSerializer.Deserialize(
+            Encoding.UTF8.GetBytes(document.ToJsonString())))
+            .ThrowsExactly<JsonException>();
+    }
+
     private static ProjectRevision CreateFullyPopulatedRevision()
     {
         var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(

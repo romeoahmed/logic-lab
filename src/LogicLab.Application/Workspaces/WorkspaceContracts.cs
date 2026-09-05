@@ -164,68 +164,76 @@ public sealed record CreateSession : WorkspaceCommand
 {
     public CreateSession(
         WorkspaceCommandContext context,
-        SessionCreationPrecondition precondition)
+        SessionCreationPrecondition precondition,
+        SessionConfigurationV1 configuration)
         : base(context)
     {
         ArgumentNullException.ThrowIfNull(precondition);
+        ArgumentNullException.ThrowIfNull(configuration);
         Precondition = precondition;
+        Configuration = configuration;
     }
 
     public SessionCreationPrecondition Precondition { get; }
+
+    public SessionConfigurationV1 Configuration { get; }
 }
 
-public sealed record InputStimulusAssignment
+public sealed record RestartSession : WorkspaceCommand
 {
-    public InputStimulusAssignment(
-        ComponentInstanceId inputComponentInstanceId,
-        IReadOnlyList<LogicValue> value)
-    {
-        ArgumentNullException.ThrowIfNull(inputComponentInstanceId);
-        ArgumentNullException.ThrowIfNull(value);
-        InputComponentInstanceId = inputComponentInstanceId;
-        Value = Array.AsReadOnly(value.ToArray());
-    }
-
-    public ComponentInstanceId InputComponentInstanceId { get; }
-
-    public ReadOnlyCollection<LogicValue> Value { get; }
-}
-
-public sealed record ScheduleInputStimulus : WorkspaceCommand
-{
-    public ScheduleInputStimulus(
+    public RestartSession(
         WorkspaceCommandContext context,
         SessionMutationPrecondition precondition,
-        ulong logicalTime,
-        IReadOnlyList<InputStimulusAssignment> assignments)
+        CompilationArtifactKey targetCompilationArtifactKey,
+        SessionConfigurationV1 configuration)
+        : base(context)
+    {
+        ArgumentNullException.ThrowIfNull(precondition);
+        ArgumentNullException.ThrowIfNull(targetCompilationArtifactKey);
+        ArgumentNullException.ThrowIfNull(configuration);
+        Precondition = precondition;
+        TargetCompilationArtifactKey = targetCompilationArtifactKey;
+        Configuration = configuration;
+    }
+
+    public SessionMutationPrecondition Precondition { get; }
+
+    public CompilationArtifactKey TargetCompilationArtifactKey { get; }
+
+    public SessionConfigurationV1 Configuration { get; }
+}
+
+public sealed record CloseSession : WorkspaceCommand
+{
+    public CloseSession(
+        WorkspaceCommandContext context,
+        SessionMutationPrecondition precondition)
         : base(context)
     {
         ArgumentNullException.ThrowIfNull(precondition);
         Precondition = precondition;
-        LogicalTime = logicalTime;
-        Assignments = CopyAssignments(assignments);
     }
 
-    public ulong LogicalTime { get; }
+    public SessionMutationPrecondition Precondition { get; }
+}
 
-    public ReadOnlyCollection<InputStimulusAssignment> Assignments { get; }
+public sealed record ScheduleStimulusBatch : WorkspaceCommand
+{
+    public ScheduleStimulusBatch(
+        WorkspaceCommandContext context,
+        SessionMutationPrecondition precondition,
+        StimulusBatch batch)
+        : base(context)
+    {
+        ArgumentNullException.ThrowIfNull(precondition);
+        ArgumentNullException.ThrowIfNull(batch);
+        Precondition = precondition;
+        Batch = batch;
+    }
 
     public SessionMutationPrecondition Precondition { get; }
 
-    private static ReadOnlyCollection<InputStimulusAssignment> CopyAssignments(
-        IReadOnlyList<InputStimulusAssignment> assignments)
-    {
-        ArgumentNullException.ThrowIfNull(assignments);
-        var copy = assignments.ToArray();
-        if (copy.Any(static assignment => assignment is null))
-        {
-            throw new ArgumentException(
-                "The collection must not contain null elements.",
-                nameof(assignments));
-        }
-
-        return Array.AsReadOnly(copy);
-    }
+    public StimulusBatch Batch { get; }
 }
 
 public sealed record StepSession : WorkspaceCommand
@@ -383,14 +391,43 @@ public sealed record CompilationAccepted(
     ulong ProjectionVersion) : WorkspaceCommandOutcome;
 
 public sealed record SimulationSessionCreated(
+    SimulationProjection Simulation,
+    ulong ProjectionVersion) : WorkspaceCommandOutcome
+{
+    public SimulationSessionId SessionId => Simulation.SessionId;
+}
+
+public sealed record SimulationSessionRestarted(
+    SimulationSessionId PreviousSessionId,
+    SimulationProjection Simulation,
+    ulong ProjectionVersion) : WorkspaceCommandOutcome;
+
+public sealed record SimulationSessionClosed(
     SimulationSessionId SessionId,
     ulong ProjectionVersion) : WorkspaceCommandOutcome;
 
 public sealed record StimulusScheduled(
+    ulong SessionVersion,
     ulong LogicalTime,
+    ulong StableSequence,
     ulong ProjectionVersion) : WorkspaceCommandOutcome;
 
-public sealed record SessionStepped(
+public sealed record SessionStepped : WorkspaceCommandOutcome
+{
+    public SessionStepped(AdvanceCommitted advance, ulong projectionVersion)
+    {
+        ArgumentNullException.ThrowIfNull(advance);
+        Advance = advance;
+        ProjectionVersion = projectionVersion;
+    }
+
+    public AdvanceCommitted Advance { get; }
+
+    public ulong ProjectionVersion { get; }
+}
+
+public sealed record NoScheduledStimulus(
+    ulong SessionVersion,
     ulong LogicalTime,
     ulong ProjectionVersion) : WorkspaceCommandOutcome;
 

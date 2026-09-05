@@ -10,9 +10,9 @@ internal sealed partial class EditorWorkspace
         TraceWindowRequest request,
         CancellationToken cancellationToken)
     {
-        var activeSession = state.ActiveSession;
+        var sessionHandle = state.SessionHandle;
         var simulation = state.Simulation;
-        if (activeSession is null
+        if (sessionHandle is null
             || simulation is null
             || simulation.SessionId != request.SessionId)
         {
@@ -45,7 +45,7 @@ internal sealed partial class EditorWorkspace
                 "The Workspace Trace representation is undefined."),
         };
         var runtimeOutcome = operations.ReadSimulation(
-            activeSession.Handle,
+            sessionHandle,
             new LogicLab.Engine.Simulation.ReadTraceWindow(
                 new SimulationTraceWindowRequest(
                     request.ProbeIds,
