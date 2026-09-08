@@ -45,17 +45,9 @@ internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication applicatio
         var workbench = new WorkbenchTestPage(Page, application.EditorUri);
         await workbench.OpenExampleAsync(width: width, height: height);
         await Page.EvaluateAsync("size => document.documentElement.style.fontSize = `${size}%`", textSizePercent);
-        await workbench.StartSimulation.ClickAsync();
-        await Expect(workbench.Step).ToBeEnabledAsync();
-        var instruments = Page.Locator(".instrument-bay");
+        await StartSimulationAsync(workbench);
         var status = Page.Locator(".status-strip");
-        var canvasBounds = (await workbench.Canvas.BoundingBoxAsync())!;
-        var instrumentBounds = (await instruments.BoundingBoxAsync())!;
-        var statusBounds = (await status.BoundingBoxAsync())!;
-        await Assert.That(canvasBounds.Height).IsGreaterThan(100);
-        await Assert.That(instrumentBounds.Height).IsGreaterThan(50);
-        await Assert.That(canvasBounds.Y + canvasBounds.Height).IsLessThanOrEqualTo(instrumentBounds.Y + 1);
-        await Assert.That(instrumentBounds.Y + instrumentBounds.Height).IsLessThanOrEqualTo(statusBounds.Y + 1);
+        await AssertSurfaceOrderAsync();
         await status.ScrollIntoViewIfNeededAsync();
         await Expect(workbench.LogicalTime).ToBeInViewportAsync();
         var toggle = Page.Locator("[data-instruments-toggle]");
@@ -104,17 +96,27 @@ internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication applicatio
     }
 
     [Test]
-    public async Task ResponsiveWorkbench_NarrowSimulation_KeepsUsefulCanvasHeight()
+    [Arguments(390, 844)]
+    [Arguments(694, 838)]
+    public async Task ResponsiveWorkbench_NarrowSimulation_KeepsCircuitAndControlsUsable(int width, int height)
     {
         var workbench = new WorkbenchTestPage(Page, application.EditorUri);
-        await workbench.OpenExampleAsync(width: 390, height: 844);
-        await workbench.StartSimulation.ClickAsync();
-        var canvas = await workbench.Canvas.BoundingBoxAsync();
-        await Assert.That(canvas).IsNotNull();
-        await Assert.That(canvas!.Height).IsGreaterThanOrEqualTo(180);
-        await Expect(workbench.Step).ToBeInViewportAsync();
-        await Expect(workbench.Run).ToBeInViewportAsync();
-        await Expect(workbench.LogicalTime).ToBeInViewportAsync();
+        await workbench.OpenExampleAsync("author-bit-serial", width: width, height: height);
+        await StartSimulationAsync(workbench);
+        await AssertCircuitAndControlsAsync();
+
+        await workbench.Step.ClickAsync();
+        await Expect(workbench.LogicalTime).ToHaveTextAsync("1");
+        await AssertCircuitAndControlsAsync();
+
+        async Task AssertCircuitAndControlsAsync()
+        {
+            await Expect(workbench.Canvas).ToBeInViewportAsync(new() { Ratio = 1 });
+            await Expect(workbench.Step).ToBeInViewportAsync(new() { Ratio = 1 });
+            await Expect(workbench.Run).ToBeInViewportAsync(new() { Ratio = 1 });
+            await Expect(workbench.LogicalTime).ToBeInViewportAsync(new() { Ratio = 1 });
+            await AssertSurfaceOrderAsync();
+        }
     }
 
     [Test]
@@ -122,7 +124,7 @@ internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication applicatio
     {
         var workbench = new WorkbenchTestPage(Page, application.EditorUri);
         await workbench.OpenExampleAsync();
-        await workbench.StartSimulation.ClickAsync();
+        await StartSimulationAsync(workbench);
         await Expect(workbench.WaveformCanvas).ToBeInViewportAsync();
         var toggle = Page.Locator("[data-instruments-toggle]");
         await toggle.ClickAsync();
@@ -152,6 +154,49 @@ internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication applicatio
     {
         var workbench = new WorkbenchTestPage(Page, application.EditorUri);
         await workbench.OpenSandboxAsync(width, height);
+    }
+
+    private async Task StartSimulationAsync(WorkbenchTestPage workbench)
+    {
+        await workbench.StartSimulation.ClickAsync();
+        // A click acknowledges browser input, not the Interactive Server command.
+        await Expect(workbench.LogicalTime).ToHaveTextAsync("0");
+        await Expect(workbench.Step).ToBeEnabledAsync();
+        await Expect(Page.Locator(".command-bar[data-active-command]")).ToHaveCountAsync(0);
+        await Page.EvaluateAsync("() => document.fonts.ready.then(() => undefined)");
+    }
+
+    private async Task AssertSurfaceOrderAsync()
+    {
+        // Read all regions in one browser turn. Platform font metrics may change
+        // their sizes; the product contract is usable, non-overlapping regions.
+        var bounds = await Page.EvaluateAsync<RegionBounds[]>("""
+            () => ['.workbench-dock', 'canvas[data-scene-canvas]', '.instrument-bay', '.status-strip']
+              .map(selector => {
+                const rect = document.querySelector(selector).getBoundingClientRect();
+                return { top: rect.top, bottom: rect.bottom, height: rect.height };
+              })
+            """);
+        var dock = bounds[0];
+        var canvas = bounds[1];
+        var instruments = bounds[2];
+        var status = bounds[3];
+        await Assert.That(dock.Height).IsGreaterThan(instruments.Height);
+        await Assert.That(canvas.Height).IsGreaterThan(0);
+        await Assert.That(instruments.Height).IsGreaterThan(0);
+        await Assert.That(canvas.Top).IsGreaterThanOrEqualTo(dock.Top);
+        await Assert.That(canvas.Bottom).IsLessThanOrEqualTo(dock.Bottom + 1);
+        await Assert.That(dock.Bottom).IsLessThanOrEqualTo(instruments.Top + 1);
+        await Assert.That(instruments.Bottom).IsLessThanOrEqualTo(status.Top + 1);
+    }
+
+    private sealed class RegionBounds
+    {
+        public double Top { get; set; }
+
+        public double Bottom { get; set; }
+
+        public double Height { get; set; }
     }
 
 }
