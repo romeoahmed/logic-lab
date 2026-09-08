@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <InternalsVisibleTo Include="LogicLab.Engine.Tests" />
-    <InternalsVisibleTo Include="LogicLab.Engine.Benchmarks" />
+    <InternalsVisibleTo Include="LogicLab.Benchmarks" />
   </ItemGroup>
 
   <ItemGroup>

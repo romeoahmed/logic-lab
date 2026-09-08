@@ -203,7 +203,7 @@ internal sealed class BrowserPolicy
 
     public static BrowserPolicy Default { get; } = new(
         "logiclab-browser",
-        "4",
+        "5",
         [
             new(
                 BrowserLimitDimension.SemanticIntentBytes,
@@ -218,7 +218,7 @@ internal sealed class BrowserPolicy
             new(BrowserLimitDimension.CandidateTransferBytes, BrowserLimitComparison.AtMost, 16_777_216),
             new(BrowserLimitDimension.CanvasBitmapPixels, BrowserLimitComparison.AtMost, 33_554_432),
             new(BrowserLimitDimension.EffectiveDensityMillionths, BrowserLimitComparison.AtMost, 3_000_000),
-            new(BrowserLimitDimension.ZoomMillionthsMinimum, BrowserLimitComparison.AtLeast, 50_000),
+            new(BrowserLimitDimension.ZoomMillionthsMinimum, BrowserLimitComparison.AtLeast, 1),
             new(BrowserLimitDimension.ZoomMillionthsMaximum, BrowserLimitComparison.AtMost, 4_000_000),
             new(BrowserLimitDimension.DisplayListBytes, BrowserLimitComparison.AtMost, 16_777_216),
             new(BrowserLimitDimension.SpatialIndexBytes, BrowserLimitComparison.AtMost, 8_388_608),

@@ -68,7 +68,7 @@ internal sealed class ProjectEditorHierarchyTests
             withChild,
             new PlaceComponentInstanceIntent(
                 child.Id,
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, "logic.not"),
+                new ComponentContractKey(LibrarySnapshot.Core.LibraryId, "logic.not"),
                 [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
                 new ComponentPlacement(new GridPoint(4, 2)),
                 "NOT"));

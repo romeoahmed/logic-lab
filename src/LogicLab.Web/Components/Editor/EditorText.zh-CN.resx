@@ -137,12 +137,12 @@
   <data name="StatusReady" xml:space="preserve"><value>已就绪，可以创建沙盒。</value></data>
   <data name="StatusReopenedDurable" xml:space="preserve"><value>已重新打开项目。</value></data>
   <data name="StatusReopenedSandbox" xml:space="preserve"><value>已重新打开沙盒。</value></data>
-  <data name="StatusSandboxCreated" xml:space="preserve"><value>沙盒已创建。请选择示例或绘制电路。</value></data>
+  <data name="StatusSandboxCreated" xml:space="preserve"><value>沙盒已创建。放置元件，开始绘制电路。</value></data>
   <data name="StepCommitted" xml:space="preserve"><value>已推进到逻辑时间 {0}。</value></data>
   <data name="StepFailed" xml:space="preserve"><value>步进失败：{0}。</value></data>
   <data name="StepRejected" xml:space="preserve"><value>步进被拒绝：{0}。</value></data>
   <data name="StimulusRejected" xml:space="preserve"><value>激励被拒绝：{0}。</value></data>
-  <data name="StimulusScheduled" xml:space="preserve"><value>输入已在逻辑时间 {0} 设为 1。</value></data>
+  <data name="StimulusScheduled" xml:space="preserve"><value>输入值已安排到逻辑时间 {0}。</value></data>
   <data name="TitleDurable" xml:space="preserve"><value>项目工作台</value></data>
   <data name="TitleOpening" xml:space="preserve"><value>工作区工作台</value></data>
   <data name="TitleSandbox" xml:space="preserve"><value>沙盒工作台</value></data>
@@ -201,15 +201,14 @@
   <data name="PanTool" xml:space="preserve"><value>平移</value></data>
   <data name="SelectTool" xml:space="preserve"><value>选择</value></data>
   <data name="WireTool" xml:space="preserve"><value>连线</value></data>
-  <data name="NextStep" xml:space="preserve"><value>下一步</value></data>
   <data name="ChooseStarterHint" xml:space="preserve"><value>请在下方选择一个起始电路。</value></data>
   <data name="ProjectOptions" xml:space="preserve"><value>项目选项</value></data>
   <data name="StarterEyebrow" xml:space="preserve"><value>从可运行的电路开始</value></data>
   <data name="StarterTitle" xml:space="preserve"><value>选择一个示例</value></data>
-  <data name="StarterDescription" xml:space="preserve"><value>选择一个完整电路，再依次编译、仿真并观察信号。</value></data>
+  <data name="StarterDescription" xml:space="preserve"><value>打开完整电路并开始仿真，然后修改输入、观察信号。</value></data>
   <data name="LearningStepChoose" xml:space="preserve"><value>选择示例</value></data>
-  <data name="LearningStepCompile" xml:space="preserve"><value>编译</value></data>
-  <data name="LearningStepSimulate" xml:space="preserve"><value>仿真</value></data>
+  <data name="LearningStepInputs" xml:space="preserve"><value>设置输入</value></data>
+  <data name="LearningStepStart" xml:space="preserve"><value>启动仿真</value></data>
   <data name="LearningStepObserve" xml:space="preserve"><value>观察结果</value></data>
   <data name="StarterInverterTitle" xml:space="preserve"><value>反相器入门</value></data>
   <data name="StarterInverterDescription" xml:space="preserve"><value>观察非门如何把输入反相后送到输出。</value></data>
@@ -402,4 +401,58 @@
   <data name="InspectorChoice_highestIndex" xml:space="preserve"><value>高索引优先</value></data>
   <data name="InspectorChoice_left" xml:space="preserve"><value>左移</value></data>
   <data name="InspectorChoice_right" xml:space="preserve"><value>右移</value></data>
+  <data name="ExampleOpened" xml:space="preserve"><value>{0}已就绪，可以开始仿真。</value></data>
+  <data name="InputValues" xml:space="preserve"><value>下一次输入值</value></data>
+  <data name="InputValuesHint" xml:space="preserve"><value>按高位在前输入二进制值。应用输入会将所有值一起安排到下一逻辑时间；单步执行会推进到该事件。</value></data>
+  <data name="InputValuesInvalid" xml:space="preserve"><value>请按输入位宽填写 0、1、X 或 Z。</value></data>
+  <data name="ApplyInputs" xml:space="preserve"><value>应用输入</value></data>
+  <data name="AuthorCircuitHint" xml:space="preserve"><value>放置元件并连接端口。</value></data>
+  <data name="Undo" xml:space="preserve"><value>撤销</value></data>
+  <data name="Redo" xml:space="preserve"><value>重做</value></data>
+  <data name="UndoSucceeded" xml:space="preserve"><value>已撤销上一次编辑。</value></data>
+  <data name="RedoSucceeded" xml:space="preserve"><value>已恢复编辑。</value></data>
+  <data name="WaveformTab" xml:space="preserve"><value>波形</value></data>
+  <data name="Diagnostics" xml:space="preserve"><value>诊断</value></data>
+  <data name="DiagnosticCount" xml:space="preserve"><value>共 {0} 条诊断</value></data>
+  <data name="DiagnosticPage" xml:space="preserve"><value>第 {0} 页，共 {1} 页</value></data>
+  <data name="DiagnosticEmpty" xml:space="preserve"><value>当前编译和仿真会话没有诊断信息。</value></data>
+  <data name="DiagnosticCompileFirst" xml:space="preserve"><value>编译电路以检查连接和元件契约。</value></data>
+  <data name="DiagnosticCompilation" xml:space="preserve"><value>编译</value></data>
+  <data name="DiagnosticSimulation" xml:space="preserve"><value>仿真</value></data>
+  <data name="DiagnosticEarlierSession" xml:space="preserve"><value>会话使用较早的修订</value></data>
+  <data name="DiagnosticSourceUnavailable" xml:space="preserve"><value>来源不可用</value></data>
+  <data name="DiagnosticSourceSelected" xml:space="preserve"><value>已在电路中选中诊断来源。</value></data>
+  <data name="DiagnosticDetails" xml:space="preserve"><value>详细信息</value></data>
+  <data name="DiagnosticUnknown" xml:space="preserve"><value>操作报告了一条诊断。展开详细信息可查看诊断代码。</value></data>
+  <data name="DiagnosticSeverity_error" xml:space="preserve"><value>错误</value></data>
+  <data name="DiagnosticSeverity_warning" xml:space="preserve"><value>警告</value></data>
+  <data name="DiagnosticSeverity_info" xml:space="preserve"><value>信息</value></data>
+  <data name="Diagnostic_compiler_entry_definition_missing" xml:space="preserve"><value>入口电路定义不存在。</value></data>
+  <data name="Diagnostic_compiler_hierarchy_recursion" xml:space="preserve"><value>电路定义通过层级包含了自身。请移除递归引用的实例。</value></data>
+  <data name="Diagnostic_compiler_library_version_mismatch" xml:space="preserve"><value>项目与编译器使用了不同版本的元件库。</value></data>
+  <data name="Diagnostic_compiler_library_digest_mismatch" xml:space="preserve"><value>元件库内容与项目记录不一致。</value></data>
+  <data name="Diagnostic_compiler_contract_unresolved" xml:space="preserve"><value>无法解析元件契约。</value></data>
+  <data name="Diagnostic_compiler_port_unresolved" xml:space="preserve"><value>元件契约中没有定义此端口。</value></data>
+  <data name="Diagnostic_compiler_required_terminal_unconnected" xml:space="preserve"><value>请将此必需端口连接到网络。</value></data>
+  <data name="Diagnostic_compiler_parameter_schema_mismatch" xml:space="preserve"><value>元件参数不符合其契约。</value></data>
+  <data name="Diagnostic_compiler_width_mismatch" xml:space="preserve"><value>相连端口的位宽不同。请添加显式位宽转换。</value></data>
+  <data name="Diagnostic_compiler_illegal_port_direction" xml:space="preserve"><value>端口方向不适用于此连接。</value></data>
+  <data name="Diagnostic_compiler_policy_exhausted" xml:space="preserve"><value>编译超出了项目限制。展开详细信息可查看限制。</value></data>
+  <data name="Diagnostic_compiler_internal_invariant" xml:space="preserve"><value>编译遇到内部错误。请保留项目和诊断详情。</value></data>
+  <data name="Diagnostic_simulation_net_undriven" xml:space="preserve"><value>此网络没有有效驱动，其值为 Z。</value></data>
+  <data name="Diagnostic_simulation_unknown_driver" xml:space="preserve"><value>有驱动向此网络提供未知值 X。</value></data>
+  <data name="Diagnostic_simulation_contention" xml:space="preserve"><value>多个驱动向此网络提供了相互冲突的值。</value></data>
+  <data name="Diagnostic_simulation_indeterminate_feedback" xml:space="preserve"><value>反馈无法稳定为已知值。</value></data>
+  <data name="Diagnostic_simulation_indefinite_clock_edge" xml:space="preserve"><value>不确定的时钟变化使采样状态无法确定。</value></data>
+  <data name="Diagnostic_simulation_control_conflict" xml:space="preserve"><value>有效控制输入相互冲突。</value></data>
+  <data name="Diagnostic_simulation_contract_defect" xml:space="preserve"><value>元件求值器违反了契约，本次推进未提交。</value></data>
+  <data name="DiagnosticEarlierSource" xml:space="preserve">
+    <value>较早修订中的来源</value>
+  </data>
+  <data name="DiagnosticRevision" xml:space="preserve">
+    <value>修订</value>
+  </data>
+  <data name="ObserveProbe" xml:space="preserve"><value>在波形中查看</value></data>
+  <data name="ExpandInstruments" xml:space="preserve"><value>展开仪器区</value></data>
+  <data name="CollapseInstruments" xml:space="preserve"><value>返回电路</value></data>
 </root>

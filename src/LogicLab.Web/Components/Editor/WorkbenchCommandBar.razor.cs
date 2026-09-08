@@ -26,7 +26,6 @@ public sealed partial class WorkbenchCommandBar
         new(WorkbenchCommand.Create, "create", "CreateSandbox", Model.CanCreate),
         new(WorkbenchCommand.Compile, "compile", "Compile", Model.CanCompile),
         new(WorkbenchCommand.CreateSession, "session", "CreateSession", Model.CanCreateSession),
-        new(WorkbenchCommand.ScheduleStimulus, "stimulus", "InputsHigh", Model.CanScheduleStimulus),
         new(WorkbenchCommand.Step, "step", "Step", Model.CanStep),
         new(WorkbenchCommand.StartRun, "run", "Run", Model.CanRun),
         new(WorkbenchCommand.PauseRun, "pause", "Pause", Model.CanPause),
@@ -49,6 +48,8 @@ public sealed partial class WorkbenchCommandBar
     public enum WorkbenchCommand
     {
         Create,
+        Undo,
+        Redo,
         PrepareExport,
         Claim,
         Save,
@@ -57,7 +58,6 @@ public sealed partial class WorkbenchCommandBar
         RestartSession,
         CloseSession,
         HotSwapSession,
-        ScheduleStimulus,
         Step,
         StartRun,
         PauseRun,
@@ -66,6 +66,12 @@ public sealed partial class WorkbenchCommandBar
     public sealed record CommandBarModel
     {
         public bool CanCreate { get; init; }
+
+        public bool ShowHistory { get; init; }
+
+        public bool CanUndo { get; init; }
+
+        public bool CanRedo { get; init; }
 
         public bool CanImport { get; init; }
 
@@ -90,8 +96,6 @@ public sealed partial class WorkbenchCommandBar
         public bool CanCloseSession { get; init; }
 
         public bool CanHotSwapSession { get; init; }
-
-        public bool CanScheduleStimulus { get; init; }
 
         public bool CanStep { get; init; }
 

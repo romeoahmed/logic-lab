@@ -8,7 +8,7 @@ namespace LogicLab.Domain.Tests;
 internal sealed class SequentialComponentContractTests
 {
     [Test]
-    public async Task FindContract_ClockSource_HasExactSchema()
+    public async Task ResolveContract_ClockSource_HasExactSchema()
     {
         var contract = Find("source.clock");
 
@@ -66,7 +66,7 @@ internal sealed class SequentialComponentContractTests
     }
 
     [Test]
-    public async Task FindContract_SequentialFamily_HasExactOrderedSchemas()
+    public async Task ResolveContract_SequentialFamily_HasExactOrderedSchemas()
     {
         SequentialContractShape[] expected =
         [
@@ -116,7 +116,7 @@ internal sealed class SequentialComponentContractTests
             {
                 var contract = Find(shape.ContractId);
                 var choices = contract.Parameters
-                    .Where(parameter => parameter.AllowedValues.Count > 0)
+                    .OfType<ChoiceParameterSchema>()
                     .ToArray();
                 await Assert.That(contract.Parameters.Select(parameter => parameter.Id))
                     .IsEquivalentTo(shape.ParameterIds, CollectionOrdering.Matching);
@@ -195,8 +195,8 @@ internal sealed class SequentialComponentContractTests
 
     private static ComponentContractSchema Find(string contractId)
     {
-        return CoreLibrarySchema.FindContract(new ComponentContractKey(
-            CoreLibrarySchema.LibraryId,
+        return LibrarySnapshot.Core.ResolveContract(new ComponentContractKey(
+            LibrarySnapshot.Core.LibraryId,
             contractId)) ?? throw new InvalidOperationException(
                 $"The {contractId} contract is missing.");
     }

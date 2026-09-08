@@ -32,6 +32,8 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
     private string? observedSessionId;
     private string? observedArtifactKey;
     private string? projectedUiCulture;
+    private string? observedProbeId;
+    private string? pendingProbeReveal;
     private ulong nextWaveformVersion;
     private ulong rendererGeneration;
     private ulong loadEpoch;
@@ -205,6 +207,12 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
                     publishedSnapshot = candidateSnapshot;
                 }
             }
+            if (IsCurrentRenderer(generation) && pendingProbeReveal is { } probeId
+                && publishedSnapshot?.WaveformVersion == snapshot?.WaveformVersion)
+            {
+                pendingProbeReveal = null;
+                await currentAdapter.RevealProbeAsync(probeId, cancellationToken);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -228,7 +236,7 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             isPublishing = false;
             if (CanPublish && (adapter is null
                 || publishedSnapshot?.WaveformVersion != snapshot!.WaveformVersion
-                || publishedInteractionMode != InteractionMode))
+                || publishedInteractionMode != InteractionMode || pendingProbeReveal is not null))
             {
                 await InvokeAsync(StateHasChanged);
             }
@@ -889,6 +897,24 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             });
         }
 
+        if (row.Radix == "hex")
+        {
+            return string.Create(((width - 1) / 4) + 1, current, static (characters, value) =>
+            {
+                for (var outputIndex = 0; outputIndex < characters.Length; outputIndex++)
+                {
+                    var firstBit = (characters.Length - outputIndex - 1) * 4;
+                    var nibble = 0;
+                    for (var bit = 0; bit < 4 && firstBit + bit < value.Width; bit++)
+                    {
+                        nibble |= value.SymbolAt(firstBit + bit) << bit;
+                    }
+
+                    characters[outputIndex] = "0123456789ABCDEF"[nibble];
+                }
+            });
+        }
+
         var magnitude = new byte[((width - 1) / 8) + 1];
         for (var index = 0; index < width; index++)
         {
@@ -901,11 +927,7 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             isUnsigned: true,
             isBigEndian: false);
 
-        return row.Radix == "hex"
-            ? number.ToString(
-                FormattableString.Invariant($"X{((width - 1) / 4) + 1}"),
-                CultureInfo.InvariantCulture)
-            : number.ToString(CultureInfo.InvariantCulture);
+        return number.ToString(CultureInfo.InvariantCulture);
     }
 
     private static string ProbeOrder(IEnumerable<string> probeIds) => string.Concat(
@@ -960,6 +982,23 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         {
             await ReloadAsync();
         }
+    }
+
+    public async Task RevealProbeAsync(string probeId)
+    {
+        if (!Rows.Any(row => row.ProbeId == probeId))
+        {
+            return;
+        }
+
+        observedProbeId = probeId;
+        pendingProbeReveal = probeId;
+        if (!isOpen)
+        {
+            await OpenAnalyzerAsync();
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task CloseAnalyzerAsync()

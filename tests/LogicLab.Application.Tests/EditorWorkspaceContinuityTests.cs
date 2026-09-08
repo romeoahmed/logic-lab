@@ -680,7 +680,7 @@ internal sealed class EditorWorkspaceContinuityTests
         var context = Context(opened.WorkspaceId, attached, "same");
         var precondition = new AuthoringPrecondition(revision.RevisionId);
         var contract = new ComponentContractKey(
-            CoreLibrarySchema.LibraryId,
+            LibrarySnapshot.Core.LibraryId,
             "logic.not");
         _ = await IsType<AuthoringCommitted>(await workspace.DispatchAsync(
             new ApplyEdit(

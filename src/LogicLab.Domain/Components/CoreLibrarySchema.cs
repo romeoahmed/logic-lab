@@ -4,7 +4,7 @@ using System.Text;
 
 namespace LogicLab.Domain.Components;
 
-public static class CoreLibrarySchema
+internal static class CoreLibrarySchema
 {
     public const string LibraryId = "logiclab.core";
     public const string Version = "1.0.0";
@@ -26,8 +26,8 @@ public static class CoreLibrarySchema
             "logic.decoder",
             StatelessStateShape,
             [
-                WidthParameter("selectorWidth"),
-                ChoiceParameter("enablePolarity", "activeHigh", "activeLow"),
+                new WidthParameterSchema("selectorWidth"),
+                new ChoiceParameterSchema("enablePolarity", "activeHigh", "activeLow"),
             ],
             [
                 new ComponentPortSchema("A", PortDirection.Input, "selectorWidth"),
@@ -41,7 +41,7 @@ public static class CoreLibrarySchema
         CreateContract(
             "logic.demux",
             StatelessStateShape,
-            [WidthParameter("width"), WidthParameter("selectorWidth")],
+            [new WidthParameterSchema("width"), new WidthParameterSchema("selectorWidth")],
             [
                 new ComponentPortSchema("D", PortDirection.Input, "width"),
                 new ComponentPortSchema("S", PortDirection.Input, "selectorWidth"),
@@ -50,7 +50,7 @@ public static class CoreLibrarySchema
         CreateContract(
             "logic.mux",
             StatelessStateShape,
-            [WidthParameter("width"), WidthParameter("selectorWidth")],
+            [new WidthParameterSchema("width"), new WidthParameterSchema("selectorWidth")],
             [
                 GeneratedPort("D", PortDirection.Input, "width", "selectorWidth", powerOfTwo: true),
                 new ComponentPortSchema("S", PortDirection.Input, "selectorWidth"),
@@ -64,8 +64,8 @@ public static class CoreLibrarySchema
             "logic.priority_encoder",
             StatelessStateShape,
             [
-                WidthParameter("inputCount", minimumValue: 2),
-                ChoiceParameter("priority", "lowestIndex", "highestIndex"),
+                new WidthParameterSchema("inputCount", minimumValue: 2),
+                new ChoiceParameterSchema("priority", "lowestIndex", "highestIndex"),
             ],
             [
                 GeneratedOneBitPort("A", PortDirection.Input, "inputCount"),
@@ -81,7 +81,7 @@ public static class CoreLibrarySchema
         CreateContract(
             "logic.shift",
             StatelessStateShape,
-            [WidthParameter("width"), ChoiceParameter("direction", "left", "right")],
+            [new WidthParameterSchema("width"), new ChoiceParameterSchema("direction", "left", "right")],
             [
                 new ComponentPortSchema("D", PortDirection.Input, "width"),
                 new ComponentPortSchema(
@@ -98,8 +98,8 @@ public static class CoreLibrarySchema
             "logic.tristate",
             StatelessStateShape,
             [
-                WidthParameter("width"),
-                ChoiceParameter("enablePolarity", "activeHigh", "activeLow"),
+                new WidthParameterSchema("width"),
+                new ChoiceParameterSchema("enablePolarity", "activeHigh", "activeLow"),
             ],
             [
                 new ComponentPortSchema("D", PortDirection.Input, "width"),
@@ -109,7 +109,7 @@ public static class CoreLibrarySchema
         CreateContract(
             "logic.unsigned_compare",
             StatelessStateShape,
-            [WidthParameter("width")],
+            [new WidthParameterSchema("width")],
             [
                 new ComponentPortSchema("A", PortDirection.Input, "width"),
                 new ComponentPortSchema("B", PortDirection.Input, "width"),
@@ -125,10 +125,10 @@ public static class CoreLibrarySchema
             "sequential.counter",
             WidthStateShape,
             [
-                WidthParameter("width"),
-                ChoiceParameter("direction", "up", "down"),
-                ChoiceParameter("edge", "rising", "falling"),
-                StateParameter("width"),
+                new WidthParameterSchema("width"),
+                new ChoiceParameterSchema("direction", "up", "down"),
+                new ChoiceParameterSchema("edge", "rising", "falling"),
+                new VariableLogicVectorParameterSchema("initialState", "width"),
             ],
             [
                 new ComponentPortSchema("LOAD_VALUE", PortDirection.Input, "width"),
@@ -142,11 +142,8 @@ public static class CoreLibrarySchema
             "sequential.d_latch",
             WidthStateShape,
             [
-                WidthParameter("width"),
-                new ComponentParameterSchema(
-                    "initialState",
-                    ComponentParameterKind.LogicVector,
-                    widthParameterId: "width"),
+                new WidthParameterSchema("width"),
+                new VariableLogicVectorParameterSchema("initialState", "width"),
             ],
             [
                 new ComponentPortSchema("D", PortDirection.Input, "width"),
@@ -160,10 +157,10 @@ public static class CoreLibrarySchema
             "sequential.shift_register",
             WidthStateShape,
             [
-                WidthParameter("width"),
-                ChoiceParameter("direction", "towardHigh", "towardLow"),
-                ChoiceParameter("edge", "rising", "falling"),
-                StateParameter("width"),
+                new WidthParameterSchema("width"),
+                new ChoiceParameterSchema("direction", "towardHigh", "towardLow"),
+                new ChoiceParameterSchema("edge", "rising", "falling"),
+                new VariableLogicVectorParameterSchema("initialState", "width"),
             ],
             [
                 new ComponentPortSchema("PARALLEL", PortDirection.Input, "width"),
@@ -177,7 +174,7 @@ public static class CoreLibrarySchema
         CreateContract(
             "sequential.sr_latch",
             ScalarStateShape,
-            [FixedLogicParameter("initialState")],
+            [new FixedLogicVectorParameterSchema("initialState", 1)],
             [
                 FixedOnePort("S", PortDirection.Input),
                 FixedOnePort("R", PortDirection.Input),
@@ -189,11 +186,8 @@ public static class CoreLibrarySchema
             "sink.output",
             StatelessStateShape,
             [
-                WidthParameter("width"),
-                new ComponentParameterSchema(
-                    "radix",
-                    ComponentParameterKind.Choice,
-                    allowedValues: ["binary", "hex", "unsigned"]),
+                new WidthParameterSchema("width"),
+                new ChoiceParameterSchema("radix", ["binary", "hex", "unsigned"]),
             ],
             [
                 new ComponentPortSchema("D", PortDirection.Input, "width"),
@@ -202,29 +196,18 @@ public static class CoreLibrarySchema
             "source.clock",
             ScalarStateShape,
             [
-                new ComponentParameterSchema(
-                    "initialValue",
-                    ComponentParameterKind.BinaryLogicValue),
-                new ComponentParameterSchema(
-                    "firstTransition",
-                    ComponentParameterKind.PositiveUnsigned64),
-                new ComponentParameterSchema(
-                    "highDuration",
-                    ComponentParameterKind.PositiveUnsigned64),
-                new ComponentParameterSchema(
-                    "lowDuration",
-                    ComponentParameterKind.PositiveUnsigned64),
+                new BinaryLogicParameterSchema("initialValue"),
+                new PositiveUnsigned64ParameterSchema("firstTransition"),
+                new PositiveUnsigned64ParameterSchema("highDuration"),
+                new PositiveUnsigned64ParameterSchema("lowDuration"),
             ],
             [FixedOnePort("Q", PortDirection.Output)]),
         CreateContract(
             "source.constant",
             StatelessStateShape,
             [
-                WidthParameter("width"),
-                new ComponentParameterSchema(
-                    "value",
-                    ComponentParameterKind.LogicVector,
-                    widthParameterId: "width"),
+                new WidthParameterSchema("width"),
+                new VariableLogicVectorParameterSchema("value", "width"),
             ],
             [
                 new ComponentPortSchema("Q", PortDirection.Output, "width"),
@@ -233,11 +216,8 @@ public static class CoreLibrarySchema
             "source.input",
             WidthStateShape,
             [
-                WidthParameter("width"),
-                new ComponentParameterSchema(
-                    "initialValue",
-                    ComponentParameterKind.LogicVector,
-                    widthParameterId: "width"),
+                new WidthParameterSchema("width"),
+                new VariableLogicVectorParameterSchema("initialValue", "width"),
             ],
             [
                 new ComponentPortSchema("Q", PortDirection.Output, "width"),
@@ -246,10 +226,7 @@ public static class CoreLibrarySchema
             "topology.concat",
             StatelessStateShape,
             [
-                new ComponentParameterSchema(
-                    "inputWidths",
-                    ComponentParameterKind.Widths,
-                    minimumItemCount: 2),
+                new WidthsParameterSchema("inputWidths", 2),
             ],
             [
                 new ComponentPortSchema(
@@ -272,12 +249,8 @@ public static class CoreLibrarySchema
             "topology.split",
             StatelessStateShape,
             [
-                WidthParameter("width"),
-                new ComponentParameterSchema(
-                    "slices",
-                    ComponentParameterKind.Slices,
-                    widthParameterId: "width",
-                    minimumItemCount: 2),
+                new WidthParameterSchema("width"),
+                new SlicesParameterSchema("slices", "width", 2),
             ],
             [
                 new ComponentPortSchema("D", PortDirection.Input, "width"),
@@ -296,22 +269,6 @@ public static class CoreLibrarySchema
         Array.AsReadOnly(ContractSchemas);
 
     public static string ContentDigest { get; } = ComputeContentDigest();
-
-    public static ComponentContractSchema? FindContract(
-        ComponentContractKey key)
-    {
-        if (!string.Equals(key.LibraryId, LibraryId, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        return Array.Find(
-            ContractSchemas,
-            contract => string.Equals(
-                contract.Key.ContractId,
-                key.ContractId,
-                StringComparison.Ordinal));
-    }
 
     private static string ComputeContentDigest()
     {
@@ -337,13 +294,8 @@ public static class CoreLibrarySchema
             contractId,
             StatelessStateShape,
             [
-                new ComponentParameterSchema(
-                    "inputWidth",
-                    ComponentParameterKind.PositiveWidth),
-                new ComponentParameterSchema(
-                    "outputWidth",
-                    ComponentParameterKind.PositiveWidth,
-                    greaterThanParameterId: "inputWidth"),
+                new WidthParameterSchema("inputWidth"),
+                new WidthParameterSchema("outputWidth", greaterThanParameterId: "inputWidth"),
             ],
             [
                 new ComponentPortSchema("D", PortDirection.Input, "inputWidth"),
@@ -370,9 +322,9 @@ public static class CoreLibrarySchema
             contractId,
             WidthStateShape,
             [
-                WidthParameter("width"),
-                ChoiceParameter("edge", "rising", "falling"),
-                StateParameter("width"),
+                new WidthParameterSchema("width"),
+                new ChoiceParameterSchema("edge", "rising", "falling"),
+                new VariableLogicVectorParameterSchema("initialState", "width"),
             ],
             [.. ports]);
     }
@@ -385,8 +337,8 @@ public static class CoreLibrarySchema
             contractId,
             ScalarStateShape,
             [
-                ChoiceParameter("edge", "rising", "falling"),
-                FixedLogicParameter("initialState"),
+                new ChoiceParameterSchema("edge", "rising", "falling"),
+                new FixedLogicVectorParameterSchema("initialState", 1),
             ],
             [
                 .. controlPortIds.Select(id => FixedOnePort(id, PortDirection.Input)),
@@ -401,7 +353,7 @@ public static class CoreLibrarySchema
         return CreateContract(
             contractId,
             StatelessStateShape,
-            [WidthParameter("width")],
+            [new WidthParameterSchema("width")],
             [
                 new ComponentPortSchema("A", PortDirection.Input, "width"),
                 new ComponentPortSchema("Q", PortDirection.Output, "width"),
@@ -413,7 +365,7 @@ public static class CoreLibrarySchema
         return CreateContract(
             contractId,
             StatelessStateShape,
-            [WidthParameter("width"), WidthParameter("fanIn", minimumValue: 2)],
+            [new WidthParameterSchema("width"), new WidthParameterSchema("fanIn", minimumValue: 2)],
             [
                 GeneratedPort("A", PortDirection.Input, "width", "fanIn"),
                 new ComponentPortSchema("Q", PortDirection.Output, "width"),
@@ -429,7 +381,7 @@ public static class CoreLibrarySchema
         return CreateContract(
             contractId,
             StatelessStateShape,
-            [WidthParameter("width")],
+            [new WidthParameterSchema("width")],
             [
                 new ComponentPortSchema("A", PortDirection.Input, "width"),
                 new ComponentPortSchema("B", PortDirection.Input, "width"),
@@ -461,13 +413,9 @@ public static class CoreLibrarySchema
             contractId,
             MemoryStateShape,
             [
-                WidthParameter("addressWidth"),
-                WidthParameter("wordWidth"),
-                new ComponentParameterSchema(
-                    "initialImage",
-                    ComponentParameterKind.MemoryImage,
-                    memoryImageWidthParameterId: "wordWidth",
-                    memoryImageAddressWidthParameterId: "addressWidth"),
+                new WidthParameterSchema("addressWidth"),
+                new WidthParameterSchema("wordWidth"),
+                new MemoryImageParameterSchema("initialImage", "wordWidth", "addressWidth"),
             ],
             ports);
     }
@@ -484,42 +432,6 @@ public static class CoreLibrarySchema
             ports,
             stateShapeId,
             SemanticRuleVersion);
-    }
-
-    private static ComponentParameterSchema WidthParameter(
-        string id,
-        uint minimumValue = 1)
-    {
-        return new ComponentParameterSchema(
-            id,
-            ComponentParameterKind.PositiveWidth,
-            minimumValue: minimumValue);
-    }
-
-    private static ComponentParameterSchema ChoiceParameter(
-        string id,
-        params ReadOnlySpan<string> values)
-    {
-        return new ComponentParameterSchema(
-            id,
-            ComponentParameterKind.Choice,
-            allowedValues: values);
-    }
-
-    private static ComponentParameterSchema StateParameter(string widthParameterId)
-    {
-        return new ComponentParameterSchema(
-            "initialState",
-            ComponentParameterKind.LogicVector,
-            widthParameterId: widthParameterId);
-    }
-
-    private static ComponentParameterSchema FixedLogicParameter(string id)
-    {
-        return new ComponentParameterSchema(
-            id,
-            ComponentParameterKind.LogicVector,
-            fixedWidth: 1);
     }
 
     private static ComponentPortSchema FixedOnePort(string id, PortDirection direction)

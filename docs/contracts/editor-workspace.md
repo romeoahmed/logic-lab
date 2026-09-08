@@ -86,12 +86,12 @@ AttachAsync(AttachRequest, CancellationToken)
 DetachAsync(DetachRequest, CancellationToken)
   -> Task<Detached | DetachRejected>
 DispatchAsync(WorkspaceCommand, CancellationToken)
-  -> Task<WorkspaceOutcome>
+  -> Task<WorkspaceCommandOutcome>
 ReadAsync(WorkspaceQueryContext, WorkspaceQuery, CancellationToken)
   -> Task<WorkspaceReadOutcome>
 ```
 
-These are typed C# calls. `WorkspaceCommand` and `WorkspaceOutcome` are closed abstract-record hierarchies; there is no string `kind` plus untyped payload dictionary.
+These are typed C# calls. `WorkspaceCommand` and `WorkspaceCommandOutcome` are closed abstract-record hierarchies; there is no string `kind` plus untyped payload dictionary.
 
 `DisposeAsync` atomically closes admission, marks the Workspace as stopping, cancels its background lanes, drains those lanes and all calls admitted before the fence, then retires resources. Repeated calls observe the same completion. After completion, no Workspace operation can enter a repository, store, or Module dependency owned by the enclosing dependency-injection lifetime.
 
@@ -100,6 +100,7 @@ These are typed C# calls. `WorkspaceCommand` and `WorkspaceOutcome` are closed a
 ```text
 CreateSandbox { NewProjectSeed without persistent IDs, caller }
 OpenDurable { DurableProjectId, caller }
+OpenExample { example: Inverter | Steering | CarryLookahead | BitSerial, caller }
 ImportProject { validated ImportCandidate, caller }
 CopyWorkspace {
   sourceWorkspaceId, sourceAttachmentId, sourceAttachmentGeneration,
@@ -109,7 +110,15 @@ CopyWorkspace {
 }
 ```
 
-The deep Workspace implementation asks Project Editor for Project Genesis when required, resolves a durable current Project Revision when requested, compiles before publication, and returns `Opened { WorkspaceId, ProjectRevisionId, ProjectionVersion }` or `OpenRejected { reason, diagnostics, RetryDisposition, policyEvidence? }`. A failure allocates no visible Workspace or Durable Project. Browser-supplied Project Revision, owner, or persistent entity IDs are not open inputs. Every open variant carries the trusted caller so global and per-subject Workspace admission can reserve capacity atomically before genesis, loading, import compilation, or copy publication.
+The deep Workspace implementation asks Project Editor for Project Genesis when required and resolves a durable current Project Revision when requested. Durable reopen, import, and examples compile before publication; an empty Sandbox or editing copy starts with `CompilationNotRequested`. Success returns `Opened { WorkspaceId, WorkspaceProjection }`; failure returns `OpenRejected { reason, diagnostics, RetryDisposition, policyEvidence? }` and allocates no visible Workspace or Durable Project. Browser-supplied Project Revision, owner, or persistent entity IDs are not open inputs. Every open variant carries the trusted caller so global and per-subject Workspace admission can reserve capacity atomically before genesis, loading, import compilation, or copy publication.
+
+`OpenExample` reads a complete embedded `.logiclab` project owned by Application after
+reserving Workspace capacity. It uses the same package validation, imported Genesis,
+authoring admission, Compilation, and atomic publication as `ImportProject`. Each open
+has a fresh Workspace, Project Revision, and Transaction History base; it preserves
+the package's authored Project identity. It creates no Durable Project, Session, or
+sequence of user edits. Web owns localized chooser metadata only. Failure or
+cancellation leaves no partially authored Workspace.
 
 `CopyWorkspace` reauthorizes and fences the source attachment, then starts separate history at its exact current Project Revision, including authorized unsaved edits. Earlier history is not copied and Undo cannot cross the new base. `Preserve` retains Sandbox status or the Durable Project ID and observed Durable Version; while a Claim outcome is unresolved, `Preserve` returns `durable_claim_unresolved` and allocates no Workspace. `DetachedSandbox` removes the durable association and implements “Keep as copy.” Both successful copy targets preserve authored Project identity and the fork revision, but copy no attachment, Session, Run, idempotency record, or browser preference. A stale Projection Version returns `projection_version_precondition_failed`; the source remains unchanged.
 
@@ -121,7 +130,7 @@ Reattach { WorkspaceId, priorAttachmentId, priorGeneration, buildFingerprint, ca
 RecoverAttach { WorkspaceId, buildFingerprint, caller }
 ```
 
-Success returns `Attached { newAttachmentId, newGeneration, WorkspaceProjectionV1 }`. `InitialAttach` succeeds only when no attachment is current. `Reattach` proves the prior attachment fence and replaces that exact generation. `RecoverAttach` is the authorized Durable Workspace full-document/circuit-replacement path used only after `InitialAttach` reports `stale_workspace_attachment`: it does not accept a browser-supplied prior fence, so Application requires an authenticated caller, reauthorizes the Durable Project owner, validates the build fingerprint, then replaces the current attachment with a fresh ID and incremented generation. A Sandbox can recover only through `Reattach` with its prior attachment fence; its Workspace ID never authorizes `RecoverAttach`. Commands and reads from a displaced attachment consequently fail as stale; no unacknowledged command is replayed.
+Success returns `Attached { newAttachmentId, newGeneration, WorkspaceProjection }`. `InitialAttach` succeeds only when no attachment is current. `Reattach` proves the prior attachment fence and replaces that exact generation. `RecoverAttach` is the authorized Durable Workspace full-document/circuit-replacement path used only after `InitialAttach` reports `stale_workspace_attachment`: it does not accept a browser-supplied prior fence, so Application requires an authenticated caller, reauthorizes the Durable Project owner, validates the build fingerprint, then replaces the current attachment with a fresh ID and incremented generation. A Sandbox can recover only through `Reattach` with its prior attachment fence; its Workspace ID never authorizes `RecoverAttach`. Commands and reads from a displaced attachment consequently fail as stale; no unacknowledged command is replayed.
 
 A `Reattach` whose Workspace is no longer retained, including one reclaimed by an earlier operation, returns `Expired { reason = workspace_expired }`; an unknown `InitialAttach` or `RecoverAttach` and every other failure return `AttachRejected { reason, diagnostics, RetryDisposition }`. Every attachment variant reauthorizes before inspecting or publishing an attachment fence. A separate editing copy calls `OpenAsync(CopyWorkspace)` and creates another Workspace; it does not reuse or recover an attachment.
 
@@ -203,7 +212,7 @@ publication preserves the old state, queued stimuli, and Trace. Success retires 
 old Session and its Probe IDs. Close retires the Session while retaining the Project
 Revision and published Compilation. Restart and Close require a non-running Session.
 
-`WorkspaceOutcome` is a closed union of the outcome families defined in Sections 4–7 plus these immediate dispatch results:
+`WorkspaceCommandOutcome` is a closed union of the outcome families defined in Sections 4–7 plus these immediate dispatch results:
 
 ```text
 CompilationAccepted { CompilationGeneration, requested ProjectRevisionId }
@@ -259,14 +268,14 @@ WorkspaceQuery =
   | ReadTraceWindow { TraceWindowRequest }
 
 WorkspaceReadOutcome =
-  ProjectionSnapshot { WorkspaceProjectionV1 }
+  ProjectionSnapshot { WorkspaceProjection }
   | ProjectionUnchanged { ProjectionVersion }
   | CompilationSnapshot { CompilationState, ProjectionVersion }
   | TraceWindowRead { TraceWindowOutcome }
   | ReadRejected { reason, diagnostics, RetryDisposition }
 ```
 
-`WorkspaceProjectionV1` is one atomic owned snapshot containing Projection Version,
+`WorkspaceProjection` is one atomic owned snapshot containing Projection Version,
 the current immutable Project Revision and authorized Project Document, Transaction
 History availability, sandbox/durable save state, the newest Compilation
 generation/status and Artifact Key when published, Session summary and ordered
@@ -276,6 +285,14 @@ or localized message. Projection Version increments whenever any included observ
 fact changes. Web derives connection presentation from circuit and attachment
 outcomes and switches Browser Runtime between commit-enabled and local-only
 interaction; transient reconnection never creates a Workspace Projection version.
+
+Compilation and Session projections retain the owning Module's immutable Diagnostic
+records, including arguments, primary location, and related locations. They do not
+replace them with code-only summaries. Session Diagnostics describe the latest
+committed Quiescent Boundary under the Session's Compilation Artifact Key; scheduling
+future inputs or changing Run state preserves that evidence. A committed Advance or
+Hot Swap replaces it. A Session attached to an earlier Project Revision keeps its
+evidence separate from Diagnostics for the current revision.
 
 `ReadProjection` returns `ProjectionUnchanged` only when the supplied version is current; otherwise it returns a complete snapshot. V1 does not expose a generic field-mask query or semantic patch format. The Web projection coordinator derives browser-specific scene and waveform messages from this snapshot plus Diagram Presentation and Trace reads.
 
@@ -343,23 +360,16 @@ Import and durable reopen apply the same document admission before bootstrap Com
 Project Editor behavior is defined by [Circuit Authoring](../specs/circuit-authoring.md). Workspace authoring commands include structure, explicit connectivity, parameters, Wire Geometry, and Transaction History. Import creates a separate Project Genesis rather than masquerading as an edit to the current Project. Pointer movement and other Transient Preview data never enter the Workspace interface.
 
 ```text
-AuthoringCommitted
-  ProjectRevisionId
-  ProjectionVersion
-  changedSources: AuthoredSourceRefV1[]
-  removedSources: AuthoredSourceRefV1[]
-  TransactionHistory availability
-  save and Compilation status
-  diagnostics[]
-
-AuthoringRejected
-  reason
-  safe current ProjectRevisionId and ProjectionVersion when authorized
-  diagnostics[]
-  RetryDisposition
+AuthoringCommitted { ProjectRevisionId, ProjectionVersion }
+Rejected { reason, diagnostics[], RetryDisposition, policyEvidence? }
 ```
 
-Workspace returns semantic changed identities, not Canvas/SVG patches. Web requests the resulting complete Schematic Projection from Diagram Presentation, diffs typed items by scoped source reference, and composes selection, diagnostics, probe, and live-value overlays.
+The command result acknowledges the revision and publication fence. Web reads the
+resulting authorized Workspace Projection for the Project Document, Transaction
+History, Compilation, and save state, then requests the complete Schematic Projection
+from Diagram Presentation. Web diffs typed items by scoped source reference and
+composes selection, diagnostics, Probe, and live-value overlays. A rejection carries
+no current Project Document or revision; recovery uses the same authorized read seam.
 
 Undo and Redo move the history cursor to an existing Project Revision. A new edit after Undo truncates the Redo branch. History retention truncation can accompany a successful commit; it never turns a valid edit into failure.
 

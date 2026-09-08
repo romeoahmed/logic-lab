@@ -176,7 +176,7 @@ internal sealed partial class EditorWorkspace
                 ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
                 : WorkspaceOutcomeReasons.WorkspaceInternalDefect;
             var correlation = ApplicationCorrelation.CurrentOrCreate();
-            LogCompilationFailure(logger, exception, correlation, code);
+            LogCompilationFailure(logger, correlation, code);
             await PublishCompilationFailureAsync(
                 state,
                 requestedRevision,
@@ -298,7 +298,6 @@ internal sealed partial class EditorWorkspace
         Message = "Compilation failed with correlation {Correlation} and outcome {OutcomeCode}.")]
     private static partial void LogCompilationFailure(
         ILogger logger,
-        Exception exception,
         string correlation,
         string outcomeCode);
 
@@ -317,7 +316,7 @@ internal sealed partial class EditorWorkspace
                     state.Compilation = new CompilationPublishedProjection(
                         generation,
                         succeeded.Artifact.Key,
-                        [.. succeeded.Diagnostics.Select(ProjectDiagnostic)]);
+                        succeeded.Diagnostics);
                     return;
                 }
 
@@ -325,7 +324,7 @@ internal sealed partial class EditorWorkspace
                 state.Artifact = null;
                 state.Compilation = new CompilationRejectedProjection(
                     generation,
-                    [.. rejected.Diagnostics.Select(ProjectDiagnostic)],
+                    rejected.Diagnostics,
                     rejected.Reason,
                     WorkspaceOutcomeReasons.RetryFor(rejected.Reason),
                     PolicyEvidenceFrom(rejected.Evidence));
@@ -338,14 +337,6 @@ internal sealed partial class EditorWorkspace
                 context);
         }
     }
-
-    private static CompilationDiagnosticProjection ProjectDiagnostic(
-        CompilerDiagnostic diagnostic) => new(
-            diagnostic.Code,
-            diagnostic.Severity,
-            diagnostic.Primary is CompilerCircuitLocation circuit
-                ? circuit.Source
-                : null);
 
     private static PolicyEvidenceProjection? PolicyEvidenceFrom(
         CompilationEvidence evidence)

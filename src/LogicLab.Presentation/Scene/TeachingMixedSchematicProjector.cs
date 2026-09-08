@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Presentation.Geometry;
@@ -7,6 +8,74 @@ namespace LogicLab.Presentation.Scene;
 
 public static class TeachingMixedSchematicProjector
 {
+    public static ReadOnlyCollection<SymbolTextMeasurementRequestV1> CollectTextRequests(
+        ProjectRevision revision,
+        CircuitDefinitionId circuitDefinitionId,
+        PresentationFingerprintV1 presentationFingerprint,
+        ulong maximumPortCount,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(revision);
+        ArgumentNullException.ThrowIfNull(circuitDefinitionId);
+        ArgumentNullException.ThrowIfNull(presentationFingerprint);
+        ArgumentOutOfRangeException.ThrowIfZero(maximumPortCount);
+        cancellationToken.ThrowIfCancellationRequested();
+        var definition = revision.Document.FindCircuitDefinition(circuitDefinitionId);
+        if (definition is null || !FitsPortBudget(revision, definition, maximumPortCount, cancellationToken))
+        {
+            return Array.AsReadOnly<SymbolTextMeasurementRequestV1>([]);
+        }
+
+        var collector = new TextRequestCollector(presentationFingerprint);
+        foreach (var instance in definition.ComponentInstances.OrderBy(item => item.Id.Value, StringComparer.Ordinal))
+        {
+            // Symbol recipes request their text before solving measured geometry.
+            // Discard the local draft: collection does not validate a scene or apply placements.
+            _ = PlanComponent(revision, instance, presentationFingerprint, maximumPortCount, collector, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        foreach (var port in definition.Ports)
+        {
+            _ = SchematicPrimitiveProjector.MeasureDefinitionPortText(
+                port, presentationFingerprint, collector, cancellationToken);
+        }
+
+        foreach (var annotation in definition.Annotations)
+        {
+            _ = SchematicPrimitiveProjector.MeasureAnnotationLines(
+                annotation, presentationFingerprint, collector, cancellationToken, out _);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return Array.AsReadOnly(collector.Requests.ToArray());
+    }
+
+    private sealed class TextRequestCollector(PresentationFingerprintV1 fingerprint) : ISymbolTextMeasurerV1
+    {
+        private static readonly SymbolTextMeasurementV1 EmptyMeasurement = new(0, default);
+        private readonly HashSet<SymbolTextMeasurementRequestV1> uniqueRequests = [];
+
+        internal List<SymbolTextMeasurementRequestV1> Requests { get; } = [];
+
+        public FontFingerprintV1 FontFingerprint => fingerprint.FontFingerprint;
+
+        public SymbolMetricSetV1 MetricSet => fingerprint.MetricSet;
+
+        public SymbolTextMeasurementV1 Measure(
+            SymbolTextMeasurementRequestV1 request,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (uniqueRequests.Add(request))
+            {
+                Requests.Add(request);
+            }
+
+            return EmptyMeasurement;
+        }
+    }
+
     public static SchematicProjectionOutcomeV1 Project(
         ProjectRevision revision,
         CircuitDefinitionId circuitDefinitionId,

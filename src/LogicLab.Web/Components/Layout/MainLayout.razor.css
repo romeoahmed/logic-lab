@@ -10,6 +10,7 @@
 
 .site-header-inner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   max-inline-size: var(--ll-page-width);
@@ -71,6 +72,7 @@
 
 .primary-navigation {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
   align-items: center;
   white-space: nowrap;

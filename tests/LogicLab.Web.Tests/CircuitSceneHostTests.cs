@@ -3,6 +3,7 @@ using System.Text.Json;
 using Bunit;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
 using LogicLab.Engine.Compilation;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Scene;
@@ -63,18 +64,22 @@ internal sealed partial class CircuitSceneHostTests
     {
         await using var context = WebTestContext.CreateBunitContext();
         context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
-        var revision = WebTestCircuit.CreateCompleteCircuit();
+        var revision = WebTestCircuit.Place(WebTestCircuit.CreateCompleteCircuit(), "sink.output",
+            [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
+                new ComponentParameterBinding("radix", new ChoiceParameterValue("binary"))],
+            new GridPoint(40, 0));
         var definition = revision.Document.EntryCircuitDefinition;
-        var component = definition.ComponentInstances[0];
-        var source = new CompilationSource(
-            new ComponentInstanceSourceIdentity(definition.Id, component.Id),
-            new HierarchyPath(definition.Id, []));
+        var policy = new ProjectScalePolicy("scene-test", "1",
+            [.. Enum.GetValues<ProjectScaleDimension>()
+                .Select(dimension => new ProjectScaleLimit(dimension, 1_000))]);
+        var rejection = (CompilationRejected)Compiler.Compile(new CompilationRequest(
+            revision, definition.Id, revision.Document.LibrarySnapshot, policy),
+            CancellationToken.None);
+        var location = (CompilerCircuitLocation)rejection.Diagnostics.Single().Primary!;
+        var source = (InstancePortSourceIdentity)location.Source.Identity;
         var compilation = new CompilationRejectedProjection(
             new CompilationGeneration(1),
-            [new CompilationDiagnosticProjection(
-                "compiler_test_diagnostic",
-                CompilerDiagnosticSeverity.Error,
-                source)],
+            rejection.Diagnostics,
             "compilation_rejected",
             RetryDisposition.DoNotRetry,
             null);
@@ -88,29 +93,43 @@ internal sealed partial class CircuitSceneHostTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(diagnostic.Source.EntityKind).IsEqualTo("componentInstance");
-            await Assert.That(diagnostic.Source.EntityId).IsEqualTo(component.Id.Value);
-            await Assert.That(diagnostic.DiagnosticCode).IsEqualTo("compiler_test_diagnostic");
+            await Assert.That(diagnostic.Source.EntityKind).IsEqualTo("instancePort");
+            await Assert.That(diagnostic.Source.EntityId).IsEqualTo(source.ComponentInstanceId.Value);
+            await Assert.That(diagnostic.Source.PortId).IsEqualTo("D");
+            await Assert.That(diagnostic.DiagnosticCode).IsEqualTo("compiler_required_terminal_unconnected");
             await Assert.That(diagnostic.Severity).IsEqualTo("error");
         }
     }
 
     [Test]
-    public async Task CircuitSceneHost_StaticRender_UsesOneCanvasSurface()
+    [Arguments("en-US")]
+    [Arguments("zh-CN")]
+    public async Task CircuitSceneHost_StaticRender_UsesOneCanvasSurface(string culture)
     {
-        await using var context = WebTestContext.CreateBunitContext();
-        context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
-        var revision = WebTestCircuit.CreateCompleteCircuit();
-        var rendered = context.Render<CircuitSceneHost>(parameters => parameters
-            .Add(component => component.ProjectRevision, revision)
-            .Add(component => component.ProjectionVersion, 1UL)
-            .Add(component => component.CircuitDefinitionId,
-                revision.Document.EntryCircuitDefinitionId));
-
-        using (Assert.Multiple())
+        var previousCulture = CultureInfo.CurrentUICulture;
+        try
         {
-            await Assert.That(rendered.FindAll("canvas[data-scene-canvas]")).Count().IsEqualTo(1);
-            await Assert.That(rendered.Find("canvas").TextContent).IsNotEmpty();
+            await using var context = WebTestContext.CreateBunitContext();
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(culture);
+            context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
+            var revision = WebTestCircuit.CreateCompleteCircuit();
+            var rendered = context.Render<CircuitSceneHost>(parameters => parameters
+                .Add(component => component.ProjectRevision, revision)
+                .Add(component => component.ProjectionVersion, 1UL)
+                .Add(component => component.CircuitDefinitionId,
+                    revision.Document.EntryCircuitDefinitionId));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(rendered.FindAll("canvas[data-scene-canvas]")).Count().IsEqualTo(1);
+                await Assert.That(rendered.Find("canvas").TextContent).IsNotEmpty();
+                await Assert.That(rendered.Find("canvas").GetAttribute("lang")).IsEqualTo(culture);
+                await Assert.That(rendered.Find("canvas").GetAttribute("dir")).IsEqualTo("ltr");
+            }
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previousCulture;
         }
     }
 

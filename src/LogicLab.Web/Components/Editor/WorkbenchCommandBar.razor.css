@@ -10,21 +10,7 @@
   background: var(--ll-panel);
 }
 
-.command-cluster {
-  display: flex;
-  min-inline-size: 0;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.command-cluster-label {
-  color: var(--ll-subtle);
-  font-size: 0.66rem;
-  font-weight: 800;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-}
-
+.history-actions,
 .workflow-actions,
 .project-actions {
   display: flex;
@@ -33,13 +19,44 @@
   gap: 0.45rem;
 }
 
+.import-picker {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-block-size: 2rem;
+  padding-inline: 0.75rem;
+  border: 1px solid var(--ll-border);
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  background: var(--ll-panel);
+}
+
+.import-picker ::deep input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.import-picker:focus-within {
+  outline: 2px solid var(--ll-signal);
+  outline-offset: 2px;
+}
+
+.import-picker:has(input:disabled) {
+  color: var(--ll-muted);
+  opacity: 0.5;
+}
+
 .workflow-hint {
   color: var(--ll-muted);
   font-size: 0.85rem;
 }
 
 ::deep .project-options-trigger {
-  inline-size: 10rem;
+  inline-size: auto;
   color: var(--ll-signal-strong);
   font-size: 0.82rem;
   font-weight: 750;
@@ -52,26 +69,21 @@
   padding: 0.55rem;
 }
 
-@media (max-width: 700px) {
-  .command-bar,
-  .command-cluster {
-    align-items: stretch;
-  }
-
+@media (max-width: 580px) {
   .command-bar {
     display: grid;
-  }
-
-  .command-cluster {
-    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 0.35rem;
+    padding: 0.4rem 0.6rem;
   }
 
-  .project-actions {
-    justify-content: flex-start;
+  .workflow-actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 
-  ::deep .project-options-trigger {
-    justify-self: start;
+  .command-bar ::deep .project-options-trigger {
+    grid-column: 2;
+    grid-row: 1;
   }
 }

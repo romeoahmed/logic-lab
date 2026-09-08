@@ -478,8 +478,8 @@ internal sealed class CombinationalPipelineTests
     {
         var revision = CompilerTestCircuit.BeginProject();
         var definitionId = revision.Document.EntryCircuitDefinitionId;
-        var schema = CoreLibrarySchema.FindContract(
-            new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId))!;
+        var schema = LibrarySnapshot.Core.ResolveContract(
+            new ComponentContractKey(LibrarySnapshot.Core.LibraryId, contractId))!;
         var resolution = schema.ResolvePorts(parameters);
         if (!resolution.TryMaterialize(100, out var ports))
         {
@@ -574,7 +574,7 @@ internal sealed class CombinationalPipelineTests
             new PlaceComponentInstanceIntent(
                 definitionId,
                 new LibraryComponentTarget(new ComponentContractKey(
-                    CoreLibrarySchema.LibraryId,
+                    LibrarySnapshot.Core.LibraryId,
                     contractId)),
                 parameters,
                 new ComponentPlacement(new GridPoint(placementIndex * 4, 0))));

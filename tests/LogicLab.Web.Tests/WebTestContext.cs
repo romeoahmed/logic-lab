@@ -38,7 +38,17 @@ internal static class WebTestContext
             "Microsoft.FluentUI.Blazor.Components.Select.Initialize",
             static _ => true)
             .SetVoidResult();
+        context.JSInterop.SetupVoid(
+            "Microsoft.FluentUI.Blazor.Components.Tabs.ObserveTabsChanged",
+            static _ => true)
+            .SetVoidResult();
         context.JSInterop.SetupModule(BrowserSceneAdapter.ModulePath).Mode =
+            JSRuntimeMode.Loose;
+        context.JSInterop.SetupModule(
+            "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/DataGrid/FluentDataGrid.razor.js").Mode =
+            JSRuntimeMode.Loose;
+        context.JSInterop.SetupModule(
+            "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/KeyCode/FluentKeyCode.razor.js").Mode =
             JSRuntimeMode.Loose;
         ConfigureWaveformInterop(context);
         if (configureAttachmentNavigation)
@@ -59,6 +69,7 @@ internal static class WebTestContext
         handle.Setup<bool>("commitTransfer", static _ => true).SetResult(true);
         handle.SetupVoid("abortTransfer", static _ => true).SetVoidResult();
         handle.SetupVoid("setInteractionMode", static _ => true).SetVoidResult();
+        handle.SetupVoid("revealProbe", static _ => true).SetVoidResult();
         handle.SetupVoid("destroy", static _ => true).SetVoidResult();
     }
 

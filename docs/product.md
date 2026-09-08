@@ -139,6 +139,13 @@ not Simulation; returning live is explicit.
 Commands keep one verb across action and result: Save/Saved, Run/Running,
 Pause/Paused. Compile, save, Simulation, Trace, and connection state remain separate.
 
+Undo and Redo remain visible while a Project is open, with unavailable directions
+disabled. Each action restores one retained Project Revision and updates the Canvas
+and selection. History navigation requires Compilation before further Simulation
+advances; an existing Session keeps its original Artifact and observations. A new
+edit after Undo replaces the Redo branch. History controls are disabled during Run
+and while another command is being processed.
+
 | Situation          | Allowed behavior                                           |
 | ------------------ | ---------------------------------------------------------- |
 | clean and compiled | edit, compile, run, save, transfer                         |
@@ -147,6 +154,19 @@ Pause/Paused. Compile, save, Simulation, Trace, and connection state remain sepa
 | running            | Pause is the only authoring-state transition               |
 | detached           | local pan/zoom only; no command pretends to commit offline |
 | save conflict      | edit and observe; recovery actions replace ordinary save   |
+
+The initial workbench offers an empty Sandbox or a complete built-in example. Opening
+an example publishes an already compiled Sandbox; the user can start Simulation
+immediately, edit it normally, and export it as a `.logiclab` project. Examples have
+ordinary topology and authored state, with no example-specific Runtime behavior.
+
+During a paused, current Simulation, the Inspector offers independent binary input
+drafts for the viewed Circuit Definition occurrence. Values use the exact input width,
+most significant bit first, and accept `0/1/X/Z`. “Apply inputs” schedules one atomic
+batch at the next Logical Time; it does not imply that Step has already consumed the
+batch. Restart restores authored input drafts. A reusable definition without a selected
+occurrence cannot schedule inputs. At the maximum Logical Time there is no future tick
+to schedule.
 
 Import exposes upload, package validation, Genesis, Compilation, and publication as
 named phases. Failure leaves the current Workspace unchanged. Export separates
@@ -164,8 +184,16 @@ last acknowledged semantic overlay while preserving local navigation.
 ## Responsive and localization behavior
 
 Wide desktop shows the full three-column workbench and Instrument Bay. Laptop keeps
-one pinned side panel and one overlay drawer. Narrow layouts prioritize Canvas review,
-Probe, Step, Run, and full-screen waveform; dense authoring may remain unsupported.
+the Inspector pinned and the Component Palette in a toggleable overlay. Narrow layouts
+use exclusive, toggleable overlays for both panels; Escape closes the active panel and
+returns focus to its toggle. Selecting a Component closes the Palette overlay.
+The active workbench allocates the remaining viewport height after the site header to
+Canvas, Instrument Bay, and Status Strip. Instruments can expand into the Canvas area;
+returning to the circuit or revealing a diagnostic or Probe source restores the Canvas.
+When the available height cannot fit usable Canvas and Instrument Bay regions, the
+workbench scrolls vertically without overlapping controls or clipping the Status Strip. Narrow layouts
+prioritize Canvas review, Probe, Step, Run, and expanded waveform; dense authoring may
+remain unsupported.
 No layout hides save state, diagnostics, Logical Time, or connection state.
 
 English, Simplified Chinese, long-label, bidi-content, text zoom, browser zoom, and

@@ -2,80 +2,130 @@ using System.Collections.ObjectModel;
 
 namespace LogicLab.Domain.Components;
 
-public sealed class ComponentParameterSchema
+public abstract class ComponentParameterSchema
 {
-    internal ComponentParameterSchema(
-        string id,
-        ComponentParameterKind kind,
-        string? widthParameterId = null,
-        ReadOnlySpan<string> allowedValues = default,
-        int minimumItemCount = 0,
-        string? greaterThanParameterId = null,
-        uint minimumValue = 1,
-        string? memoryImageWidthParameterId = null,
-        string? memoryImageAddressWidthParameterId = null,
-        uint? fixedWidth = null)
+    private protected ComponentParameterSchema(string id, ComponentParameterKind kind)
     {
-        if (minimumValue == 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(minimumValue),
-                "A positive-width parameter minimum must be positive.");
-        }
-
-        var hasAnyMemoryImageShape = memoryImageWidthParameterId is not null
-            || memoryImageAddressWidthParameterId is not null;
-        var hasCompleteMemoryImageShape = memoryImageWidthParameterId is not null
-            && memoryImageAddressWidthParameterId is not null;
-        if (kind == ComponentParameterKind.MemoryImage
-                ? !hasCompleteMemoryImageShape
-                : hasAnyMemoryImageShape)
-        {
-            throw new ArgumentException(
-                "A Memory Image parameter must declare both shape parameter IDs, and no other kind may declare them.");
-        }
-
-        if (fixedWidth == 0
-            || (fixedWidth is not null && kind != ComponentParameterKind.LogicVector)
-            || (fixedWidth is not null && widthParameterId is not null)
-            || (kind == ComponentParameterKind.LogicVector
-                && fixedWidth is null
-                && widthParameterId is null))
-        {
-            throw new ArgumentException(
-                "A fixed width is positive, belongs only to a Logic Vector, and cannot be combined with a width parameter.",
-                nameof(fixedWidth));
-        }
-
+        ArgumentException.ThrowIfNullOrEmpty(id);
         Id = id;
         Kind = kind;
-        WidthParameterId = widthParameterId;
-        AllowedValues = Array.AsReadOnly(allowedValues.ToArray());
-        MinimumItemCount = minimumItemCount;
-        GreaterThanParameterId = greaterThanParameterId;
-        MinimumValue = minimumValue;
-        MemoryImageWidthParameterId = memoryImageWidthParameterId;
-        MemoryImageAddressWidthParameterId = memoryImageAddressWidthParameterId;
-        FixedWidth = fixedWidth;
     }
 
     public string Id { get; }
 
     public ComponentParameterKind Kind { get; }
+}
 
-    public string? WidthParameterId { get; }
-
-    public ReadOnlyCollection<string> AllowedValues { get; }
-
-    public int MinimumItemCount { get; }
-
-    public string? GreaterThanParameterId { get; }
+public sealed class WidthParameterSchema : ComponentParameterSchema
+{
+    internal WidthParameterSchema(string id, uint minimumValue = 1, string? greaterThanParameterId = null)
+        : base(id, ComponentParameterKind.PositiveWidth)
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(minimumValue);
+        MinimumValue = minimumValue;
+        GreaterThanParameterId = greaterThanParameterId;
+    }
 
     public uint MinimumValue { get; }
 
-    public string? MemoryImageWidthParameterId { get; }
+    public string? GreaterThanParameterId { get; }
+}
 
-    public string? MemoryImageAddressWidthParameterId { get; }
+public abstract class LogicVectorParameterSchema : ComponentParameterSchema
+{
+    private protected LogicVectorParameterSchema(string id) : base(id, ComponentParameterKind.LogicVector)
+    {
+    }
+}
 
-    public uint? FixedWidth { get; }
+public sealed class FixedLogicVectorParameterSchema : LogicVectorParameterSchema
+{
+    internal FixedLogicVectorParameterSchema(string id, uint width) : base(id)
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(width);
+        Width = width;
+    }
+
+    public uint Width { get; }
+}
+
+public sealed class VariableLogicVectorParameterSchema : LogicVectorParameterSchema
+{
+    internal VariableLogicVectorParameterSchema(string id, string widthParameterId) : base(id)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(widthParameterId);
+        WidthParameterId = widthParameterId;
+    }
+
+    public string WidthParameterId { get; }
+}
+
+public sealed class ChoiceParameterSchema : ComponentParameterSchema
+{
+    internal ChoiceParameterSchema(string id, params ReadOnlySpan<string> allowedValues)
+        : base(id, ComponentParameterKind.Choice)
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(allowedValues.Length);
+        AllowedValues = Array.AsReadOnly(allowedValues.ToArray());
+    }
+
+    public ReadOnlyCollection<string> AllowedValues { get; }
+}
+
+public sealed class SlicesParameterSchema : ComponentParameterSchema
+{
+    internal SlicesParameterSchema(string id, string widthParameterId, int minimumItemCount)
+        : base(id, ComponentParameterKind.Slices)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(widthParameterId);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minimumItemCount);
+        WidthParameterId = widthParameterId;
+        MinimumItemCount = minimumItemCount;
+    }
+
+    public string WidthParameterId { get; }
+
+    public int MinimumItemCount { get; }
+}
+
+public sealed class WidthsParameterSchema : ComponentParameterSchema
+{
+    internal WidthsParameterSchema(string id, int minimumItemCount)
+        : base(id, ComponentParameterKind.Widths)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minimumItemCount);
+        MinimumItemCount = minimumItemCount;
+    }
+
+    public int MinimumItemCount { get; }
+}
+
+public sealed class MemoryImageParameterSchema : ComponentParameterSchema
+{
+    internal MemoryImageParameterSchema(string id, string wordWidthParameterId, string addressWidthParameterId)
+        : base(id, ComponentParameterKind.MemoryImage)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(wordWidthParameterId);
+        ArgumentException.ThrowIfNullOrEmpty(addressWidthParameterId);
+        WordWidthParameterId = wordWidthParameterId;
+        AddressWidthParameterId = addressWidthParameterId;
+    }
+
+    public string WordWidthParameterId { get; }
+
+    public string AddressWidthParameterId { get; }
+}
+
+public sealed class BinaryLogicParameterSchema : ComponentParameterSchema
+{
+    internal BinaryLogicParameterSchema(string id) : base(id, ComponentParameterKind.BinaryLogicValue)
+    {
+    }
+}
+
+public sealed class PositiveUnsigned64ParameterSchema : ComponentParameterSchema
+{
+    internal PositiveUnsigned64ParameterSchema(string id) : base(id, ComponentParameterKind.PositiveUnsigned64)
+    {
+    }
 }

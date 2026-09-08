@@ -73,5 +73,5 @@ obligations.
 
 Pooling, SIMD, pinning, and unsafe access are separate choices with separate evidence.
 [Engineering](../engineering.md#performance-and-publication) owns their adoption
-requirements; [Engine Performance](./engine-performance.md) records actual profiles
+requirements; [Module Performance](./module-performance.md) records actual profiles
 and comparisons. No generic platform example establishes a production threshold.

@@ -1,6 +1,5 @@
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
-using LogicLab.Domain.Components;
 using LogicLab.Engine.Compilation;
 using LogicLab.Web.Scene;
 using LogicLab.Web.Waveforms;
@@ -125,58 +124,16 @@ public sealed partial class Editor
     private Task RevealProbeSourceAsync(CompilationSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (Projection is not { } projection
-            || source.Identity is not NetSourceIdentity netSource
-            || source.HierarchyPath.EntryCircuitDefinitionId
-                != projection.ProjectRevision.Document.EntryCircuitDefinitionId
-            || !SceneSourceMap.Contains(
-                projection.ProjectRevision,
-                SceneSourceMap.From(netSource)))
+        if (source.Identity is not NetSourceIdentity || !TryRevealSource(source))
         {
             return Task.CompletedTask;
         }
 
-        var document = projection.ProjectRevision.Document;
-        var current = document.EntryCircuitDefinition;
-        var navigation = new List<HierarchyNavigationStep>(
-            source.HierarchyPath.Steps.Count);
-        foreach (var step in source.HierarchyPath.Steps)
-        {
-            var instance = step.ContainingCircuitDefinitionId == current.Id
-                ? current.FindComponentInstance(step.ComponentInstanceId)
-                : null;
-            if (instance?.Target is not CircuitDefinitionComponentTarget target
-                || document.FindCircuitDefinition(target.CircuitDefinitionId)
-                    is not { } child)
-            {
-                return Task.CompletedTask;
-            }
-
-            navigation.Add(new HierarchyNavigationStep(
-                current.Id,
-                instance.Id,
-                instance.DisplayName ?? child.DisplayName));
-            current = child;
-        }
-
-        if (current.Id != netSource.CircuitDefinitionId)
-        {
-            return Task.CompletedTask;
-        }
-
-        HierarchyNavigation.Clear();
-        HierarchyNavigation.AddRange(navigation);
-        SelectedDefinitionId = current.Id;
-        ProjectScene();
-        SceneSelection = new SceneSelectionV1(
-            [SceneSourceMap.From(netSource)],
-            "replace");
         Status = Text[
             "ProbeRevealed",
             ProbePresentation.Label(
-                projection.ProjectRevision,
+                Projection!.ProjectRevision,
                 source,
-                0,
                 new ProbePresentationLabels(
                     Text["ComponentInput"],
                     Text["ComponentOutput"]))];

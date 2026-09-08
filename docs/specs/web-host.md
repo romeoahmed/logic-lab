@@ -50,6 +50,11 @@ HTTP document
 
 An Editor Workspace is Application-owned and can outlive a circuit under bounded retention. It is never stored in a Razor component, circuit-scoped dependency, `HttpContext`, or `DbContext`.
 
+The Workbench navigation and new-Sandbox recovery links use full document navigation
+to `/editor`. They open the chooser with a fresh component lifetime, rather than
+preserving a previous editor instance under the new URL. The prior Workspace remains
+subject to ordinary attachment retention and can be revisited through browser history.
+
 ## 3. Dependency lifetimes
 
 | Lifetime               | Owns                                                                                                                  | Must not own                                                     |
@@ -94,7 +99,7 @@ Consequences:
 
 - browser-to-.NET calls contain one bounded semantic intent, never pointer samples, full Project Documents, Trace windows, or Canvas pixels;
 - the Browser Policy limits the encoded intent beneath the configured transport ceiling with room for framework envelope overhead, established by an integration test rather than a guessed constant;
-- scene metadata and changes are batched by the typed Web adapter; dense Logic Vectors use optimized byte-array interop instead of base64 strings;
+- scene metadata, changes, and packed Logic Vectors travel through bounded candidate batches owned by the typed Web adapter;
 - uploads and downloads stream through their file contracts, and large Trace reads use the authorized Workspace query/HTTP seam when measurement selects it;
 - a transport-size failure is a rejected browser interaction and connection diagnostic, never permission to raise the global limit silently.
 

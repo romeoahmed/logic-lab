@@ -1,0 +1,118 @@
+.workbench-dock {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.dock-switches {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  border-block-end: 1px solid var(--ll-border);
+}
+
+.dock-switches button {
+  min-block-size: 2.25rem;
+  padding-inline: 0.75rem;
+  border: 1px solid var(--ll-border-strong);
+  border-radius: var(--ll-radius-small);
+  color: var(--ll-ink);
+  background: var(--ll-panel);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.dock-switches button[aria-expanded="true"] {
+  color: var(--ll-signal-strong);
+  background: var(--ll-signal-soft);
+}
+
+.dock-content {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.dock-canvas {
+  display: grid;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.library-dock,
+.inspector-dock {
+  display: none;
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--ll-panel);
+}
+
+.library-dock ::deep .component-palette {
+  block-size: 100%;
+}
+
+[data-open-panel="library"] .library-dock,
+[data-open-panel="inspector"] .inspector-dock {
+  display: block;
+  position: absolute;
+  z-index: 4;
+  inset-block: 0;
+  inline-size: min(20rem, 100%);
+  box-shadow: var(--ll-shadow-panel);
+}
+
+.library-dock {
+  inset-inline-start: 0;
+}
+.inspector-dock {
+  inset-inline-end: 0;
+}
+
+@container workbench (inline-size >= 44rem) {
+  .dock-content {
+    grid-template-columns: minmax(0, 1fr) 17rem;
+  }
+  .inspector-toggle {
+    display: none;
+  }
+  .inspector-dock,
+  [data-open-panel="inspector"] .inspector-dock {
+    display: block;
+    position: static;
+    inline-size: auto;
+    border-inline-start: 1px solid var(--ll-border);
+    box-shadow: none;
+  }
+}
+
+@container workbench (inline-size >= 70rem) {
+  .dock-switches {
+    display: none;
+  }
+  .workbench-dock {
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .dock-content {
+    grid-template-columns: 14rem minmax(0, 1fr) 17rem;
+  }
+  .dock-canvas {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .library-dock,
+  [data-open-panel="library"] .library-dock {
+    display: block;
+    position: static;
+    grid-column: 1;
+    grid-row: 1;
+    inline-size: auto;
+    border-inline-end: 1px solid var(--ll-border);
+    box-shadow: none;
+  }
+}

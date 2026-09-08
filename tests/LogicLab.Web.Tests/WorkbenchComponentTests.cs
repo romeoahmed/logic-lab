@@ -145,7 +145,7 @@ internal sealed partial class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "create",
-            () => !IsDisabled(rendered, "author"));
+            () => !IsDisabled(rendered, "export"));
         var currentWorkspaceUri = navigation.Uri;
 
         rendered.FindComponent<InputFile>().UploadFiles(
@@ -162,7 +162,6 @@ internal sealed partial class WorkbenchComponentTests
         {
             await Assert.That(navigation.Uri).IsEqualTo(currentWorkspaceUri);
             await Assert.That(IsDisabled(rendered, "create")).IsTrue();
-            await Assert.That(IsDisabled(rendered, "author")).IsFalse();
             await Assert.That(IsDisabled(rendered, "export")).IsFalse();
         }
     }
@@ -222,10 +221,9 @@ internal sealed partial class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "claim",
-            () => repository.ClaimCallCount == 1 && !IsDisabled(rendered, "author"));
-        await ClickAndWaitForState(
+            () => repository.ClaimCallCount == 1 && !IsDisabled(rendered, "export"));
+        await AuthorInverterAsync(
             rendered,
-            "author",
             () => !IsDisabled(rendered, "save"));
         await ClickAndWaitForState(
             rendered,
@@ -254,10 +252,9 @@ internal sealed partial class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "claim",
-            () => !IsDisabled(rendered, "author"));
-        await ClickAndWaitForState(
+            () => !IsDisabled(rendered, "export"));
+        await AuthorInverterAsync(
             rendered,
-            "author",
             () => !IsDisabled(rendered, "save"));
         await rendered.Find("[data-command='save']").ClickAsync();
         var recovery = await rendered.WaitForElementAsync("[data-save-conflict]");
@@ -466,7 +463,7 @@ internal sealed partial class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "create",
-            () => !IsDisabled(rendered, "author"));
+            () => !IsDisabled(rendered, "export"));
 
         await context.DisposeAsync();
 
@@ -501,10 +498,9 @@ internal sealed partial class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "create",
-            () => !IsDisabled(rendered, "author"));
-        await ClickAndWaitForState(
+            () => !IsDisabled(rendered, "export"));
+        await AuthorInverterAsync(
             rendered,
-            "author",
             () => !IsDisabled(rendered, "compile")
                 && CurrentDefinition(rendered)?.ComponentInstances.Count == 3);
 
@@ -522,10 +518,9 @@ internal sealed partial class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "create",
-            () => !IsDisabled(rendered, "author"));
-        await ClickAndWaitForState(
+            () => !IsDisabled(rendered, "export"));
+        await AuthorInverterAsync(
             rendered,
-            "author",
             () => !IsDisabled(rendered, "compile")
                 && CurrentDefinition(rendered)?.ComponentInstances.Count == 3);
         await ClickAndWaitForState(
@@ -546,9 +541,8 @@ internal sealed partial class WorkbenchComponentTests
                 .IsEqualTo("0");
         }
 
-        await ClickAndWaitForState(
+        await ApplyHighInputsAndWait(
             rendered,
-            "stimulus",
             () => !IsDisabled(rendered, "step"));
         await ClickAndWaitForState(
             rendered,
@@ -661,7 +655,7 @@ internal sealed partial class WorkbenchComponentTests
         await using var context = CreateContext();
         await using var workspace = new TrackingWorkspace();
         var rendered = await RenderSimulationEditor(context, workspace);
-        await ClickAndWaitForState(rendered, "stimulus", () => !IsDisabled(rendered, "step"));
+        await ApplyHighInputsAndWait(rendered, () => !IsDisabled(rendered, "step"));
         await ClickAndWaitForState(rendered, "step", () =>
             rendered.Find("[data-status='logical-time'] dd").TextContent == "1");
         var before = await workspace.ReadCurrent();
@@ -733,10 +727,9 @@ internal sealed partial class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "create",
-            () => !IsDisabled(rendered, "author"));
-        await ClickAndWaitForState(
+            () => !IsDisabled(rendered, "export"));
+        await AuthorInverterAsync(
             rendered,
-            "author",
             () => !IsDisabled(rendered, "compile"));
         await ClickAndWaitForState(
             rendered,
@@ -746,9 +739,8 @@ internal sealed partial class WorkbenchComponentTests
             rendered,
             "session",
             () => !IsDisabled(rendered, "stimulus"));
-        await ClickAndWaitForState(
+        await ApplyHighInputsAndWait(
             rendered,
-            "stimulus",
             () => !IsDisabled(rendered, "step"));
 
         await ClickAndWaitForState(
@@ -764,6 +756,7 @@ internal sealed partial class WorkbenchComponentTests
     }
 
     [Test]
+    [Arguments("author")]
     [Arguments("author-steering")]
     [Arguments("author-carry-lookahead")]
     [Arguments("author-bit-serial")]
@@ -777,12 +770,8 @@ internal sealed partial class WorkbenchComponentTests
 
         await ClickAndWaitForState(
             rendered,
-            "create",
-            () => !IsDisabled(rendered, authorCommand));
-        await ClickAndWaitForState(
-            rendered,
             authorCommand,
-            () => !IsDisabled(rendered, "compile"));
+            () => !IsDisabled(rendered, "session"));
 
         var definition = (await workspace.ReadCurrent())
             .ProjectRevision.Document.EntryCircuitDefinition;
@@ -794,10 +783,6 @@ internal sealed partial class WorkbenchComponentTests
                 geometry.Route is OrthogonalWireRoute { Points.Count: >= 2 }))
             .IsTrue();
 
-        await ClickAndWaitForState(
-            rendered,
-            "compile",
-            () => !IsDisabled(rendered, "session"));
         await ClickAndWaitForState(
             rendered,
             "session",
@@ -815,12 +800,8 @@ internal sealed partial class WorkbenchComponentTests
 
         await ClickAndWaitForState(
             rendered,
-            "create",
-            () => !IsDisabled(rendered, "author-carry-lookahead"));
-        await ClickAndWaitForState(
-            rendered,
             "author-carry-lookahead",
-            () => !IsDisabled(rendered, "compile"));
+            () => !IsDisabled(rendered, "session"));
 
         var definition = CurrentDefinition(rendered)!;
         var nets = definition.Nets.DistinctBy(net => net.Width).Take(2).ToArray();
@@ -842,7 +823,7 @@ internal sealed partial class WorkbenchComponentTests
         var firstClick = rendered.Find("[data-command='create']")
             .ClickAsync(new MouseEventArgs());
         await workspace.Started.WaitAsync(cancellationToken);
-        await rendered.WaitForStateAsync(() => IsDisabled(rendered, "author"));
+        await rendered.WaitForStateAsync(() => IsDisabled(rendered, "export"));
 
         try
         {
@@ -861,7 +842,7 @@ internal sealed partial class WorkbenchComponentTests
         }
 
         await firstClick;
-        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "author"));
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "export"));
         await Assert.That(workspace.OpenCount).IsEqualTo(1);
     }
 
@@ -874,7 +855,7 @@ internal sealed partial class WorkbenchComponentTests
         _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
 
         await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "author"));
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "export"));
         var commandBar = rendered.FindComponent<WorkbenchCommandBar>();
         await rendered.InvokeAsync(() => commandBar.Instance.OnCommand.InvokeAsync(
             WorkbenchCommandBar.WorkbenchCommand.Create));
@@ -901,12 +882,12 @@ internal sealed partial class WorkbenchComponentTests
 
         await rendered.Find("[data-command='create']")
             .ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "author"));
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "export"));
 
         using (Assert.Multiple())
         {
             await Assert.That(workspace.OpenCount).IsEqualTo(2);
-            await Assert.That(IsDisabled(rendered, "author")).IsFalse();
+            await Assert.That(IsDisabled(rendered, "export")).IsFalse();
         }
     }
 
@@ -918,20 +899,20 @@ internal sealed partial class WorkbenchComponentTests
         var rendered = RenderEditor(context, workspace);
         _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
         await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "author"));
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "export"));
 
-        await rendered.Find("[data-command='author']").ClickAsync(new MouseEventArgs());
+        await rendered.Find("[data-command='export']").ClickAsync(new MouseEventArgs());
         await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "create")
-            && IsDisabled(rendered, "author")
+            && IsDisabled(rendered, "export")
             && rendered.FindComponents<CircuitSceneHost>().Count == 0);
 
         await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "author"));
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "export"));
 
         using (Assert.Multiple())
         {
             await Assert.That(workspace.OpenCount).IsEqualTo(2);
-            await Assert.That(IsDisabled(rendered, "author")).IsFalse();
+            await Assert.That(IsDisabled(rendered, "export")).IsFalse();
         }
     }
 
@@ -944,10 +925,9 @@ internal sealed partial class WorkbenchComponentTests
         var rendered = RenderEditor(context, workspace);
         _ = await rendered.WaitForElementAsync("[data-command='create']:not([disabled])");
         await rendered.Find("[data-command='create']").ClickAsync(new MouseEventArgs());
-        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "author"));
+        await rendered.WaitForStateAsync(() => !IsDisabled(rendered, "export"));
 
-        var authoring = rendered.Find("[data-command='author']")
-            .ClickAsync(new MouseEventArgs());
+        var authoring = AuthorInverterAsync(rendered, () => !IsDisabled(rendered, "compile"));
         await workspace.Started.WaitAsync(cancellationToken);
         try
         {
@@ -1015,14 +995,6 @@ internal sealed partial class WorkbenchComponentTests
         out BunitJSModuleInterop attachmentNavigation)
     {
         var context = WebTestContext.CreateBunitContext();
-        context.JSInterop
-            .SetupModule(
-                "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/InputFile/FluentInputFile.razor.js")
-            .Mode = JSRuntimeMode.Loose;
-        context.JSInterop
-            .SetupModule(
-                "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/KeyCode/FluentKeyCode.razor.js")
-            .Mode = JSRuntimeMode.Loose;
         attachmentNavigation = context.JSInterop.SetupModule(
             "./Components/Pages/Editor.razor.js");
         attachmentNavigation.Mode = JSRuntimeMode.Loose;
@@ -1097,10 +1069,9 @@ internal sealed partial class WorkbenchComponentTests
         await ClickAndWaitForState(
             rendered,
             "create",
-            () => !IsDisabled(rendered, "author"));
-        await ClickAndWaitForState(
+            () => !IsDisabled(rendered, "export"));
+        await AuthorInverterAsync(
             rendered,
-            "author",
             () => !IsDisabled(rendered, "compile"));
         return rendered;
     }
@@ -1112,6 +1083,19 @@ internal sealed partial class WorkbenchComponentTests
     {
         await rendered.Find($"[data-command='{command}']").ClickAsync();
         await rendered.WaitForStateAsync(statePredicate);
+    }
+
+    private static async Task ApplyHighInputsAndWait(
+        IRenderedComponent<Editor> rendered, Func<bool> statePredicate)
+    {
+        foreach (var input in rendered.FindAll("[data-stimulus-input]"))
+        {
+            await input.TriggerEventAsync("ontextimmediate", new ChangeEventArgs
+            {
+                Value = new string('1', int.Parse(input.GetAttribute("maxlength")!, System.Globalization.CultureInfo.InvariantCulture)),
+            });
+        }
+        await ClickAndWaitForState(rendered, "stimulus", statePredicate);
     }
 
     private static CircuitDefinition? CurrentDefinition(

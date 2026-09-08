@@ -1,25 +1,35 @@
 @inject IStringLocalizer<EditorText> Text
 
 <div class="command-bar" data-active-command="@Model.ActiveCommand">
-    <div class="command-cluster">
-        <span class="command-cluster-label">@Text["NextStep"]</span>
-        <div class="workflow-actions">
-            @{ var actions = WorkflowActions; }
-            @foreach (var action in actions)
-            {
-                <FluentButton @key="action.Command"
-                              data-command="@action.Key"
-                              hidden="@(!action.Available)"
-                              Appearance="@(action.Primary ? ButtonAppearance.Primary : ButtonAppearance.Outline)"
-                              Disabled="@(!action.Available || IsBusy)"
-                              Loading="@(Model.ActiveCommand == action.Key)"
-                              OnClick="@(() => OnCommand.InvokeAsync(action.Command))">@Text[action.Label]</FluentButton>
-            }
-            @if (!actions.Any(action => action.Available))
-            {
-                <span class="workflow-hint">@Text["ChooseStarterHint"]</span>
-            }
+    @if (Model.ShowHistory)
+    {
+        <div class="history-actions">
+            <FluentButton data-command="undo"
+                          Appearance="ButtonAppearance.Outline"
+                          Disabled="@(!Model.CanUndo || IsBusy)"
+                          OnClick="@(() => OnCommand.InvokeAsync(WorkbenchCommand.Undo))">@Text["Undo"]</FluentButton>
+            <FluentButton data-command="redo"
+                          Appearance="ButtonAppearance.Outline"
+                          Disabled="@(!Model.CanRedo || IsBusy)"
+                          OnClick="@(() => OnCommand.InvokeAsync(WorkbenchCommand.Redo))">@Text["Redo"]</FluentButton>
         </div>
+    }
+    <div class="workflow-actions">
+        @{ var actions = WorkflowActions; }
+        @foreach (var action in actions)
+        {
+            <FluentButton @key="action.Command"
+                          data-command="@action.Key"
+                          hidden="@(!action.Available)"
+                          Appearance="@(action.Primary ? ButtonAppearance.Primary : ButtonAppearance.Outline)"
+                          Disabled="@(!action.Available || IsBusy)"
+                          Loading="@(Model.ActiveCommand == action.Key)"
+                          OnClick="@(() => OnCommand.InvokeAsync(action.Command))">@Text[action.Label]</FluentButton>
+        }
+        @if (!actions.Any(action => action.Available))
+        {
+            <span class="workflow-hint">@Text[Model.ShowHistory ? "AuthorCircuitHint" : "ChooseStarterHint"]</span>
+        }
     </div>
 
     <FluentMenuButton Id="project-options-trigger"
@@ -36,17 +46,13 @@
                    @bind-Opened="projectOptionsOpened">
         <div class="project-options-panel" data-testid="project-options-panel">
             <div class="project-actions">
-                <FluentInputFile Id="logiclab-import-picker"
-                                 AnchorId="logiclab-import-trigger"
-                                 Accept=".logiclab,application/vnd.logiclab+zip"
-                                 Disabled="@(!Model.CanImport || IsBusy)"
-                                 DragDropZoneVisible="false"
-                                 OnInputFileChange="OnImport" />
-                <FluentButton Id="logiclab-import-trigger"
-                              data-command="import"
-                              Appearance="ButtonAppearance.Outline"
-                              Disabled="@(!Model.CanImport || IsBusy)"
-                              Loading="@(Model.ActiveCommand is "import")">@Text["ImportProject"]</FluentButton>
+                <label class="import-picker">
+                    @Text["ImportProject"]
+                    <InputFile data-command="import"
+                               accept=".logiclab,application/vnd.logiclab+zip"
+                               disabled="@(!Model.CanImport || IsBusy)"
+                               OnChange="OnImport" />
+                </label>
                 <FluentButton data-command="export"
                               Appearance="ButtonAppearance.Outline"
                               Disabled="@(!Model.CanPrepareExport || IsBusy)"

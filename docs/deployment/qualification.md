@@ -13,22 +13,22 @@ this document identifies the evidence those procedures must produce.
 Record an owner, review date, chosen value, and evidence link for every row before
 closing item `42`.
 
-| Decision                 | Current executable boundary                               | Qualification evidence still required                                            |
-| ------------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Azure scope              | one existing resource group and selected public Azure region | subscription, residency, quota, owner, and reachability evidence              |
-| public origin            | platform-managed `azurecontainerapps.io` HTTPS origin     | deployed hostname and external reachability evidence                             |
-| application availability | single revision with an environment-selected scale range  | availability acceptance plus cold-start evidence when scale-to-zero is selected  |
-| compute                  | Web and each Job use 0.5 CPU and 1 GiB                    | representative load, migration duration, throttling, and cost evidence           |
-| PostgreSQL               | version 18, private, Entra-only, environment-selected tier | SKU, storage, IOPS, connection, maintenance, and capacity evidence              |
-| continuity               | environment-selected HA, PITR, and geo-backup posture     | explicit RTO/RPO acceptance and restore drill                                    |
-| Data Protection          | private Standard ZRS Blob, versioning, 30-day soft delete | key continuity and key-loss owner acceptance                                     |
-| release identity         | GitHub environment OIDC at resource-group scope           | federated subject, approver, RBAC, and access-review evidence                    |
-| runtime identity         | separate Web, Migrator, and database-admin identities     | Azure RBAC and PostgreSQL grant review                                           |
-| artifact                 | .NET 10 `linux/amd64`, version tag plus OCI digest        | SBOM, provenance, dependency locks, retention, and verification owner            |
-| telemetry                | Log Analytics, Application Insights, two failure alerts   | redaction review, staffed destination, useful thresholds, and retention approval |
-| maintenance              | environment-selected UTC day and hour                     | owner, notice, and conflict procedure                                             |
-| cost                     | environment-selected service tiers and scale range        | resource-group budget, first bill, and teardown decision                          |
-| recovery cutover         | explicit PostgreSQL server override                       | incident authority and IaC adoption procedure                                    |
+| Decision                 | Current executable boundary                                  | Qualification evidence still required                                            |
+| ------------------------ | ------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Azure scope              | one existing resource group and selected public Azure region | subscription, residency, quota, owner, and reachability evidence                 |
+| public origin            | platform-managed `azurecontainerapps.io` HTTPS origin        | deployed hostname and external reachability evidence                             |
+| application availability | single revision with an environment-selected scale range     | availability acceptance plus cold-start evidence when scale-to-zero is selected  |
+| compute                  | Web and each Job use 0.5 CPU and 1 GiB                       | representative load, migration duration, throttling, and cost evidence           |
+| PostgreSQL               | version 18, private, Entra-only, environment-selected tier   | SKU, storage, IOPS, connection, maintenance, and capacity evidence               |
+| continuity               | environment-selected HA, PITR, and geo-backup posture        | explicit RTO/RPO acceptance and restore drill                                    |
+| Data Protection          | private Standard ZRS Blob, versioning, 30-day soft delete    | key continuity and key-loss owner acceptance                                     |
+| release identity         | GitHub environment OIDC at resource-group scope              | federated subject, approver, RBAC, and access-review evidence                    |
+| runtime identity         | separate Web, Migrator, and database-admin identities        | Azure RBAC and PostgreSQL grant review                                           |
+| artifact                 | .NET 10 `linux/amd64`, version tag plus OCI digest           | SBOM, provenance, dependency locks, retention, and verification owner            |
+| telemetry                | Log Analytics, Application Insights, two failure alerts      | redaction review, staffed destination, useful thresholds, and retention approval |
+| maintenance              | environment-selected UTC day and hour                        | owner, notice, and conflict procedure                                            |
+| cost                     | environment-selected service tiers and scale range           | resource-group budget, first bill, and teardown decision                         |
+| recovery cutover         | explicit PostgreSQL server override                          | incident authority and IaC adoption procedure                                    |
 
 The calibrated policy and Web/security evidence from items `35`–`41` remains a hard
 dependency; infrastructure defaults do not substitute for it.

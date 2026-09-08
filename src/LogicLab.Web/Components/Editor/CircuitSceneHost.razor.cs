@@ -23,6 +23,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     private SceneSnapshotV1? currentSnapshot;
     private BrowserSceneRecoveryStateV1? recoveryState;
     private ulong nextSceneVersion;
+    private ulong revealedVersion;
     private bool rendererUpdateInProgress;
     private bool retryInProgress;
     private SceneToolV1? publishedTool;
@@ -48,6 +49,9 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
 
     [Parameter]
     public SceneSelectionV1? Selection { get; set; }
+
+    [Parameter]
+    public ulong RevealVersion { get; set; }
 
     [Parameter]
     public SceneToolV1 ActiveTool { get; set; } = SceneSelectToolV1.Instance;
@@ -176,6 +180,14 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
                 renderRequired = true;
                 await PublishAsync(adapter, key, generation, observedFailureEpoch, cancellationToken);
             }
+            if (IsCurrentRenderer(generation, observedFailureEpoch)
+                && publishedKey == CurrentKey() && currentSnapshot is { } visible
+                && revealedVersion != RevealVersion)
+            {
+                var request = RevealVersion;
+                await adapter.RevealSelectionAsync(visible.SceneVersion, cancellationToken);
+                revealedVersion = request;
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -213,7 +225,8 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         CanUpdateRenderer && generation == rendererGeneration && observedFailureEpoch == failureEpoch;
 
     private bool HasPendingRendererUpdate() => CanUpdateRenderer
-        && (adapter is null || publishedTool != EffectiveTool || CurrentKey() != publishedKey);
+        && (adapter is null || publishedTool != EffectiveTool || CurrentKey() != publishedKey
+            || revealedVersion != RevealVersion);
 
     private bool CanAcceptCallback(ulong generation) =>
         isDisposed == 0 && !retryInProgress && generation == rendererGeneration;
@@ -650,29 +663,19 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     internal BrowserSceneOverlayInputV1 BuildOverlayInput()
     {
         var selection = Selection?.Sources ?? [];
-        var diagnostics = Compilation switch
-        {
-            CompilationPublishedProjection published => published.Diagnostics,
-            CompilationRejectedProjection rejected => rejected.Diagnostics,
-            _ => [],
-        };
+        var diagnostics = Compilation?.Diagnostics ?? [];
         var sceneDiagnostics = diagnostics
-            .Where(diagnostic => diagnostic.Source is not null
+            .Where(diagnostic => diagnostic.Primary is CompilerCircuitLocation location
                 && (HierarchyPath is null
-                    || IsSamePath(diagnostic.Source.HierarchyPath, HierarchyPath)))
+                    || IsSamePath(location.Source.HierarchyPath, HierarchyPath)))
             .Select(diagnostic => (Diagnostic: diagnostic, Source: SceneSourceMap.TryFrom(
-                diagnostic.Source!.Identity)))
+                ((CompilerCircuitLocation)diagnostic.Primary!).Source.Identity)))
             .Where(item => item.Source is not null)
             .Select(item => new BrowserSceneDiagnosticInputV1(
                 item.Source!,
                 item.Diagnostic.Code,
-                item.Diagnostic.Severity switch
-                {
-                    CompilerDiagnosticSeverity.Error => "error",
-                    _ => throw new InvalidOperationException(
-                        "The compiler diagnostic severity is undefined."),
-                }))
-            .ToArray();
+                "error"))
+            .ToList();
         if (Simulation is not { } simulation || HierarchyPath is not { } hierarchyPath)
         {
             return new BrowserSceneOverlayInputV1(
@@ -681,6 +684,17 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
                 [],
                 selection,
                 sceneDiagnostics);
+        }
+
+        if (simulation.CompilationArtifactKey.ProjectRevisionId == ProjectRevision.RevisionId)
+        {
+            sceneDiagnostics.AddRange(simulation.Diagnostics
+                .Where(diagnostic => diagnostic.Primary is { } source
+                    && IsSamePath(source.HierarchyPath, hierarchyPath))
+                .Select(diagnostic => (Diagnostic: diagnostic, Source: SceneSourceMap.TryFrom(diagnostic.Primary!.Identity)))
+                .Where(item => item.Source is not null)
+                .Select(item => new BrowserSceneDiagnosticInputV1(item.Source!, item.Diagnostic.Code,
+                    DiagnosticPresentation.Severity(item.Diagnostic.Severity))));
         }
 
         var probes = simulation.Probes

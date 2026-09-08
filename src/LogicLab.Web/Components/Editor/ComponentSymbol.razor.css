@@ -26,7 +26,7 @@
   color: currentcolor;
   fill: currentcolor;
   stroke: none;
-  font-family: "IBM Plex Mono", "Noto Sans Mono CJK", ui-monospace, monospace;
+  font-family: var(--ll-font-mono);
   font-size: 0.38rem;
   font-weight: 750;
   line-height: 1;

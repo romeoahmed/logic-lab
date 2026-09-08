@@ -57,7 +57,7 @@ internal sealed class CompilerHierarchyTests
         foreach (var source in allSources)
         {
             await Assert.That(source.HierarchyPath).IsEqualTo(
-                CircuitId(source.Identity) == circuit.ChildDefinition.Id ? childPath : rootPath);
+                source.Identity.CircuitDefinitionId == circuit.ChildDefinition.Id ? childPath : rootPath);
         }
 
         foreach (var scopedNet in circuit.MainDefinition.Nets.Select(net => (
@@ -283,7 +283,7 @@ internal sealed class CompilerHierarchyTests
             revision,
             new PlaceComponentInstanceIntent(
                 child.Id,
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, "logic.not"),
+                new ComponentContractKey(LibrarySnapshot.Core.LibraryId, "logic.not"),
                 [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
                 new ComponentPlacement(new GridPoint(4, 2)),
                 "NOT")));
@@ -380,18 +380,6 @@ internal sealed class CompilerHierarchyTests
             revision.Document.FindCircuitDefinition(child.Id)!,
             childNot,
             [.. childInstances]);
-    }
-
-    private static CircuitDefinitionId CircuitId(AuthoredSourceIdentity identity)
-    {
-        return identity switch
-        {
-            ComponentInstanceSourceIdentity source => source.CircuitDefinitionId,
-            InstancePortSourceIdentity source => source.CircuitDefinitionId,
-            NetSourceIdentity source => source.CircuitDefinitionId,
-            _ => throw new InvalidOperationException(
-                "The hierarchy test Source Identity variant is undefined."),
-        };
     }
 
     private static ProjectScalePolicy Policy(

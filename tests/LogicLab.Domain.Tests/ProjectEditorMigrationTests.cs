@@ -368,6 +368,30 @@ internal sealed class ProjectEditorMigrationTests
         }
     }
 
+    [Test]
+    public async Task Apply_ChangeHugeGeneratedContract_IncompleteMigrationRejectsWithoutExpansion()
+    {
+        var revision = BeginProject();
+        var definitionId = revision.Document.EntryCircuitDefinitionId;
+        revision = Commit(ProjectEditor.Apply(revision, new PlaceComponentInstanceIntent(
+            definitionId, Contract("logic.priority_encoder"),
+            [new("inputCount", new Unsigned32ParameterValue(uint.MaxValue)),
+                new("priority", new ChoiceParameterValue("lowestIndex"))],
+            new ComponentPlacement(new GridPoint(0, 0)))));
+        var instance = revision.Document.EntryCircuitDefinition.ComponentInstances.Single();
+
+        var outcome = ProjectEditor.Apply(revision, new ChangeInstanceContractIntent(
+            definitionId, instance.Id, new LibraryComponentTarget(Contract("logic.not")),
+            WidthParameters(1), [new InstancePortMigration("A0", "A")], null));
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
+        await Assert.That(rejected.Diagnostics.Select(diagnostic => diagnostic.Code))
+            .IsEquivalentTo(["authoring_missing_reference"]);
+        await Assert.That(rejected.Diagnostics.Single().Arguments)
+            .IsEquivalentTo([new AuthoringDiagnosticArgument("referenceKind",
+                new StableTokenDiagnosticValue("instancePortMigration"))]);
+    }
+
     private static ProjectRevision BeginProject()
     {
         return ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(

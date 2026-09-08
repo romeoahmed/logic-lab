@@ -114,7 +114,6 @@ internal static class BrowserTextMeasurements
             "zh-CN" => PresentationLocaleIdV1.SimplifiedChineseChina,
             _ => throw new ArgumentOutOfRangeException(nameof(uiCulture)),
         };
-        var collector = new CollectingTextMeasurer();
         var fingerprint = new PresentationFingerprintV1(
             TeachingMixedMetricSets.AnnexA100,
             CollectionFingerprint,
@@ -124,14 +123,20 @@ internal static class BrowserTextMeasurements
             BaseDirectionV1.LeftToRight,
             100,
             1);
-        _ = TeachingMixedSchematicProjector.Project(
+        var requests = TeachingMixedSchematicProjector.CollectTextRequests(
             revision,
             circuitDefinitionId,
             fingerprint,
             maximumPortCount,
-            collector,
             cancellationToken);
-        return collector.Requests;
+        return [.. requests.Select(request => new BrowserTextMeasurementRequestV1(
+                Key(request),
+                request.Text,
+                Token(request.FontRole),
+                Token(request.Alignment),
+                request.LocaleId.Value,
+                request.BaseDirection == BaseDirectionV1.LeftToRight ? "ltr" : "rtl"))
+            .OrderBy(request => request.Key, StringComparer.Ordinal)];
     }
 
     public static string Key(SymbolTextMeasurementRequestV1 request)
@@ -148,67 +153,20 @@ internal static class BrowserTextMeasurements
         return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
     }
 
-    private sealed class CollectingTextMeasurer : ISymbolTextMeasurerV1
+    private static string Token(FontRoleV1 value) => value switch
     {
-        private readonly Dictionary<string, BrowserTextMeasurementRequestV1> requests =
-            new(StringComparer.Ordinal);
+        FontRoleV1.Symbol => "symbol",
+        FontRoleV1.PortLabel => "portlabel",
+        FontRoleV1.Dependency => "dependency",
+        FontRoleV1.ExtensionMark => "extensionmark",
+        _ => throw new ArgumentOutOfRangeException(nameof(value)),
+    };
 
-        public FontFingerprintV1 FontFingerprint => CollectionFingerprint;
-
-        public SymbolMetricSetV1 MetricSet => TeachingMixedMetricSets.AnnexA100;
-
-        public IReadOnlyList<BrowserTextMeasurementRequestV1> Requests =>
-            [.. requests.Values.OrderBy(request => request.Key, StringComparer.Ordinal)];
-
-        public SymbolTextMeasurementV1 Measure(
-            SymbolTextMeasurementRequestV1 request,
-            CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var key = Key(request);
-            requests.TryAdd(key, new BrowserTextMeasurementRequestV1(
-                key,
-                request.Text,
-                Token(request.FontRole),
-                Token(request.Alignment),
-                request.LocaleId.Value,
-                request.BaseDirection == BaseDirectionV1.LeftToRight ? "ltr" : "rtl"));
-            var scalarCount = request.Text.EnumerateRunes().Count();
-            var width = checked(Math.Max(70, scalarCount * 70));
-            var left = request.Alignment switch
-            {
-                TextAlignmentV1.Center => -(width / 2),
-                TextAlignmentV1.Start
-                    when request.BaseDirection == BaseDirectionV1.LeftToRight => 0,
-                TextAlignmentV1.Start => -width,
-                TextAlignmentV1.End
-                    when request.BaseDirection == BaseDirectionV1.LeftToRight => -width,
-                TextAlignmentV1.End => 0,
-                _ => throw new ArgumentOutOfRangeException(nameof(request)),
-            };
-
-            // Canvas TextMetrics reports ink distances from the textAlign alignment point.
-            // Source: https://html.spec.whatwg.org/multipage/canvas.html#textmetrics
-            return new SymbolTextMeasurementV1(
-                width,
-                new RectV1(left, -80, checked(left + width), 40));
-        }
-
-        private static string Token(FontRoleV1 value) => value switch
-        {
-            FontRoleV1.Symbol => "symbol",
-            FontRoleV1.PortLabel => "portlabel",
-            FontRoleV1.Dependency => "dependency",
-            FontRoleV1.ExtensionMark => "extensionmark",
-            _ => throw new ArgumentOutOfRangeException(nameof(value)),
-        };
-
-        private static string Token(TextAlignmentV1 value) => value switch
-        {
-            TextAlignmentV1.Start => "start",
-            TextAlignmentV1.Center => "center",
-            TextAlignmentV1.End => "end",
-            _ => throw new ArgumentOutOfRangeException(nameof(value)),
-        };
-    }
+    private static string Token(TextAlignmentV1 value) => value switch
+    {
+        TextAlignmentV1.Start => "start",
+        TextAlignmentV1.Center => "center",
+        TextAlignmentV1.End => "end",
+        _ => throw new ArgumentOutOfRangeException(nameof(value)),
+    };
 }

@@ -50,7 +50,7 @@ public sealed record SessionConfigurationV1
         var definition = revision.Document.EntryCircuitDefinition;
         var outputIds = definition.ComponentInstances
             .Where(instance => instance.Target is LibraryComponentTarget library
-                && library.ContractKey.LibraryId == CoreLibrarySchema.LibraryId
+                && library.ContractKey.LibraryId == LibrarySnapshot.Core.LibraryId
                 && library.ContractKey.ContractId == "sink.output")
             .Select(instance => instance.Id)
             .ToHashSet();

@@ -35,32 +35,32 @@ reviewer, and prevent self-review where available.
 
 Environment secrets:
 
-| Secret                                 | Meaning                                      |
-| -------------------------------------- | -------------------------------------------- |
-| `AZURE_CLIENT_ID`                      | deployment application client ID             |
-| `AZURE_TENANT_ID`                      | Microsoft Entra tenant ID                    |
-| `AZURE_SUBSCRIPTION_ID`                | qualified subscription ID                    |
-| `AZURE_RESOURCE_GROUP`                 | qualified production resource group          |
+| Secret                                 | Meaning                                       |
+| -------------------------------------- | --------------------------------------------- |
+| `AZURE_CLIENT_ID`                      | deployment application client ID              |
+| `AZURE_TENANT_ID`                      | Microsoft Entra tenant ID                     |
+| `AZURE_SUBSCRIPTION_ID`                | qualified subscription ID                     |
+| `AZURE_RESOURCE_GROUP`                 | qualified production resource group           |
 | `AZURE_DEPLOYMENT_PRINCIPAL_OBJECT_ID` | deployment service-principal object ID        |
-| `ALERT_EMAIL`                          | staffed alert destination                    |
+| `ALERT_EMAIL`                          | staffed alert destination                     |
 | `POSTGRES_SERVER_OVERRIDE`             | optional verified recovery target server name |
 
 Environment variables:
 
-| Variable                          | Meaning                              |
-| --------------------------------- | ------------------------------------ |
-| `AZURE_LOCATION`                  | qualified deployment region          |
-| `CONTAINER_REGISTRY_SKU_NAME`     | selected registry service tier       |
-| `POSTGRES_TIER`                   | selected PostgreSQL compute tier     |
-| `POSTGRES_SKU_NAME`               | selected PostgreSQL compute SKU      |
-| `POSTGRES_HIGH_AVAILABILITY`      | accepted PostgreSQL HA mode          |
-| `POSTGRES_BACKUP_RETENTION_DAYS`  | accepted PITR retention              |
-| `POSTGRES_GEO_REDUNDANT_BACKUP`   | accepted geo-backup posture          |
-| `POSTGRES_STORAGE_SIZE_GB`        | selected PostgreSQL storage capacity |
-| `POSTGRES_MAINTENANCE_DAY`        | selected UTC maintenance day         |
-| `POSTGRES_MAINTENANCE_HOUR`       | selected UTC maintenance hour        |
-| `WEB_MIN_REPLICAS`                | selected minimum Web replicas        |
-| `WEB_MAX_REPLICAS`                | selected maximum Web replicas        |
+| Variable                         | Meaning                              |
+| -------------------------------- | ------------------------------------ |
+| `AZURE_LOCATION`                 | qualified deployment region          |
+| `CONTAINER_REGISTRY_SKU_NAME`    | selected registry service tier       |
+| `POSTGRES_TIER`                  | selected PostgreSQL compute tier     |
+| `POSTGRES_SKU_NAME`              | selected PostgreSQL compute SKU      |
+| `POSTGRES_HIGH_AVAILABILITY`     | accepted PostgreSQL HA mode          |
+| `POSTGRES_BACKUP_RETENTION_DAYS` | accepted PITR retention              |
+| `POSTGRES_GEO_REDUNDANT_BACKUP`  | accepted geo-backup posture          |
+| `POSTGRES_STORAGE_SIZE_GB`       | selected PostgreSQL storage capacity |
+| `POSTGRES_MAINTENANCE_DAY`       | selected UTC maintenance day         |
+| `POSTGRES_MAINTENANCE_HOUR`      | selected UTC maintenance hour        |
+| `WEB_MIN_REPLICAS`               | selected minimum Web replicas        |
+| `WEB_MAX_REPLICAS`               | selected maximum Web replicas        |
 
 Leave `POSTGRES_SERVER_OVERRIDE` absent during normal operation. Set it only for a
 documented PITR cutover, and retain it until the recovered server becomes the managed

@@ -411,7 +411,7 @@ internal sealed class ProjectRevisionPayloadSerializerTests
             revision,
             new PlaceComponentInstanceIntent(
                 definitionId,
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
+                new ComponentContractKey(LibrarySnapshot.Core.LibraryId, contractId),
                 parameters,
                 new ComponentPlacement(
                     new GridPoint(displayName.Length, displayName.Length + 1)),

@@ -17,6 +17,7 @@ SceneAdapter
 SceneHandle : IAsyncDisposable
   ReplaceAsync(SceneSnapshotV1 | SceneUnavailableV1, CancellationToken) -> Task
   ApplyAsync(ScenePatchV1, CancellationToken) -> Task
+  RevealSelectionAsync(SceneVersion, CancellationToken) -> Task
   SetInteractionModeAsync(CommitEnabled | LocalOnly, CancellationToken) -> Task
 
 WaveformAdapter
@@ -25,6 +26,7 @@ WaveformAdapter
 
 WaveformHandle : IAsyncDisposable
   ReplaceAsync(WaveformSnapshotV1, CancellationToken) -> Task
+  RevealProbeAsync(ProbeId, CancellationToken) -> Task
   SetInteractionModeAsync(CommitEnabled | LocalOnly, CancellationToken) -> Task
 ```
 
@@ -56,6 +58,11 @@ scene host
 Razor owns the DOM structure, text, controls, and their attributes. JavaScript receives the host `ElementReference` and owns its listeners, Canvas bitmap dimensions, drawing, and browser-local renderer-availability attribute. It never adds, removes, or reparents nodes, or changes Razor-owned content; doing so can invalidate Blazor's DOM representation ([DOM interaction](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#interaction-with-the-dom)).
 
 Menus, tooltips, forms, confirmation, and text input remain HTML/Razor surfaces. Canvas has no editable text field. `WaveformHost` follows the same ownership rule.
+
+Waveform row geometry is matched to Razor's row tracks by Probe ID. Razor DOM
+updates and complete Canvas snapshots can arrive separately; pending additions,
+removals, or reorders must neither fail the renderer nor paint one Probe's Trace
+beside another Probe's label. DOM row changes invalidate the measured row layout.
 
 `MountAsync` occurs once after an interactive first render with a valid `ElementReference`. Mounting is idempotent by host and build fingerprint: repeating it returns the existing live handle or destroys an incompatible stale instance before replacement. Prerender never imports or mounts a module.
 
@@ -90,7 +97,11 @@ authored grid integers
 - Wire endpoints bound to existing Terminals use their published anchors converted to authored integer grid coordinates, without applying the current snap interval. Routing preserves the published outward directions; changing snapping never moves an existing connection point.
 - Panning and zooming change only the viewport. They never mutate Schematic items, authored coordinates, hit regions, or the Project Document.
 
-Fit and reveal use the supplied projection and Hit Region bounds. A browser never reconstructs bounds from painted pixels. World-to-screen and screen-to-world functions are pure and receive property tests for round trip, negative coordinates, extreme legal values, zoom limits, and content-box offsets.
+Fit and reveal use the supplied projection and Hit Region bounds. Automatic fit centers the complete scene with padding, subject to the Browser Policy zoom range; its preferred maximum grid spacing must never act as a lower zoom bound. Large teaching examples must fit at ordinary desktop and narrow review sizes. A browser never reconstructs bounds from painted pixels. World-to-screen and screen-to-world functions are pure and receive property tests for round trip, negative coordinates, extreme legal values, zoom limits, and content-box offsets.
+
+Schematic strokes retain a minimum width of one CSS pixel when zoomed out so that
+large-circuit overviews remain readable. This paint minimum does not change plan
+coordinates, anchors, Hit Regions, or authored topology.
 
 ## 5. Canvas sizing and display density
 
@@ -142,7 +153,7 @@ Hit testing queries geometric regions and declared hit priority, never pixels or
 
 V1 uses one visible Canvas per dense host. A same-thread offscreen cache requires identical display-list tests. Layered canvases, `ImageBitmap`, and partial dirty rectangles require measured benefit ([Canvas optimization](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Optimizing_canvas)); a Worker protocol additionally requires a second deployment context and a measured main-thread bottleneck.
 
-The module waits until the required self-hosted fonts are reported ready before publishing text-bearing Canvas output. A font failure produces an exact presentation-unavailable state; it never silently substitutes metrics. The Geometry Plan font fingerprint, browser asset fingerprint, and loaded font must agree ([FontFaceSet readiness](https://developer.mozilla.org/en-US/docs/Web/API/FontFaceSet/ready)).
+The module fetches the fixed self-hosted scene font, verifies its SHA-256 against the packaged cmap manifest, and loads those verified bytes through `FontFace` before publishing text-bearing Canvas output. The manifest must cover every requested Unicode scalar, including Chinese annotations and the core component symbols. Failed loads may be retried after the asset becomes available. A font failure produces an exact presentation-unavailable state; it never silently substitutes metrics. The Geometry Plan font fingerprint, browser asset fingerprint, and loaded font must agree ([FontFaceSet readiness](https://developer.mozilla.org/en-US/docs/Web/API/FontFaceSet/ready)).
 
 ## 8. Pointer, wheel, and keyboard input
 
@@ -193,16 +204,16 @@ The C# adapter implements asynchronous disposal, releases every `IJSObjectRefere
 
 ## 11. Failure and recovery
 
-| Failure                                                | Stable evidence                                                                               | Required behavior                                                                                                         |
-| ------------------------------------------------------ | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| 2D context unavailable                                 | `web_renderer_unavailable(contextUnavailable)`                                                | hide the bitmap; show the renderer-unavailable state and recovery actions                                                 |
-| effective size/pixel policy exceeded                   | `web_browser_policy_exhausted` with exact policy evidence                                     | don't allocate or degrade silently; hide any noncurrent bitmap and show recovery actions                                  |
-| invalid snapshot, Scene patch, or private batch        | `web_browser_contract_rejected(invalidSnapshot \| invalidPatch \| invalidBatch, correlation)` | apply nothing; request one complete replacement; never log the record                                                     |
-| build mismatch                                         | `build_fingerprint_mismatch` attachment/outcome reason                                        | cancel the gesture, destroy handles, and force a hard reload                                                              |
-| browser font unavailable or asset fingerprint mismatch | `web_renderer_unavailable(fontUnavailable \| assetFingerprintMismatch)`                       | publish local renderer unavailable; use no substitute geometry                                                            |
+| Failure                                                | Stable evidence                                                                               | Required behavior                                                                                                                                        |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2D context unavailable                                 | `web_renderer_unavailable(contextUnavailable)`                                                | hide the bitmap; show the renderer-unavailable state and recovery actions                                                                                |
+| effective size/pixel policy exceeded                   | `web_browser_policy_exhausted` with exact policy evidence                                     | don't allocate or degrade silently; hide any noncurrent bitmap and show recovery actions                                                                 |
+| invalid snapshot, Scene patch, or private batch        | `web_browser_contract_rejected(invalidSnapshot \| invalidPatch \| invalidBatch, correlation)` | apply nothing; request one complete replacement; never log the record                                                                                    |
+| build mismatch                                         | `build_fingerprint_mismatch` attachment/outcome reason                                        | cancel the gesture, destroy handles, and force a hard reload                                                                                             |
+| browser font unavailable or asset fingerprint mismatch | `web_renderer_unavailable(fontUnavailable \| assetFingerprintMismatch)`                       | publish local renderer unavailable; use no substitute geometry                                                                                           |
 | context loss/restoration when supported                | no evidence if restored; otherwise `web_renderer_unavailable(contextLost)`                    | suspend painting and semantic gestures, cancel pending viewport commits, and fully redraw after restoration; fail closed if restoration doesn't complete |
-| circuit disconnect                                     | Web-owned connection state, not a Diagnostic                                                  | freeze acknowledged semantic state, cancel the commit-capable gesture, and allow local pan/zoom only                      |
-| JavaScript exception                                   | `web_interop_failure(correlation)`                                                            | fail the affected adapter closed, show recovery UI, and expose no payload or exception text                               |
+| circuit disconnect                                     | Web-owned connection state, not a Diagnostic                                                  | freeze acknowledged semantic state, cancel the commit-capable gesture, and allow local pan/zoom only                                                     |
+| JavaScript exception                                   | `web_interop_failure(correlation)`                                                            | fail the affected adapter closed, show recovery UI, and expose no payload or exception text                                                              |
 
 No browser failure mutates the Project Document, Session, Trace, or Workspace. A prior bitmap may remain visible only while it is explicitly identified as the last acknowledged version; it is hidden as soon as it could be mistaken for a rejected newer Project Revision. Reload and snapshot refresh are explicit recovery actions; repeated exceptions are bounded and never create a hot retry/frame loop.
 

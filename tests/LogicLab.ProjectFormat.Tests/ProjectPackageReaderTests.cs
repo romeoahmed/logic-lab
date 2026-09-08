@@ -47,7 +47,7 @@ internal sealed class ProjectPackageReaderTests
     [Test]
     public async Task ReadAsync_ConnectedDefinitionInstance_RoundTripsOpaquePortIdentity()
     {
-        var revision = ProjectPackageWriterTests.CreateFullyPopulatedRevision();
+        var revision = CreateFullyPopulatedRevision();
         var main = revision.Document.EntryCircuitDefinition;
         var child = revision.Document.CircuitDefinitions.Single(item => item.DisplayName == "Child");
         var call = main.ComponentInstances.Single(item => item.DisplayName == "Child call");
@@ -463,6 +463,54 @@ internal sealed class ProjectPackageReaderTests
     }
 
     [Test]
+    [Arguments("\\u9879\\u76ee", "项目")]
+    [Arguments("\\ud83d\\uDE00", "😀")]
+    [Arguments("\\uDBFF\\udfff", "\U0010ffff")]
+    public async Task ReadAsync_UnicodeEscapes_RestoreCanonicalScalars(string escaped, string expected)
+    {
+        await using var carrier = await WriteAsync(BeginProject("Escaped name", "Main"));
+        var entries = ReadEntries(carrier.Stream);
+        entries["project.json"] = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(entries["project.json"])
+            .Replace("Escaped name", escaped, StringComparison.Ordinal));
+        RefreshIntegrity(entries);
+        await using var changed = WriteEntries(entries);
+
+        var outcome = await ReadAsync(changed);
+
+        var succeeded = (await Assert.That(outcome).IsTypeOf<PackageReadSucceeded>())!;
+        await Assert.That(succeeded.ImportCandidate.Document.DisplayName).IsEqualTo(expected);
+    }
+
+    [Test]
+    [Arguments("\\uD800")]
+    [Arguments("\\uDC00")]
+    [Arguments("\\uD800\\u0041")]
+    [Arguments("\\uD800\\uD800")]
+    [Arguments("\\uDFFF\\uD800")]
+    [Arguments("\\u12G4")]
+    [Arguments("\\u123")]
+    public async Task ReadAsync_InvalidUnicodeEscape_RejectsSyntax(string escaped)
+    {
+        await using var carrier = await WriteAsync(BeginProject("Escaped name", "Main"));
+        var entries = ReadEntries(carrier.Stream);
+        entries["project.json"] = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(entries["project.json"])
+            .Replace("Escaped name", escaped, StringComparison.Ordinal));
+        RefreshIntegrity(entries);
+        await using var changed = WriteEntries(entries);
+
+        var outcome = await ReadAsync(changed);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
+        var diagnostic = rejected.Diagnostics.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(diagnostic.Code).IsEqualTo("package_json_invalid");
+            await Assert.That(diagnostic.Arguments)
+                .Contains(new PackageDiagnosticArgument("rule", "syntax"));
+        }
+    }
+
+    [Test]
     public async Task ReadAsync_StringLimitPrecedesFullEscapeDecoding()
     {
         var revision = BeginProject("Bounded string", "Main");
@@ -588,7 +636,7 @@ internal sealed class ProjectPackageReaderTests
         bool removeRequiredMember)
     {
         await using var carrier = await WriteAsync(
-            ProjectPackageWriterTests.CreateFullyPopulatedRevision());
+            CreateFullyPopulatedRevision());
         var entries = ReadEntries(carrier.Stream);
         var original = JsonNode.Parse(entries[partName])!;
         var records = JsonObjects(original).Select((record, index) => (record, index))
@@ -644,7 +692,7 @@ internal sealed class ProjectPackageReaderTests
             new PlaceComponentInstanceIntent(
                 revision.Document.EntryCircuitDefinitionId,
                 new LogicLab.Domain.Components.ComponentContractKey(
-                    LogicLab.Domain.Components.CoreLibrarySchema.LibraryId,
+                    LibrarySnapshot.Core.LibraryId,
                     "logic.not"),
                 [new ComponentParameterBinding(
                     "width",
@@ -823,11 +871,39 @@ internal sealed class ProjectPackageReaderTests
         }
     }
 
+    [Test]
+    public async Task ReadAsync_EscapedDiscriminatorsAfterPayload_PreserveProjectMeaning()
+    {
+        await using var carrier = await WriteAsync(
+            CreateFullyPopulatedRevision());
+        var entries = ReadEntries(carrier.Stream);
+        var project = JsonNode.Parse(entries["project.json"])!;
+        foreach (var record in JsonObjects(project))
+        {
+            if (record.Remove("kind", out var discriminator))
+            {
+                record.Add("kind", discriminator);
+            }
+        }
+
+        entries["project.json"] = Encoding.UTF8.GetBytes(project.ToJsonString()
+            .Replace("\"kind\"", "\"\\u006bind\"", StringComparison.Ordinal)
+            .Replace("libraryContract", "\\u006cibraryContract", StringComparison.Ordinal));
+        RefreshIntegrity(entries);
+        await using var reordered = WriteEntries(entries);
+
+        var outcome = await ReadAsync(reordered);
+
+        var succeeded = (await Assert.That(outcome).IsTypeOf<PackageReadSucceeded>())!;
+        await Assert.That(succeeded.ProjectContentDigest)
+            .IsEqualTo(((PackageWriteSucceeded)carrier.Outcome).ProjectContentDigest);
+    }
+
     [Test, FsCheckProperty(MaxTest = 30)]
     public async Task ReadAsync_LegalJsonPermutations_ProduceIdenticalCanonicalBytes(
         NonNegativeInt permutationSeed)
     {
-        var revision = ProjectPackageWriterTests.CreateFullyPopulatedRevision();
+        var revision = CreateFullyPopulatedRevision();
         await using var canonicalCarrier = await WriteAsync(revision);
         var canonicalWrite = (PackageWriteSucceeded)canonicalCarrier.Outcome;
         var canonicalEntries = ReadEntries(canonicalCarrier.Stream);

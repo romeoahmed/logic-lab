@@ -39,8 +39,7 @@ internal static partial class AccountEndpointRouteBuilderExtensions
                                 loggerFactory.CreateLogger(LogCategory),
                                 correlation,
                                 string.Join(",", result.Errors.Select(error => error.Code)),
-                                LogicLabProblemDetails.AuthenticationRevocationFailedCode,
-                                exception: null);
+                                LogicLabProblemDetails.AuthenticationRevocationFailedCode);
                             return LogicLabProblemDetails.Create(
                                 httpContext,
                                 LogicLabProblemDetails.AuthenticationRevocationFailedCode,
@@ -57,8 +56,7 @@ internal static partial class AccountEndpointRouteBuilderExtensions
                             loggerFactory.CreateLogger(LogCategory),
                             correlation,
                             identityErrorCodes: string.Empty,
-                            LogicLabProblemDetails.AuthenticationRevocationFailedCode,
-                            exception);
+                            LogicLabProblemDetails.AuthenticationRevocationFailedCode);
                         return LogicLabProblemDetails.Create(
                             httpContext,
                             LogicLabProblemDetails.AuthenticationRevocationFailedCode,
@@ -125,6 +123,5 @@ internal static partial class AccountEndpointRouteBuilderExtensions
         ILogger logger,
         string correlation,
         string identityErrorCodes,
-        string outcomeCode,
-        Exception? exception);
+        string outcomeCode);
 }

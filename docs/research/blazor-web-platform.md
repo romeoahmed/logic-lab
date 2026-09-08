@@ -1,12 +1,12 @@
 # Blazor Web Platform Evidence
 
-> Sources reviewed: 2026-08-30
+> Sources reviewed: 2026-09-07
 > Scope: hosting, render modes, browser/server ownership, lifecycle, and Interactive Server constraints
 > Authority: this note records external evidence; [Architecture](../architecture.md) and [Product](../product.md) own project decisions
 
 ## Hosting model
 
-Logic Lab uses Static Server Rendering for conventional pages and per-page Interactive Server rendering for the authenticated editor. The editor keeps its authoritative Workspace and managed engine on the server while collocated JavaScript owns frame-rate Canvas work.
+Logic Lab uses Static Server Rendering for conventional pages and per-page Interactive Server rendering for the editor, including anonymous Sandboxes. The editor keeps its authoritative Workspace and managed engine on the server while collocated JavaScript owns frame-rate Canvas work.
 
 Microsoft documents Static SSR, Interactive Server, Interactive WebAssembly, and Interactive Auto as per-component render modes; interactive modes prerender by default ([render modes](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/render-modes?view=aspnetcore-10.0)). WebAssembly and Auto require browser-compatible dependencies and, for Auto, valid server and client execution paths. Those constraints add no value to the V1 server-owned Workspace.
 
@@ -24,6 +24,22 @@ The editor therefore:
 
 Disabling prerender is a targeted fallback for a browser-only surface, not the default response to duplicate initialization.
 
+Enhanced navigation preserves page state while patching the document. The links that
+intentionally leave an existing editor for the new-Workspace chooser set
+`data-enhance-nav="false"`, giving the chooser a fresh component lifetime
+([enhanced navigation](https://learn.microsoft.com/en-us/aspnet/core/blazor/fundamentals/navigation?view=aspnetcore-10.0#enhanced-navigation-and-form-handling)).
+
+A component can be reentered after every incomplete `await`, including by disposal.
+Late results must verify component lifetime before publishing state, and late-created
+interop references still need cleanup ([synchronization context](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/synchronization-context?view=aspnetcore-10.0)).
+
+The package picker uses the framework's `InputFile` and its native change event
+([file uploads](https://learn.microsoft.com/en-us/aspnet/core/blazor/file-uploads?view=aspnetcore-10.0)).
+The Fluent UI 5 RC5 file-picker wrapper produced a disposed-JavaScript-reference
+exception when a late attachment rejection removed the command bar during its
+initialization. A labeled native file input needs no extra anchor-binding module;
+the existing bounded stream import workflow still owns reading and validation.
+
 ## Browser adapter boundary
 
 | Platform fact                                                                                                                                                                                                                                                                                                                                                                                                                                        | Consequence                                                                                                                |
@@ -38,6 +54,27 @@ Disabling prerender is a targeted fallback for a browser-only surface, not the d
 | Interactive Server already uses SignalR; inbound messages default to 32 KB and Blazor permits one parallel invocation per client ([SignalR guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/fundamentals/signalr?view=aspnetcore-10.0)).                                                                                                                                                                                               | Pointer samples and dense windows stay local or use dedicated transfer; the global hub limit is not a tuning escape hatch. |
 
 These facts yield one ownership rule: browser adapters own dense pixels, pointer sampling, transforms, hit testing, previews, paint scheduling, and transient view state. Razor owns forms, commands, navigation, status, and recovery. [ADR 0008](../adr/0008-use-one-canvas-editor-surface.md) records the single-Canvas product boundary.
+
+Signal readouts are unsigned fixed-width Logic Vectors. .NET's `BigInteger` `X`
+format preserves a sign bit and can prepend a zero even when a precision is
+specified ([numeric format strings](https://learn.microsoft.com/en-us/dotnet/standard/base-types/standard-numeric-format-strings#hexadecimal-format-specifier-x)).
+Hexadecimal readouts therefore compose digits from the signal bits; decimal
+readouts use unsigned `BigInteger`. Browser bus labels convert decoded typed-array
+symbols into an ordinary string array before joining, preserving `X` and `Z`.
+
+Canvas language affects text shaping. Razor declares the resolved UI culture on
+the Canvas element; measurement and drawing also set the matching context language
+when the browser exposes `CanvasRenderingContext2D.lang`. This property is not yet
+available across all browsers, so the explicit element language remains the
+inheritance source ([HTML Canvas language](https://html.spec.whatwg.org/multipage/canvas.html#dom-context-2d-lang),
+[compatibility and inheritance](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lang)).
+
+Fluent's typography uses a platform font stack and exposes a base font token
+([Fluent typography](https://fluent2.microsoft.design/typography)). The host assigns
+its packaged Latin and Chinese UI faces to the Fluent base font token as well as
+ordinary page text. The Chinese UI face is available before any Canvas mounts;
+it uses a separate family name from the digest-verified Scene face so CSS loading
+cannot substitute for Scene asset verification.
 
 ## Circuit and background-work lifetime
 
@@ -55,6 +92,12 @@ A custom SignalR Hub is unnecessary while the Blazor circuit carries low-rate co
 ## Interactive Server security
 
 Every Workspace, Project, Session, Operation, Proposal, upload, and download action authorizes independently; a locator ID or an existing circuit is not authority.
+
+Error responses omit request paths because download routes contain private tickets.
+The ASP.NET Core 10 default Problem Details writer overwrites `traceId` before
+calling `CustomizeProblemDetails`; the host uses that callback to preserve the
+application's logged correlation ([writer implementation](https://github.com/dotnet/aspnetcore/blob/v10.0.0/src/Http/Http.Extensions/src/DefaultProblemDetailsWriter.cs),
+[error-response guidance](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling?view=aspnetcore-10.0)).
 
 Interactive Server compression can create a side channel when secrets and attacker-controlled content share a compressed response. Secrets do not enter the editor stream, and response compression around sensitive interactive content follows Microsoft's [threat-mitigation guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/security/interactive-server-side-rendering?view=aspnetcore-10.0).
 

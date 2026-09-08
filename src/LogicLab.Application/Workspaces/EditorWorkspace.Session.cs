@@ -235,14 +235,7 @@ internal sealed partial class EditorWorkspace
             return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
         }
 
-        state.Simulation = new SimulationProjection(
-            simulation.SessionId,
-            scheduled.SessionVersion,
-            simulation.CompilationArtifactKey,
-            simulation.LogicalTime,
-            simulation.TraceCursor,
-            simulation.Probes,
-            simulation.Run);
+        state.Simulation = simulation.WithSessionVersion(scheduled.SessionVersion);
         state.ProjectionVersion++;
         return new StimulusScheduled(
             scheduled.SessionVersion,
@@ -286,7 +279,7 @@ internal sealed partial class EditorWorkspace
         {
             var reason = AdvanceFailureReasonFrom(exception);
             var correlation = ApplicationCorrelation.CurrentOrCreate();
-            LogAdvanceFailure(logger, exception, correlation, reason);
+            LogAdvanceFailure(logger, correlation, reason);
             return AdvanceFailure(
                 simulation,
                 reason,
@@ -318,14 +311,15 @@ internal sealed partial class EditorWorkspace
             return Reject(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
         }
 
-        state.Simulation = new SimulationProjection(
+        state.Simulation = SimulationProjection.FromOwnedProbes(
             simulation.SessionId,
             committed.SessionVersion,
             simulation.CompilationArtifactKey,
             committed.LogicalTime,
             committed.TraceCursor,
             ApplyProbePatch(simulation.Probes, committed.ObservedProbePatch),
-            simulation.Run);
+            simulation.Run,
+            committed.Diagnostics);
         state.ProjectionVersion++;
         return new SessionStepped(committed, state.ProjectionVersion);
     }
@@ -387,7 +381,8 @@ internal sealed partial class EditorWorkspace
             priorSimulation.LogicalTime,
             replaced.TraceCursor,
             ProjectProbes(replaced.ObservedProbes),
-            priorSimulation.Run);
+            priorSimulation.Run,
+            priorSimulation.Diagnostics);
         state.ProjectionVersion++;
         return new ProbesReplaced(
             replaced.SessionVersion,
@@ -482,7 +477,6 @@ internal sealed partial class EditorWorkspace
         Message = "Session advance failed with correlation {Correlation} and reason {Reason}.")]
     private static partial void LogAdvanceFailure(
         ILogger logger,
-        Exception exception,
         string correlation,
         AdvanceFailureReason reason);
 
@@ -499,7 +493,7 @@ internal sealed partial class EditorWorkspace
                 return probe;
             }
 
-            return new ProbeProjection(
+            return ProbeProjection.FromOwnedValue(
                 observation.ProbeId,
                 observation.Source,
                 Values(observation.Value));
@@ -570,7 +564,8 @@ internal sealed partial class EditorWorkspace
             snapshot.LogicalTime,
             snapshot.TraceCursor,
             ProjectProbes(snapshot.Probes),
-            RunNotRunningProjection.Instance);
+            RunNotRunningProjection.Instance,
+            snapshot.Diagnostics);
         return null;
     }
 
@@ -644,7 +639,8 @@ internal sealed partial class EditorWorkspace
             priorSimulation.LogicalTime,
             committed.TraceCursor,
             ProjectProbes(committed.ObservedProbes),
-            priorSimulation.Run);
+            priorSimulation.Run,
+            committed.Diagnostics);
         state.ProjectionVersion++;
         return new HotSwapCommitted(
             committed.SessionVersion,

@@ -10,18 +10,6 @@ internal static class ZipCentralDirectory
     private const uint Zip64EndOfCentralDirectorySignature = 0x06064b50;
     private const uint Zip64EndOfCentralDirectoryLocatorSignature = 0x07064b50;
 
-    public static async Task<ZipCentralDirectoryInfo> ReadInfoAsync(
-        FileStream spool,
-        CancellationToken cancellationToken)
-    {
-        var location = await ReadLocationAsync(spool, cancellationToken)
-            .ConfigureAwait(false);
-        return new ZipCentralDirectoryInfo(
-            location.EntryCount,
-            location.Offset,
-            location.Length);
-    }
-
     public static async Task<ZipUnsupportedFeature?> FindUnsupportedFeatureAsync(
         FileStream spool,
         ZipCentralDirectoryInfo directory,
@@ -226,7 +214,7 @@ internal static class ZipCentralDirectory
         throw new InvalidDataException("The ZIP64 extra field is missing.");
     }
 
-    private static async Task<CentralDirectoryLocation> ReadLocationAsync(
+    public static async Task<ZipCentralDirectoryInfo> ReadInfoAsync(
         FileStream spool,
         CancellationToken cancellationToken)
     {
@@ -272,13 +260,13 @@ internal static class ZipCentralDirectory
                     spool,
                     endRecordOffset,
                     cancellationToken).ConfigureAwait(false)
-                : new CentralDirectoryLocation(
+                : new ZipCentralDirectoryInfo(
                     totalEntries,
                     directoryOffset,
                     directoryLength);
     }
 
-    private static async Task<CentralDirectoryLocation> ReadZip64LocationAsync(
+    private static async Task<ZipCentralDirectoryInfo> ReadZip64LocationAsync(
         FileStream spool,
         long endRecordOffset,
         CancellationToken cancellationToken)
@@ -336,7 +324,7 @@ internal static class ZipCentralDirectory
             throw new InvalidDataException("Split ZIP64 archives are unsupported.");
         }
 
-        return new CentralDirectoryLocation(
+        return new ZipCentralDirectoryInfo(
             totalEntries,
             BinaryPrimitives.ReadUInt64LittleEndian(record.AsSpan(48)),
             BinaryPrimitives.ReadUInt64LittleEndian(record.AsSpan(40)));
@@ -363,10 +351,6 @@ internal static class ZipCentralDirectory
         return -1;
     }
 
-    private sealed record CentralDirectoryLocation(
-        ulong EntryCount,
-        ulong Offset,
-        ulong Length);
 }
 
 internal sealed record ZipCentralDirectoryInfo(

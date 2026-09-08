@@ -19,6 +19,14 @@
         {
             <article @key="item.Key" data-selection-item="@item.Key">
                 <h3>@item.Title</h3>
+                @if (item.Probe is { } probe)
+                {
+                    <FluentButton Appearance="ButtonAppearance.Subtle" Size="ButtonSize.Small"
+                                  data-observe-probe="@probe.ProbeId" Title="@Text["ObserveProbe"]"
+                                  OnClick="@(() => OnObserveProbe.InvokeAsync(probe.ProbeId))">
+                        <ProbeIdentityCue ProbeId="@probe.ProbeId" Label="@probe.Label" />
+                    </FluentButton>
+                }
                 <dl>
                     @foreach (var fact in item.Facts)
                     {

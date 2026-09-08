@@ -250,7 +250,7 @@ internal sealed class OpenDurableWorkspaceTests
         {
             await Assert.That(rejected.Code).IsEqualTo("workspace_internal_defect");
             await Assert.That(log.Level).IsEqualTo(Microsoft.Extensions.Logging.LogLevel.Error);
-            await Assert.That(log.Exception).IsTypeOf<InvalidOperationException>();
+            await Assert.That(log.Exception).IsNull();
             await Assert.That(log.Properties["Correlation"])
                 .IsEqualTo(activity.TraceId.ToHexString());
             await Assert.That(log.Properties["Stage"]).IsEqualTo("load");
@@ -730,7 +730,7 @@ internal sealed class OpenDurableWorkspaceTests
             revision,
             new PlaceComponentInstanceIntent(
                 revision.Document.EntryCircuitDefinitionId,
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
+                new ComponentContractKey(LibrarySnapshot.Core.LibraryId, contractId),
                 parameters,
                 new ComponentPlacement(origin))));
     }

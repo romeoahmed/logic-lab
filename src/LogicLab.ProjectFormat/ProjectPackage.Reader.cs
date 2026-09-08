@@ -230,9 +230,7 @@ public static partial class ProjectPackage
             observations,
             cancellationToken).ConfigureAwait(false);
         ValidateJson(manifestBytes, policy, observations, cancellationToken);
-        await ValidateMembersAsync(
-                manifestBytes, ReadJsonContext.PackageManifestDtoV1, cancellationToken)
-            .ConfigureAwait(false);
+        ValidateMembers(manifestBytes, ReadJsonContext.PackageManifestDtoV1, cancellationToken);
         using var manifestStream = new MemoryStream(manifestBytes, writable: false);
         var manifest = await JsonSerializer.DeserializeAsync(
             manifestStream,
@@ -287,9 +285,7 @@ public static partial class ProjectPackage
             cancellationToken).ConfigureAwait(false);
 
         ValidateJson(projectBytes, policy, observations, cancellationToken);
-        await ValidateMembersAsync(
-                projectBytes, ReadJsonContext.ProjectDocumentDtoV1, cancellationToken)
-            .ConfigureAwait(false);
+        ValidateMembers(projectBytes, ReadJsonContext.ProjectDocumentDtoV1, cancellationToken);
         using var projectStream = new MemoryStream(projectBytes, writable: false);
         var project = await JsonSerializer.DeserializeAsync(
             projectStream,

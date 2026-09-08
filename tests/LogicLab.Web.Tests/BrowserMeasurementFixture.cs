@@ -26,12 +26,12 @@ internal static class BrowserMeasurementFixture
                 + $"{measurement.InkBottom}"));
         var fontFingerprint = Convert.ToHexStringLower(SHA256.HashData(
             Encoding.UTF8.GetBytes(
-                $"logiclab-browser-font-v1\nAtkinson Hyperlegible Next\n"
+                $"logiclab-browser-font-v1\nNoto Sans SC\n"
                 + $"{assetFingerprint}\n{canonical}")));
         return JsonSerializer.SerializeToElement(
             new
             {
-                FontFamily = "Atkinson Hyperlegible Next",
+                FontFamily = "Noto Sans SC",
                 AssetFingerprint = assetFingerprint,
                 FontFingerprint = fontFingerprint,
                 Measurements = measurements,

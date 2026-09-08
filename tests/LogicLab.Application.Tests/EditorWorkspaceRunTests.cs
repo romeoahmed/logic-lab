@@ -546,14 +546,17 @@ internal sealed partial class EditorWorkspaceRunTests
     {
         var advanceGate = new BlockingOperationGate();
         var activeCalls = 0;
-        var maximumConcurrentCalls = 0;
+        var concurrentCallDetected = 0;
         var production = WorkspaceModuleOperations.Production;
         var operations = production with
         {
             ExecuteSimulation = (handle, command, operationCancellationToken) =>
             {
                 var concurrent = Interlocked.Increment(ref activeCalls);
-                maximumConcurrentCalls = Math.Max(maximumConcurrentCalls, concurrent);
+                if (concurrent > 1)
+                {
+                    Interlocked.Exchange(ref concurrentCallDetected, 1);
+                }
                 try
                 {
                     if (command is AdvanceToNextQuiescentBoundary)
@@ -600,7 +603,7 @@ internal sealed partial class EditorWorkspaceRunTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(maximumConcurrentCalls).IsEqualTo(1);
+            await Assert.That(Volatile.Read(ref concurrentCallDetected)).IsEqualTo(0);
             await Assert.That(paused.RunGeneration).IsEqualTo(started.RunGeneration);
             await Assert.That(paused.Reason).IsEqualTo(RunPauseReason.UserRequested);
             await Assert.That(afterPause.Simulation!.LogicalTime).IsEqualTo(5UL);

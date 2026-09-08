@@ -81,19 +81,16 @@ internal static class VectorLogic
             width = checked(width + inputs[index].Width);
         }
 
-        var values = new LogicValue[width];
+        var lowBits = new ulong[LogicVector.GetWordCount(width)];
+        var highBits = new ulong[lowBits.Length];
         var offset = 0;
         foreach (var input in inputs)
         {
-            for (var index = 0; index < input.Width; index++)
-            {
-                values[offset + index] = ScalarLogic.NormalizeInput(input[index]);
-            }
-
+            CopyNormalizedWords(input, offset, lowBits, highBits);
             offset = checked(offset + input.Width);
         }
 
-        return new LogicVector(values);
+        return LogicVector.CreateFromOwnedWords(width, lowBits, highBits);
     }
 
     public static LogicVector ZeroExtend(LogicVector input, int outputWidth)
@@ -119,17 +116,47 @@ internal static class VectorLogic
                 "The extension width must exceed the input width.");
         }
 
-        var values = new LogicValue[outputWidth];
-        for (var index = 0; index < input.Width; index++)
+        var fill = signExtend
+            ? ScalarLogic.NormalizeInput(input[input.Width - 1])
+            : LogicValue.Zero;
+        var fillLow = fill == LogicValue.One ? ulong.MaxValue : 0UL;
+        var fillHigh = fill == LogicValue.X ? ulong.MaxValue : 0UL;
+        var lowBits = new ulong[LogicVector.GetWordCount(outputWidth)];
+        var highBits = new ulong[lowBits.Length];
+        for (var index = 0; index < lowBits.Length; index++)
         {
-            values[index] = ScalarLogic.NormalizeInput(input[index]);
+            var hasInput = index < input.WordCount;
+            var high = hasInput ? input.GetHighWord(index) : 0UL;
+            var low = hasInput ? input.GetLowWord(index) & ~high : 0UL;
+            var extensionMask = hasInput ? ~LogicVector.GetWordMask(input.Width, index) : ulong.MaxValue;
+            lowBits[index] = low | (fillLow & extensionMask);
+            highBits[index] = high | (fillHigh & extensionMask);
         }
 
-        var fill = signExtend
-            ? values[input.Width - 1]
-            : LogicValue.Zero;
-        Array.Fill(values, fill, input.Width, outputWidth - input.Width);
-        return new LogicVector(values);
+        return LogicVector.CreateFromOwnedWords(outputWidth, lowBits, highBits);
+    }
+
+    private static void CopyNormalizedWords(
+        LogicVector input,
+        int offset,
+        Span<ulong> lowBits,
+        Span<ulong> highBits)
+    {
+        var destinationWord = offset / LogicVector.BitsPerWord;
+        var shift = offset % LogicVector.BitsPerWord;
+        for (var index = 0; index < input.WordCount; index++)
+        {
+            var high = input.GetHighWord(index);
+            var low = input.GetLowWord(index) & ~high;
+            var target = destinationWord + index;
+            lowBits[target] |= low << shift;
+            highBits[target] |= high << shift;
+            if (shift != 0 && target + 1 < lowBits.Length)
+            {
+                lowBits[target + 1] |= low >> (LogicVector.BitsPerWord - shift);
+                highBits[target + 1] |= high >> (LogicVector.BitsPerWord - shift);
+            }
+        }
     }
 
     private static LogicVector ApplyBinary(

@@ -10,6 +10,132 @@ namespace LogicLab.Application.Tests;
 internal sealed class EditorWorkspaceFailureTests
 {
     [Test, Timeout(30_000)]
+    public async Task DisposeAsync_QueuedRunContinuation_ReleasesLeaseAndClosesSession(
+        CancellationToken cancellationToken)
+    {
+        var advanceGate = new BlockingOperationGate();
+        var openGate = new BlockingOperationGate();
+        var opens = 0;
+        var closes = 0;
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            OpenSimulation = (request, token) =>
+            {
+                if (Interlocked.Increment(ref opens) == 2)
+                {
+                    openGate.Block(token);
+                }
+
+                return production.OpenSimulation(request, token);
+            },
+            ExecuteSimulation = (handle, command, token) =>
+            {
+                if (command is AdvanceToNextQuiescentBoundary)
+                {
+                    advanceGate.Block(token);
+                }
+
+                return production.ExecuteSimulation(handle, command, token);
+            },
+            CloseSimulation = handle =>
+            {
+                Interlocked.Increment(ref closes);
+                return production.CloseSimulation(handle);
+            },
+        };
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
+            operations, schedulingPolicy: TestEditorWorkspaceFactory.SchedulingPolicyWithQueues(4, 4));
+        var running = await OpenCompiledCircuit(workspace, cancellationToken);
+        var blocker = await OpenCompiledCircuit(workspace, cancellationToken);
+        var runningProjection = await Read(workspace, running);
+        var blockerProjection = await Read(workspace, blocker);
+        _ = await workspace.DispatchAsync(
+            new CreateSession(EditorWorkspaceTestDriver.Command(running.WorkspaceId, running.Attached),
+                EditorWorkspaceTestDriver.SessionCreation(runningProjection),
+                SessionConfigurationV1.ForEntryOutputs(runningProjection.ProjectRevision)), cancellationToken);
+        runningProjection = await Read(workspace, running);
+        var input = await Find(workspace, running, "source.input");
+        _ = await workspace.DispatchAsync(EditorWorkspaceTestDriver.ScheduleInput(
+            EditorWorkspaceTestDriver.Command(running.WorkspaceId, running.Attached),
+            EditorWorkspaceTestDriver.SessionMutation(runningProjection), 1, input.Id, [LogicValue.One]),
+            cancellationToken);
+        runningProjection = await Read(workspace, running);
+        try
+        {
+            _ = await workspace.DispatchAsync(new StartRun(
+                EditorWorkspaceTestDriver.Command(running.WorkspaceId, running.Attached),
+                EditorWorkspaceTestDriver.SessionMutation(runningProjection)), cancellationToken);
+            await advanceGate.Started.WaitAsync(cancellationToken);
+            var blockedCreation = workspace.DispatchAsync(
+                new CreateSession(EditorWorkspaceTestDriver.Command(blocker.WorkspaceId, blocker.Attached),
+                    EditorWorkspaceTestDriver.SessionCreation(blockerProjection),
+                    SessionConfigurationV1.ForEntryOutputs(blockerProjection.ProjectRevision)), cancellationToken);
+            advanceGate.Release();
+            await openGate.Started.WaitAsync(cancellationToken);
+
+            await workspace.DisposeAsync();
+            await blockedCreation;
+            await Assert.That(closes).IsEqualTo(1);
+        }
+        finally
+        {
+            advanceGate.Release();
+            openGate.Release();
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task DispatchAsync_CloseCancelledWhileWaiting_RejectsWithoutClosingWorkspace(
+        CancellationToken cancellationToken)
+    {
+        var sessionGate = new BlockingOperationGate();
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            OpenSimulation = (request, token) =>
+            {
+                sessionGate.Block(token);
+                return production.OpenSimulation(request, token);
+            },
+        };
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(operations);
+        var opened = await OpenCompiledCircuit(workspace, cancellationToken);
+        var before = ((ProjectionSnapshot)await workspace.ReadAsync(
+            EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
+            ReadProjection.Instance, cancellationToken)).Projection;
+        var creation = workspace.DispatchAsync(
+            new CreateSession(
+                EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
+                EditorWorkspaceTestDriver.SessionCreation(before),
+                SessionConfigurationV1.ForEntryOutputs(before.ProjectRevision)),
+            cancellationToken);
+        WorkspaceCommandOutcome closeOutcome;
+        try
+        {
+            await sessionGate.Started.WaitAsync(cancellationToken);
+            using var closeCancellation = new CancellationTokenSource();
+            var closing = workspace.DispatchAsync(
+                new CloseWorkspace(EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached)),
+                closeCancellation.Token);
+            closeCancellation.Cancel();
+            closeOutcome = await closing.WaitAsync(cancellationToken);
+        }
+        finally
+        {
+            sessionGate.Release();
+        }
+
+        await creation;
+        var after = await workspace.ReadAsync(
+            EditorWorkspaceTestDriver.Query(opened.WorkspaceId, opened.Attached),
+            ReadProjection.Instance, cancellationToken);
+        var rejected = (await Assert.That(closeOutcome).IsTypeOf<WorkspaceCommandRejected>())!;
+        await Assert.That(rejected.Code).IsEqualTo(WorkspaceOutcomeReasons.WorkspaceCancelled);
+        await Assert.That(after).IsTypeOf<ProjectionSnapshot>();
+    }
+
+    [Test, Timeout(30_000)]
     public async Task DispatchAsync_CompilationPublicationThrows_RejectsAcceptedGeneration(
         CancellationToken cancellationToken)
     {
@@ -573,7 +699,7 @@ internal sealed class EditorWorkspaceFailureTests
         var definitionId = opened.Projection.ProjectRevision.Document.EntryCircuitDefinitionId;
         await Apply(workspace, opened, new PlaceComponentInstanceIntent(
             definitionId,
-            new ComponentContractKey(CoreLibrarySchema.LibraryId, "source.input"),
+            new ComponentContractKey(LibrarySnapshot.Core.LibraryId, "source.input"),
             [
                 new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
                 new ComponentParameterBinding(
@@ -584,7 +710,7 @@ internal sealed class EditorWorkspaceFailureTests
         var input = await Find(workspace, opened, "source.input");
         await Apply(workspace, opened, new PlaceComponentInstanceIntent(
             definitionId,
-            new ComponentContractKey(CoreLibrarySchema.LibraryId, "sink.output"),
+            new ComponentContractKey(LibrarySnapshot.Core.LibraryId, "sink.output"),
             [
                 new ComponentParameterBinding("width", new Unsigned32ParameterValue(1)),
                 new ComponentParameterBinding("radix", new ChoiceParameterValue("binary")),

@@ -169,7 +169,7 @@ internal sealed class SteeringComponentContractTests
             genesis.Revision,
             new PlaceComponentInstanceIntent(
                 genesis.Revision.Document.EntryCircuitDefinitionId,
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, "logic.and"),
+                new ComponentContractKey(LibrarySnapshot.Core.LibraryId, "logic.and"),
                 [
                     new ComponentParameterBinding(
                         "width",
@@ -199,8 +199,8 @@ internal sealed class SteeringComponentContractTests
 
     private static ComponentContractSchema Find(string contractId)
     {
-        return CoreLibrarySchema.FindContract(
-            new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId))
+        return LibrarySnapshot.Core.ResolveContract(
+            new ComponentContractKey(LibrarySnapshot.Core.LibraryId, contractId))
             ?? throw new InvalidOperationException($"Missing contract {contractId}.");
     }
 

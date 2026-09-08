@@ -10,6 +10,7 @@ namespace LogicLab.Web;
 internal static class LogicLabProblemDetails
 {
     private const string ProblemTypeBase = "https://logiclab.example/problems/";
+    private static readonly object CorrelationKey = new();
 
     internal const string ProjectOpenRequestInvalidCode =
         "project_open_request_invalid";
@@ -75,8 +76,8 @@ internal static class LogicLabProblemDetails
             Type = $"{ProblemTypeBase}{code}",
             Title = title,
             Status = status,
-            Instance = httpContext.Request.Path,
         };
+        httpContext.Items[CorrelationKey] = correlationToken;
         problem.Extensions["code"] = code;
         problem.Extensions["traceId"] = correlationToken;
         if (policyEvidence is not null)
@@ -88,6 +89,15 @@ internal static class LogicLabProblemDetails
         }
 
         return Results.Problem(problem);
+    }
+
+    internal static void Customize(ProblemDetailsContext context)
+    {
+        // The default writer replaces traceId before invoking this customization.
+        if (context.HttpContext.Items.TryGetValue(CorrelationKey, out var correlation))
+        {
+            context.ProblemDetails.Extensions["traceId"] = correlation;
+        }
     }
 
     private static (int Status, string Title) Describe(

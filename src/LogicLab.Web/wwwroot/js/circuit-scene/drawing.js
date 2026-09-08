@@ -1,4 +1,4 @@
-export function drawOperation(context, operation, styles, symbolFontFamily) {
+export function drawOperation(context, operation, styles, symbolFontFamily, minimumStrokeWidth) {
   if (operation.kind === "text") {
     context.save();
     context.fillStyle = cssColor(styles, "--ll-ink", "#172124");
@@ -6,6 +6,7 @@ export function drawOperation(context, operation, styles, symbolFontFamily) {
     context.textAlign = canvasAlignment(operation.alignment, operation.direction);
     context.textBaseline = "alphabetic";
     context.direction = operation.direction;
+    if ("lang" in context) context.lang = operation.locale;
     context.fillText(operation.text, operation.origin.x, operation.origin.y);
     context.restore();
     return;
@@ -28,7 +29,7 @@ export function drawOperation(context, operation, styles, symbolFontFamily) {
   }
   if (operation.kind === "stroke") {
     context.strokeStyle = cssColor(styles, "--ll-ink", "#172124");
-    context.lineWidth = operation.width;
+    context.lineWidth = Math.max(operation.width, minimumStrokeWidth);
     context.lineCap = operation.lineCap;
     context.lineJoin = operation.lineJoin;
     if (operation.lineJoin === "miter") {

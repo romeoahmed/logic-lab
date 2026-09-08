@@ -59,6 +59,17 @@ internal sealed partial class EditorWorkspaceTests
                 "1",
                 "definition_count",
                 2));
+        var diagnostic = rejected.Diagnostics.Single();
+        await Assert.That(diagnostic.Primary).IsEqualTo(new CompilerProjectRootLocation(
+            beforeCompilation.ProjectRevision.Document.ProjectId));
+        await Assert.That(diagnostic.Arguments).IsEquivalentTo(
+            new CompilerDiagnosticArgument[]
+            {
+                new("policyId", new CompilerStableTokenValue("test-project-scale")),
+                new("policyRevision", new CompilerStableTokenValue("1")),
+                new("dimension", new CompilerStableTokenValue("definition_count")),
+                new("observed", new CompilerUnsignedDecimalValue(2)),
+            }, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -551,7 +562,7 @@ internal sealed partial class EditorWorkspaceTests
                 .IsEqualTo("compilation_invalid");
             await Assert.That(rejectedCompilation.Diagnostics).IsNotEmpty();
             await Assert.That(rejectedCompilation.Diagnostics.All(diagnostic =>
-                    diagnostic.Source?.Identity is InstancePortSourceIdentity))
+                    diagnostic.Primary is CompilerCircuitLocation { Source.Identity: InstancePortSourceIdentity }))
                 .IsTrue();
             await Assert.That(sessionRejection.Code).IsEqualTo("session_precondition_failed");
             await Assert.That(projection.Compilation.Status)
@@ -1276,7 +1287,7 @@ internal sealed partial class EditorWorkspaceTests
     {
         return new PlaceComponentInstanceIntent(
             definitionId,
-            new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
+            new ComponentContractKey(LibrarySnapshot.Core.LibraryId, contractId),
             parameters,
             new ComponentPlacement(origin));
     }

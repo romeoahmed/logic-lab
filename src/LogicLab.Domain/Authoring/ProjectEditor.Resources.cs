@@ -476,8 +476,8 @@ public static partial class ProjectEditor
     private static bool ConnectedPortSchemasMatch(
         CircuitDefinition definition,
         ComponentInstanceId instanceId,
-        IReadOnlyList<ResolvedAuthoringPort> oldPorts,
-        IReadOnlyList<ResolvedAuthoringPort> newPorts)
+        AuthoringPortResolution oldPorts,
+        AuthoringPortResolution newPorts)
     {
         var connectedPortIds = definition.Nets
             .SelectMany(net => net.Terminals)
@@ -490,11 +490,9 @@ public static partial class ProjectEditor
             return true;
         }
 
-        var oldById = oldPorts.ToDictionary(port => port.Id, StringComparer.Ordinal);
-        var newById = newPorts.ToDictionary(port => port.Id, StringComparer.Ordinal);
         return connectedPortIds.All(portId =>
-            oldById.TryGetValue(portId, out var oldPort)
-            && newById.TryGetValue(portId, out var newPort)
+            oldPorts.FindPort(portId) is { } oldPort
+            && newPorts.FindPort(portId) is { } newPort
             && oldPort.Direction == newPort.Direction
             && oldPort.Width == newPort.Width);
     }

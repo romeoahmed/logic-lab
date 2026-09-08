@@ -1,4 +1,10 @@
 import {
+  loadSymbolFont,
+  packagedFontSupports,
+  symbolFontFamily,
+  symbolFontAssetFingerprint,
+} from "../../js/circuit-scene/symbol-font.js";
+import {
   canvasAlignment,
   cssColor,
   drawGridLines,
@@ -39,7 +45,6 @@ import {
   isLocale,
   isTextRole,
   isToken,
-  packagedFontSupports,
   sourceKey,
   spatialCellKey,
   validTool,
@@ -153,33 +158,20 @@ class CircuitSceneHandle {
       throw new Error("the packaged symbol font does not cover the requested text");
     }
 
-    const styles = getComputedStyle(this.canvas);
-    const family = styles.getPropertyValue("--ll-scene-font-family").trim();
-    const assetFingerprint = styles.getPropertyValue("--ll-scene-font-asset").trim();
-    if (family !== "Atkinson Hyperlegible Next" || !isDigest(assetFingerprint)) {
-      this.failClosed();
-      await this.notifyFailure("assetFingerprintMismatch");
-      throw new Error("symbol font asset fingerprint is invalid");
-    }
-
-    const font = `400 100px "${family}"`;
-    let faces;
     try {
-      faces = await document.fonts.load(font, "Ag0");
-    } catch {
-      faces = [];
-    }
-    const exactFaceLoaded = faces.some(
-      (face) => face.status === "loaded" && face.family.replaceAll('"', "") === family,
-    );
-    // FontFaceSet.check() only reports whether a future load/font swap is needed; it
-    // explicitly may return true when fallback renders the text, so it cannot prove
-    // glyph coverage. https://www.w3.org/TR/css-font-loading/#font-face-set-check
-    if (!exactFaceLoaded) {
+      await loadSymbolFont();
+    } catch (error) {
       this.failClosed();
-      await this.notifyFailure("fontUnavailable");
-      throw new Error("symbol font is unavailable");
+      await this.notifyFailure(
+        error.message === "assetFingerprintMismatch"
+          ? "assetFingerprintMismatch"
+          : "fontUnavailable",
+      );
+      throw error;
     }
+    this.ensureLive();
+    const family = symbolFontFamily;
+    const assetFingerprint = symbolFontAssetFingerprint;
     this.symbolFontFamily = `"${family}"`;
 
     const measurements = [];
@@ -188,6 +180,7 @@ class CircuitSceneHandle {
       this.context.font = `100px ${this.symbolFontFamily}`;
       this.context.textAlign = canvasAlignment(request.alignment, request.direction);
       this.context.direction = request.direction;
+      if ("lang" in this.context) this.context.lang = request.locale;
       const metrics = this.context.measureText(request.text);
       this.context.restore();
       const measurement = {
@@ -259,8 +252,10 @@ class CircuitSceneHandle {
     this.ensureLive();
     const transfer = this.transfers.get(transferId);
     if (
-      !transfer || transfer.committing ||
-      ordinal !== transfer.nextOrdinal || typeof base64Chunk !== "string"
+      !transfer ||
+      transfer.committing ||
+      ordinal !== transfer.nextOrdinal ||
+      typeof base64Chunk !== "string"
     ) {
       this.transfers.delete(transferId);
       this.rejectBatch("invalid scene transfer batch");
@@ -725,7 +720,7 @@ class CircuitSceneHandle {
       context.save();
       context.translate(item.origin.x, item.origin.y);
       for (const operation of item.operations) {
-        drawOperation(context, operation, styles, this.symbolFontFamily);
+        drawOperation(context, operation, styles, this.symbolFontFamily, 1 / this.viewport.zoom);
       }
       context.restore();
     }
@@ -935,7 +930,7 @@ class CircuitSceneHandle {
       context.globalAlpha = 0.55;
       context.translate(item.origin.x + translateX, item.origin.y + translateY);
       for (const operation of item.operations) {
-        drawOperation(context, operation, styles, this.symbolFontFamily);
+        drawOperation(context, operation, styles, this.symbolFontFamily, 1 / this.viewport.zoom);
       }
     } else if (gesture.tool.kind === "placeComponent") {
       const halfSize = Math.max(snapshot.gridStepPlanUnits * 0.35, 12 / this.viewport.zoom);
@@ -1546,12 +1541,22 @@ class CircuitSceneHandle {
     return sources;
   }
 
-  fitViewport() {
+  revealSelection(sceneVersion) {
+    if (this.destroyed || this.published?.sceneVersion !== sceneVersion) return;
+    const source = this.sourceByKey(this.primarySelectionSource);
+    const target = source ? this.targetBySource(source) : null;
+    this.fitViewport(target?.bounds);
+    this.viewportIsUserControlled = true;
+    this.rememberPublishedViewport();
+    this.invalidate();
+    this.canvas.scrollIntoView({ block: "center", inline: "nearest" });
+  }
+
+  fitViewport(bounds = this.published?.bounds) {
     if (!this.published || !this.cssWidth || !this.cssHeight) {
       return;
     }
 
-    const bounds = this.published.bounds;
     const padding = 32;
     const maximum = Math.min(
       maximumAutomaticGridStepCssPixels / this.published.gridStepPlanUnits,

@@ -1,5 +1,5 @@
+using LogicLab.Application.Examples;
 using LogicLab.Domain.Authoring;
-using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Scene;
 using TUnit.Playwright;
 
@@ -48,6 +48,8 @@ internal sealed class CircuitSceneRenderingTests : PageTest
     [Test]
     [Arguments("inverter")]
     [Arguments("steering")]
+    [Arguments("carry-lookahead")]
+    [Arguments("bit-serial")]
     public async Task ProjectedStarter_RoutedWiresConnectPortsAndReachTheCanvasBitmap(
         string starter)
     {
@@ -56,11 +58,13 @@ internal sealed class CircuitSceneRenderingTests : PageTest
         await scene.MountAsync();
         var example = starter switch
         {
-            "inverter" => StarterExample.Inverter,
-            "steering" => StarterExample.Steering,
+            "inverter" => ExampleProject.Inverter,
+            "steering" => ExampleProject.Steering,
+            "carry-lookahead" => ExampleProject.CarryLookahead,
+            "bit-serial" => ExampleProject.BitSerial,
             _ => throw new ArgumentOutOfRangeException(nameof(starter)),
         };
-        var revision = StarterCircuitFixture.Create(example);
+        var revision = await StarterCircuitFixture.LoadAsync(example);
         var definition = revision.Document.EntryCircuitDefinition;
         var requests = BrowserTextMeasurements.Collect(
             revision,
@@ -81,15 +85,20 @@ internal sealed class CircuitSceneRenderingTests : PageTest
             new BrowserMeasuredTextMeasurer(requests, measurements));
         var snapshot = await Assert.That(replacement).IsTypeOf<SceneSnapshotV1>();
         var projected = snapshot!;
-        await scene.TransferAsync(projected, "replacement");
+        await scene.TransferAsync(projected with
+        {
+            Items = [.. projected.Items.Where(item => item.Source.EntityKind != "wireGeometry")],
+        }, "replacement");
+        await scene.RememberCanvasPixelsAsync();
+        await scene.TransferAsync(projected with { SceneVersion = 2 }, "replacement");
         var anchors = projected.Items
             .SelectMany(item => item.HitRegions
                 .Where(region => region.TargetSource is not null && region.Anchor is not null)
                 .Select(region => KeyValuePair.Create(
-                    region.TargetSource!.Key,
-                    new ScenePoint(
-                        region.Anchor!.Value.X + item.Origin.X,
-                    region.Anchor.Value.Y + item.Origin.Y))))
+                        region.TargetSource!.Key,
+                        new ScenePoint(
+                            region.Anchor!.Value.X + item.Origin.X,
+                            region.Anchor.Value.Y + item.Origin.Y))))
             .ToDictionary(StringComparer.Ordinal);
         var gridStep = projected.GridStepPlanUnits;
         var missingWireInk = new List<string>();
@@ -109,8 +118,9 @@ internal sealed class CircuitSceneRenderingTests : PageTest
                 var contrast = await scene.MaximumCanvasContrastNearWorldPointAsync(
                     midpointX,
                     midpointY,
-                    projected.Bounds);
-                if (contrast <= 300)
+                    projected.Bounds,
+                    compareWithReference: true);
+                if (contrast < 64)
                 {
                     missingWireInk.Add($"{geometry.Id.Value}:{index} ({contrast:F0})");
                 }
@@ -126,6 +136,9 @@ internal sealed class CircuitSceneRenderingTests : PageTest
                 var net = definition.Nets.Single(candidate => candidate.Id == pair.Geometry.NetId);
                 var actual = net.Terminals
                     .Select(terminal => anchors[TerminalSource(terminal).Key])
+                    .Concat(definition.Junctions.Where(junction => junction.NetId == net.Id)
+                        .Select(junction => new ScenePoint(junction.Position.X * gridStep,
+                            junction.Position.Y * gridStep)))
                     .OrderBy(point => point.X)
                     .ThenBy(point => point.Y)
                     .ToArray();
@@ -137,7 +150,7 @@ internal sealed class CircuitSceneRenderingTests : PageTest
                     .OrderBy(point => point.X)
                     .ThenBy(point => point.Y)
                     .ToArray();
-                return actual.SequenceEqual(expected)
+                return expected.All(actual.Contains)
                     ? null
                     : $"{pair.Geometry.Id.Value}: anchors {string.Join(", ", actual)}; "
                         + $"route {string.Join(", ", expected)}";
@@ -147,6 +160,7 @@ internal sealed class CircuitSceneRenderingTests : PageTest
 
         using (Assert.Multiple())
         {
+            await ExampleRoutingAssertions.VerifyAsync(definition, projected);
             await Assert.That(mismatches).IsEmpty();
             await Assert.That(missingWireInk).IsEmpty();
         }

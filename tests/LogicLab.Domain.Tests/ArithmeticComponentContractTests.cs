@@ -179,8 +179,8 @@ internal sealed class ArithmeticComponentContractTests
 
     private static ComponentContractSchema Find(string contractId)
     {
-        return CoreLibrarySchema.FindContract(
-            new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId))
+        return LibrarySnapshot.Core.ResolveContract(
+            new ComponentContractKey(LibrarySnapshot.Core.LibraryId, contractId))
             ?? throw new InvalidOperationException($"Missing contract {contractId}.");
     }
 }

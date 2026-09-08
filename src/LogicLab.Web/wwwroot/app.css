@@ -6,6 +6,14 @@
   src: url("fonts/AtkinsonHyperlegibleNext-Regular.woff2") format("woff2");
 }
 
+@font-face {
+  font-family: "Logic Lab UI CJK";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/NotoSansSC-Regular.woff2") format("woff2");
+}
+
 :root {
   color-scheme: light;
   --colorBrandBackground: #08788c;
@@ -55,8 +63,9 @@
   --ll-shadow-panel: 0 0.5rem 1.75rem rgb(16 42 51 / 8%);
   --ll-shadow-float: 0 1.5rem 4rem rgb(16 42 51 / 14%);
   --ll-page-width: 96rem;
-  --ll-font-mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
-  font-family: "Atkinson Hyperlegible Next", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
+  --ll-font-sans: "Atkinson Hyperlegible Next", "Logic Lab UI CJK", system-ui, sans-serif;
+  --ll-font-mono: ui-monospace, "SFMono-Regular", Consolas, "Logic Lab UI CJK", monospace;
+  font-family: var(--ll-font-sans);
 }
 
 * {
@@ -70,6 +79,8 @@ html {
 }
 
 body.logic-lab-root {
+  --fontFamilyBase: var(--ll-font-sans);
+  --fontFamilyMonospace: var(--ll-font-mono);
   margin: 0;
   min-block-size: 100dvh;
   block-size: auto;
@@ -114,6 +125,11 @@ h3 {
   text-wrap: balance;
 }
 
+body.logic-lab-root:lang(zh-CN) :is(h1, h2, h3) {
+  letter-spacing: normal;
+  line-height: 1.25;
+}
+
 p,
 li {
   text-wrap: pretty;
@@ -135,4 +151,49 @@ button {
     background-color 120ms ease,
     border-color 120ms ease,
     transform 120ms ease;
+}
+
+/* The active editor shares the viewport with the actual, wrapping site header. */
+body:has([data-workbench-active="true"]) {
+  display: flex;
+  flex-direction: column;
+  block-size: 100dvh;
+}
+
+body:has([data-workbench-active="true"]) > .site-header {
+  flex: none;
+}
+
+body:has([data-workbench-active="true"]) > main {
+  flex: 1;
+  min-block-size: 0;
+}
+
+@media (max-height: 40rem) {
+  body:has([data-workbench-active="true"]) > .site-header {
+    position: static;
+  }
+}
+
+@media (max-width: 580px) {
+  body:has([data-workbench-active="true"]) .site-header {
+    min-block-size: 3.25rem;
+  }
+
+  body:has([data-workbench-active="true"]) .site-header-inner {
+    display: flex;
+    gap: 0.75rem;
+    min-block-size: 3.25rem;
+    padding: 0.35rem 0.6rem;
+  }
+
+  body:has([data-workbench-active="true"]) .brand-copy {
+    display: none;
+  }
+
+  body:has([data-workbench-active="true"]) .primary-navigation {
+    min-inline-size: 0;
+    flex-wrap: nowrap;
+    overflow: auto hidden;
+  }
 }

@@ -118,11 +118,26 @@ internal sealed partial class WorkCoordinator
         Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
         SessionContinuation? continuation,
         TaskCompletionSource<WorkspaceCommandOutcome>? completion,
+        Action? releaseOwnership,
         CancellationToken callerCancellationToken,
         CancellationToken stoppingToken)
         : WorkItem(callerCancellationToken, stoppingToken)
     {
+        private Action? ownershipRelease = releaseOwnership;
+
         public WorkspaceId WorkspaceId { get; } = workspaceId;
+
+        public void ReleaseOwnership()
+        {
+            try
+            {
+                Interlocked.Exchange(ref ownershipRelease, null)?.Invoke();
+            }
+            finally
+            {
+                Dispose();
+            }
+        }
 
         public LinkedListNode<SessionWorkItem>? QueueNode { get; private set; }
 
@@ -167,6 +182,7 @@ internal sealed partial class WorkCoordinator
                 continuation: null,
                 new TaskCompletionSource<WorkspaceCommandOutcome>(
                     TaskCreationOptions.RunContinuationsAsynchronously),
+                releaseOwnership: null,
                 callerCancellationToken,
                 stoppingToken);
         }
@@ -174,6 +190,7 @@ internal sealed partial class WorkCoordinator
         public static SessionWorkItem CreateContinuation(
             Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
             SessionContinuation continuation,
+            Action releaseOwnership,
             CancellationToken stoppingToken)
         {
             return new SessionWorkItem(
@@ -181,6 +198,7 @@ internal sealed partial class WorkCoordinator
                 operation,
                 continuation,
                 completion: null,
+                releaseOwnership,
                 CancellationToken.None,
                 stoppingToken);
         }
@@ -219,10 +237,12 @@ internal sealed partial class WorkCoordinator
         internal WorkspaceId WorkspaceId { get; } = workspaceId;
 
         internal bool TrySchedule(
-            Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation)
+            Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
+            Action releaseOwnership)
         {
             ArgumentNullException.ThrowIfNull(operation);
-            return owner.TryScheduleSessionContinuation(this, operation);
+            ArgumentNullException.ThrowIfNull(releaseOwnership);
+            return owner.TryScheduleSessionContinuation(this, operation, releaseOwnership);
         }
 
         internal bool CanScheduleUnderLock()

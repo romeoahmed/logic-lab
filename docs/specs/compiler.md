@@ -127,6 +127,10 @@ IR is never serialized, persisted, accepted from a caller, sent to the browser, 
 
 ## 5. Simulation IR and Source Map invariants
 
+A Compilation Source pairs a circuit-scoped authored identity with its Hierarchy
+Path. Project-root diagnostics use their own location variant and never carry a
+fictional circuit occurrence.
+
 - Ordinals are dense, zero-based, Compilation-local, and assigned from canonical source order.
 - Every evaluator input, Driver, Net, fanout, SCC member, state slot, and memory range is in bounds.
 - Net receiver and fanout rows contain each receiving evaluator once, even when

@@ -54,6 +54,7 @@ internal sealed partial class WorkbenchComponentTests
             .Add(component => component.DefinitionId, definition.Id)
             .Add(component => component.Selection, new SceneSelectionV1([source], "replace")));
         await Assert.That(Fact("Value (binary)")).IsEqualTo("No probe for this occurrence");
+        await Assert.That(inspector.FindAll("[data-probe-cue]")).IsEmpty();
 
         inspector.Render(parameters => parameters.Add(component => component.HierarchyPath,
             new SceneHierarchyPathV1(definition.Id.Value, [])));
@@ -61,6 +62,12 @@ internal sealed partial class WorkbenchComponentTests
             .IsEqualTo(probe.Value[0] == LogicValue.One ? "1" : "0");
         await Assert.That(Fact("Drivers")).IsEqualTo("1");
         await Assert.That(Fact("Receivers")).IsEqualTo("1");
+        var appearance = ProbeAppearanceV1.From(probe.ProbeId.Value);
+        var cue = inspector.Find("[data-probe-cue]");
+        await Assert.That(cue.GetAttribute("data-probe-cue")).IsEqualTo(probe.ProbeId.Value);
+        await Assert.That(cue.GetAttribute("data-probe-pattern")).IsEqualTo(appearance.Pattern);
+        await Assert.That(cue.GetAttribute("data-probe-appearance"))
+            .IsEqualTo((appearance.Ordinal % 4U).ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         var nextRevision = WebTestCircuit.Commit(ProjectEditor.Apply(projection.ProjectRevision,
             new MoveComponentInstancesIntent(definition.Id,
@@ -68,6 +75,8 @@ internal sealed partial class WorkbenchComponentTests
         inspector.Render(parameters => parameters.Add(component => component.Projection,
             projection with { ProjectRevision = nextRevision }));
         await Assert.That(Fact("Value source")).IsEqualTo("Session uses an earlier revision");
+        await Assert.That(inspector.Find("[data-probe-cue]").GetAttribute("data-probe-cue"))
+            .IsEqualTo(probe.ProbeId.Value);
 
         string Fact(string label) => inspector.FindAll("dl > div")
             .Single(row => row.QuerySelector("dt")!.TextContent == label)

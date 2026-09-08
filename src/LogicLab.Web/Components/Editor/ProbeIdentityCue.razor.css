@@ -1,0 +1,55 @@
+.probe-cue {
+  --cue-color: var(--ll-probe-0);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+[data-probe-appearance="1"] {
+  --cue-color: var(--ll-probe-1);
+}
+
+[data-probe-appearance="2"] {
+  --cue-color: var(--ll-probe-2);
+}
+
+[data-probe-appearance="3"] {
+  --cue-color: var(--ll-probe-3);
+}
+
+.cue-stroke {
+  flex: 0 0 1.35rem;
+  block-size: 0.2rem;
+  background: var(--cue-color);
+}
+
+[data-probe-pattern="dash"] .cue-stroke {
+  background: repeating-linear-gradient(
+    to right,
+    var(--cue-color) 0 0.35rem,
+    transparent 0.35rem 0.5rem
+  );
+}
+
+[data-probe-pattern="dot"] .cue-stroke {
+  background: radial-gradient(circle, var(--cue-color) 0 0.08rem, transparent 0.09rem) 0 50% /
+    0.3rem 100%;
+}
+
+[data-probe-pattern="dashDot"] .cue-stroke {
+  background: repeating-linear-gradient(
+    to right,
+    var(--cue-color) 0 0.35rem,
+    transparent 0.35rem 0.48rem,
+    var(--cue-color) 0.48rem 0.6rem,
+    transparent 0.6rem 0.73rem
+  );
+}
+
+.cue-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

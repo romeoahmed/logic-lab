@@ -11,7 +11,7 @@ Research records evidence, derivations, rejected alternatives, and dated qualifi
 | [Boolean Analysis proposal](../future/boolean-analysis.md)      | consolidated future design, evidence boundary, and primary sources               |
 | [Blazor Web Platform](./blazor-web-platform.md)                 | hosting, render lifecycle, browser ownership, and Interactive Server constraints |
 | [Diagram Presentation](./diagram-presentation.md)               | IEEE symbol, declarative geometry, and presentation rationale                    |
-| [Engine Performance](./engine-performance.md)                   | dated implementation audit and BenchmarkDotNet decisions                         |
+| [Module Performance](./module-performance.md)                   | dated measurements and BenchmarkDotNet decisions                                 |
 
 The [Engineering](../engineering.md) contract cites Microsoft
 sources directly, so a second general-purpose .NET evidence summary would only

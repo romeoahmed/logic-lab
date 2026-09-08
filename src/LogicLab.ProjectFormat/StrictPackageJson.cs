@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Buffers.Text;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
@@ -245,27 +246,8 @@ public static partial class ProjectPackage
             return false;
         }
 
-        for (var offset = 0; offset < 4; offset++)
-        {
-            var digit = encodedValue[index + offset] switch
-            {
-                >= (byte)'0' and <= (byte)'9' =>
-                    encodedValue[index + offset] - (byte)'0',
-                >= (byte)'a' and <= (byte)'f' =>
-                    encodedValue[index + offset] - (byte)'a' + 10,
-                >= (byte)'A' and <= (byte)'F' =>
-                    encodedValue[index + offset] - (byte)'A' + 10,
-                _ => -1,
-            };
-            if (digit < 0)
-            {
-                return false;
-            }
-
-            value = (value << 4) | digit;
-        }
-
-        return true;
+        return Utf8Parser.TryParse(encodedValue.Slice(index, 4), out value, out var consumed, 'X')
+            && consumed == 4;
     }
 
     private static void ValidateIntegerLexeme(ReadOnlySpan<byte> value)
@@ -277,30 +259,28 @@ public static partial class ProjectPackage
         }
     }
 
-    private static async Task ValidateMembersAsync(
-        byte[] json,
+    private static void ValidateMembers(
+        ReadOnlySpan<byte> json,
         JsonTypeInfo typeInfo,
         CancellationToken cancellationToken)
     {
-        using var stream = new MemoryStream(json, writable: false);
-        using var document = await JsonDocument.ParseAsync(
-            stream,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        ValidateMembers(document.RootElement, typeInfo, cancellationToken);
+        var reader = new Utf8JsonReader(json);
+        _ = reader.Read();
+        ValidateMembers(ref reader, typeInfo, cancellationToken);
     }
 
     private static void ValidateMembers(
-        JsonElement element,
+        ref Utf8JsonReader reader,
         JsonTypeInfo typeInfo,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (element.ValueKind == JsonValueKind.Array && typeInfo.Type.IsArray)
+        if (reader.TokenType == JsonTokenType.StartArray && typeInfo.Type.IsArray)
         {
             var elementType = GetJsonTypeInfo(typeInfo.Type.GetElementType()!);
-            foreach (var item in element.EnumerateArray())
+            while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
             {
-                ValidateMembers(item, elementType, cancellationToken);
+                ValidateMembers(ref reader, elementType, cancellationToken);
             }
 
             return;
@@ -308,8 +288,9 @@ public static partial class ProjectPackage
 
         // The strict deserializer owns nullability and scalar types. All V1 members
         // are required, including value-type fields that deserialization can default.
-        if (element.ValueKind != JsonValueKind.Object || typeInfo.Kind != JsonTypeInfoKind.Object)
+        if (reader.TokenType != JsonTokenType.StartObject || typeInfo.Kind != JsonTypeInfoKind.Object)
         {
+            reader.Skip();
             return;
         }
 
@@ -317,40 +298,37 @@ public static partial class ProjectPackage
         if (typeInfo.PolymorphismOptions is { } polymorphism)
         {
             discriminator = polymorphism.TypeDiscriminatorPropertyName;
-            if (!element.TryGetProperty(discriminator, out var kind)
-                || kind.ValueKind != JsonValueKind.String)
-            {
-                throw Invalid("package_json_invalid", ("rule", "schema"));
-            }
-
-            var variant = polymorphism.DerivedTypes.FirstOrDefault(
-                variant => variant.TypeDiscriminator is string name && kind.ValueEquals(name));
-            if (variant.DerivedType is null)
-            {
-                throw Invalid("package_unknown_discriminator");
-            }
-
-            typeInfo = GetJsonTypeInfo(variant.DerivedType);
+            typeInfo = ResolveVariant(reader, polymorphism, cancellationToken);
         }
 
         var memberCount = 0;
-        foreach (var property in element.EnumerateObject())
+        while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (discriminator is not null && property.NameEquals(discriminator))
+            if (discriminator is not null && reader.ValueTextEquals(discriminator))
             {
+                _ = reader.Read();
                 continue;
             }
 
-            var member = typeInfo.Properties.FirstOrDefault(
-                member => property.NameEquals(member.Name));
+            JsonPropertyInfo? member = null;
+            foreach (var candidate in typeInfo.Properties)
+            {
+                if (reader.ValueTextEquals(candidate.Name))
+                {
+                    member = candidate;
+                    break;
+                }
+            }
+
             if (member is null)
             {
                 throw Invalid("package_unknown_member");
             }
 
             memberCount++;
-            ValidateMembers(property.Value, GetJsonTypeInfo(member.PropertyType), cancellationToken);
+            _ = reader.Read();
+            ValidateMembers(ref reader, GetJsonTypeInfo(member.PropertyType), cancellationToken);
         }
 
         // The lexical pass already rejected duplicate names.
@@ -358,6 +336,43 @@ public static partial class ProjectPackage
         {
             throw Invalid("package_json_invalid", ("rule", "schema"));
         }
+    }
+
+    private static JsonTypeInfo ResolveVariant(
+        Utf8JsonReader reader,
+        JsonPolymorphismOptions polymorphism,
+        CancellationToken cancellationToken)
+    {
+        // Look ahead on a value copy: V1 permits the discriminator after its payload.
+        // The lexical pass has already validated syntax and rejected duplicate names.
+        while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var isDiscriminator = reader.ValueTextEquals(polymorphism.TypeDiscriminatorPropertyName);
+            _ = reader.Read();
+            if (!isDiscriminator)
+            {
+                reader.Skip();
+                continue;
+            }
+
+            if (reader.TokenType != JsonTokenType.String)
+            {
+                break;
+            }
+
+            foreach (var variant in polymorphism.DerivedTypes)
+            {
+                if (variant.TypeDiscriminator is string name && reader.ValueTextEquals(name))
+                {
+                    return GetJsonTypeInfo(variant.DerivedType);
+                }
+            }
+
+            throw Invalid("package_unknown_discriminator");
+        }
+
+        throw Invalid("package_json_invalid", ("rule", "schema"));
     }
 
     private static JsonTypeInfo GetJsonTypeInfo(Type type) =>

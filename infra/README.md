@@ -5,13 +5,13 @@ The executable templates implement the selected
 [runbook](../docs/deployment/runbook.md) owns deployment and recovery procedures.
 This repository change does not deploy Azure resources.
 
-| File                                   | Responsibility                                                                                     |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `foundation.bicep`                     | long-lived network, identity, data, registry, monitoring, and Container Apps environment resources |
-| `foundation.production.bicepparam`     | production foundation profile sourced from the GitHub Environment                                  |
-| `modules/postgres.bicep`               | private PostgreSQL server, database, Entra administrator, and diagnostics                          |
-| `application.bicep`                    | bootstrap and migration Jobs, digest-pinned Web revision, probes, and application alerts           |
-| `application.production.bicepparam`    | production application profile sourced from release outputs and the GitHub Environment              |
+| File                                | Responsibility                                                                                     |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `foundation.bicep`                  | long-lived network, identity, data, registry, monitoring, and Container Apps environment resources |
+| `foundation.production.bicepparam`  | production foundation profile sourced from the GitHub Environment                                  |
+| `modules/postgres.bicep`            | private PostgreSQL server, database, Entra administrator, and diagnostics                          |
+| `application.bicep`                 | bootstrap and migration Jobs, digest-pinned Web revision, probes, and application alerts           |
+| `application.production.bicepparam` | production application profile sourced from release outputs and the GitHub Environment             |
 
 The foundation is deployed before image publication. The application template can
 then deploy Jobs without changing Web (`deployWeb=false`) and deploy Web only after

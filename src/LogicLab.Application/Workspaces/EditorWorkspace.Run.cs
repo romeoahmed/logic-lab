@@ -37,8 +37,7 @@ internal sealed partial class EditorWorkspace
         }
 
         state.NextRunGeneration = generation.Value;
-        state.Simulation = WithRun(
-            simulation,
+        state.Simulation = simulation.WithRun(
             new RunRunningProjection(generation));
         state.ProjectionVersion = projectionVersion;
 
@@ -61,11 +60,12 @@ internal sealed partial class EditorWorkspace
 
         if (workCoordinator.TryStartSessionContinuation(
             state.Id,
-            (continuation, token) => ContinueRunRetainedAsync(
+            (continuation, token) => ContinueRunAsync(
                 state,
                 continuation,
                 generation,
                 token),
+            () => Release(state),
             out var rejection))
         {
             return null;
@@ -86,37 +86,18 @@ internal sealed partial class EditorWorkspace
         }
 
         if (continuation.TrySchedule(
-            token => ContinueRunRetainedAsync(
+            token => ContinueRunAsync(
                 state,
                 continuation,
                 generation,
-                token)))
+                token),
+            () => Release(state)))
         {
             return true;
         }
 
         Release(state);
         return false;
-    }
-
-    private async ValueTask<WorkspaceCommandOutcome> ContinueRunRetainedAsync(
-        WorkspaceState state,
-        WorkCoordinator.SessionContinuation continuation,
-        RunGeneration generation,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await ContinueRunAsync(
-                state,
-                continuation,
-                generation,
-                cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            Release(state);
-        }
     }
 
     private WorkspaceCommandOutcome FailRunAfterException(
@@ -126,7 +107,7 @@ internal sealed partial class EditorWorkspace
     {
         var reason = AdvanceFailureReasonFrom(exception);
         var correlation = ApplicationCorrelation.CurrentOrCreate();
-        LogAdvanceFailure(logger, exception, correlation, reason);
+        LogAdvanceFailure(logger, correlation, reason);
 
         if (state.IsRetired)
         {
@@ -326,8 +307,7 @@ internal sealed partial class EditorWorkspace
             }
 
             var simulation = state.Simulation!;
-            state.Simulation = WithRun(
-                simulation,
+            state.Simulation = simulation.WithRun(
                 new RunPausedProjection(generation, reason));
             state.ProjectionVersion++;
             var outcome = new RunPaused(
@@ -349,8 +329,7 @@ internal sealed partial class EditorWorkspace
         lock (state.ContinuityGate)
         {
             var simulation = state.Simulation!;
-            state.Simulation = WithRun(
-                simulation,
+            state.Simulation = simulation.WithRun(
                 new RunFailedProjection(
                     generation,
                     failure));
@@ -408,19 +387,5 @@ internal sealed partial class EditorWorkspace
             && requestedGeneration == generation
             && state.AttachmentId == context.AttachmentId
             && state.AttachmentGeneration == context.AttachmentGeneration;
-    }
-
-    private static SimulationProjection WithRun(
-        SimulationProjection simulation,
-        RunProjection run)
-    {
-        return new SimulationProjection(
-            simulation.SessionId,
-            simulation.SessionVersion,
-            simulation.CompilationArtifactKey,
-            simulation.LogicalTime,
-            simulation.TraceCursor,
-            simulation.Probes,
-            run);
     }
 }

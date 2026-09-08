@@ -31,11 +31,13 @@ internal sealed class CircuitSceneTestPage(IPage page)
             Path.Combine(AppContext.BaseDirectory, "geometry.js"));
         var protocolModule = await File.ReadAllTextAsync(
             Path.Combine(AppContext.BaseDirectory, "protocol.js"));
+        var symbolFontModule = await File.ReadAllTextAsync(
+            Path.Combine(AppContext.BaseDirectory, "symbol-font.js"));
         var styles = await File.ReadAllTextAsync(
             Path.Combine(AppContext.BaseDirectory, "CircuitSceneHost.razor.css"));
         var fontPath = Path.Combine(
             AppContext.BaseDirectory,
-            "AtkinsonHyperlegibleNext-Regular.woff2");
+            "NotoSansSC-Regular.woff2");
         var html = TestDocument();
 
         await page.RouteAsync($"{Origin}/**", route =>
@@ -68,13 +70,19 @@ internal sealed class CircuitSceneTestPage(IPage page)
                     ContentType = "text/javascript",
                     Body = protocolModule,
                 }),
+                "/js/circuit-scene/symbol-font.js" => route.FulfillAsync(new RouteFulfillOptions
+                {
+                    Status = 200,
+                    ContentType = "text/javascript",
+                    Body = symbolFontModule,
+                }),
                 "/CircuitSceneHost.razor.css" => route.FulfillAsync(new RouteFulfillOptions
                 {
                     Status = 200,
                     ContentType = "text/css",
                     Body = styles,
                 }),
-                "/AtkinsonHyperlegibleNext-Regular.woff2" => route.FulfillAsync(
+                "/fonts/NotoSansSC-Regular.woff2" => route.FulfillAsync(
                     new RouteFulfillOptions
                     {
                         Status = 200,
@@ -245,7 +253,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
         var zoom = Math.Min(
             16d / gridStepPlanUnits,
             Math.Max(
-                0.05,
+                0.000_001,
                 Math.Min(
                     (box.Width - (padding * 2)) / bounds.Width,
                     (box.Height - (padding * 2)) / bounds.Height)));
@@ -388,12 +396,21 @@ internal sealed class CircuitSceneTestPage(IPage page)
             point.X);
     }
 
+    public async Task RememberCanvasPixelsAsync()
+    {
+        await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+        await Canvas.EvaluateAsync(
+            "canvas => window.sceneReferencePixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data");
+    }
+
     public async Task<double> MaximumCanvasContrastNearWorldPointAsync(
         double worldX,
         double worldY,
-        SceneRect sceneBounds)
+        SceneRect sceneBounds,
+        bool compareWithReference = false)
     {
         var point = await WorldToPageAsync(worldX, worldY, sceneBounds);
+        await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
         return await Canvas.EvaluateAsync<double>(
             """
             (canvas, point) => {
@@ -414,16 +431,18 @@ internal sealed class CircuitSceneTestPage(IPage page)
                   x <= Math.min(width - 1, centerX + 3);
                   x += 1) {
                   const index = ((y * width) + x) * 4;
-                  const distance = Math.abs(data[index] - background[0])
-                    + Math.abs(data[index + 1] - background[1])
-                    + Math.abs(data[index + 2] - background[2]);
+                  const reference = point.compareWithReference ? window.sceneReferencePixels : background;
+                  const offset = point.compareWithReference ? index : 0;
+                  const distance = Math.abs(data[index] - reference[offset])
+                    + Math.abs(data[index + 1] - reference[offset + 1])
+                    + Math.abs(data[index + 2] - reference[offset + 2]);
                   maximum = Math.max(maximum, distance);
                 }
               }
               return maximum;
             }
             """,
-            new { pageX = point.X, pageY = point.Y });
+            new { pageX = point.X, pageY = point.Y, compareWithReference });
     }
 
     public async Task ReleasePointerCaptureAsync() =>
@@ -572,7 +591,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
         candidateTransferBytes = 1_000_000,
         canvasBitmapPixels = 10_000_000,
         effectiveDensityMillionths = 3_000_000,
-        zoomMillionthsMinimum = 50_000,
+        zoomMillionthsMinimum = 1,
         displayListBytes = 1_000_000,
         spatialIndexBytes = 1_000_000,
         sceneCacheBytes = 4_000_000,
@@ -586,13 +605,6 @@ internal sealed class CircuitSceneTestPage(IPage page)
           <meta charset="utf-8">
           <link rel="stylesheet" href="/CircuitSceneHost.razor.css">
           <style>
-            @font-face {
-              font-family: "Atkinson Hyperlegible Next";
-              font-style: normal;
-              font-weight: 400;
-              font-display: block;
-              src: url("/AtkinsonHyperlegibleNext-Regular.woff2") format("woff2");
-            }
             :root {
               --ll-canvas: #fff;
               --ll-ink: #172124;

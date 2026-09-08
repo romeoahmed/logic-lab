@@ -34,7 +34,7 @@ internal sealed partial class LogicAnalyzerTests
                     simulation.SessionId, simulation.SessionVersion,
                     simulation.CompilationArtifactKey, simulation.LogicalTime,
                     simulation.TraceCursor, simulation.Probes,
-                    new RunRunningProjection(new RunGeneration(1))),
+                    new RunRunningProjection(new RunGeneration(1)), simulation.Diagnostics),
             }
             : fixture.Projection;
         var rendered = context.Render<LogicAnalyzer>(parameters => parameters
@@ -554,7 +554,8 @@ internal sealed partial class LogicAnalyzerTests
                     logicalTime: 10,
                     snapshot.TraceCursor,
                     probes,
-                    RunNotRunningProjection.Instance);
+                    RunNotRunningProjection.Instance,
+                    snapshot.Diagnostics);
                 return new Fixture(
                     ProjectionFor(
                         revision,
@@ -581,7 +582,8 @@ internal sealed partial class LogicAnalyzerTests
                 prior.LogicalTime,
                 prior.TraceCursor,
                 probes,
-                prior.Run);
+                prior.Run,
+                prior.Diagnostics);
             return ProjectionFor(Projection.ProjectRevision, artifact, simulation);
         }
 
@@ -595,7 +597,8 @@ internal sealed partial class LogicAnalyzerTests
                 prior.LogicalTime,
                 prior.TraceCursor,
                 probes,
-                prior.Run);
+                prior.Run,
+                prior.Diagnostics);
             return new Fixture(
                 ProjectionFor(
                     Projection.ProjectRevision,
@@ -614,7 +617,8 @@ internal sealed partial class LogicAnalyzerTests
                 logicalTime,
                 prior.TraceCursor,
                 prior.Probes,
-                prior.Run);
+                prior.Run,
+                prior.Diagnostics);
             return new Fixture(
                 ProjectionFor(
                     Projection.ProjectRevision,

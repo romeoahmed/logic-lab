@@ -27,6 +27,8 @@ internal sealed partial class WorkbenchComponentTests
             await Assert.That(IsDisabled(rendered, "stimulus")).IsTrue();
             await Assert.That(IsDisabled(rendered, "restart")).IsTrue();
             await Assert.That(IsDisabled(rendered, "close-session")).IsTrue();
+            await Assert.That(IsDisabled(rendered, "undo")).IsTrue();
+            await Assert.That(IsDisabled(rendered, "redo")).IsTrue();
             await Assert.That(rendered.Find("[data-scene-tool='wire']").HasAttribute("disabled"))
                 .IsTrue();
             await Assert.That(rendered.Find("[data-scene-tool='probe']").HasAttribute("disabled"))
@@ -37,6 +39,7 @@ internal sealed partial class WorkbenchComponentTests
 
         await ClickAndWaitForState(rendered, "pause", () => RunState(rendered) == "Paused");
         var paused = await workspace.ReadCurrent();
+        await Assert.That(IsDisabled(rendered, "undo")).IsFalse();
         await Assert.That(paused.Simulation!.SessionId).IsEqualTo(running.Simulation!.SessionId);
         await Assert.That(paused.Simulation.LogicalTime).IsGreaterThanOrEqualTo(running.Simulation.LogicalTime);
         await ClickAndWaitForState(rendered, "run", () => !IsDisabled(rendered, "pause"));
@@ -118,7 +121,7 @@ internal sealed partial class WorkbenchComponentTests
         workspace.BlockNextProjection();
         await workspace.ObservationStarted.WaitAsync(cancellationToken);
 
-        await context.DisposeComponentsAsync();
+        await rendered.Instance.DisposeAsync();
 
         using (Assert.Multiple())
         {

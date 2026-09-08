@@ -1,4 +1,7 @@
 using System.Collections.Frozen;
+using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
+using Microsoft.Extensions.Localization;
 
 namespace LogicLab.Web.Components.Editor;
 
@@ -76,6 +79,20 @@ internal static class ComponentPresentationCatalog
 
     public static ComponentPresentation? Find(string contractId) =>
         Presentations.GetValueOrDefault(contractId);
+
+    public static string DisplayName(ProjectDocument document, ComponentInstance instance,
+        IStringLocalizer<EditorText> text) =>
+        instance.DisplayName ?? TypeName(document, instance, text);
+
+    public static string TypeName(ProjectDocument document, ComponentInstance instance,
+        IStringLocalizer<EditorText> text) => instance.Target switch
+        {
+            LibraryComponentTarget library => library.ContractKey.LibraryId == LibrarySnapshot.Core.LibraryId
+                && Find(library.ContractKey.ContractId) is { } presentation
+                    ? text[presentation.Component.NameResourceKey] : library.ContractKey.ContractId,
+            CircuitDefinitionComponentTarget target => document.FindCircuitDefinition(target.CircuitDefinitionId)!.DisplayName,
+            _ => throw new InvalidOperationException("The component target is undefined."),
+        };
 
     public static ComponentPresentationDefinition BlockComponent { get; } =
         new(string.Empty, string.Empty, ComponentSymbolKind.Block, "SUB");

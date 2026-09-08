@@ -27,8 +27,11 @@
     <Content Include="..\..\src\LogicLab.Web\wwwroot\js\circuit-scene\protocol.js"
              Link="protocol.js"
              CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\..\src\LogicLab.Web\wwwroot\fonts\AtkinsonHyperlegibleNext-Regular.woff2"
-             Link="AtkinsonHyperlegibleNext-Regular.woff2"
+    <Content Include="..\..\src\LogicLab.Web\wwwroot\js\circuit-scene\symbol-font.js"
+             Link="symbol-font.js"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\src\LogicLab.Web\wwwroot\fonts\NotoSansSC-Regular.woff2"
+             Link="NotoSansSC-Regular.woff2"
              CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

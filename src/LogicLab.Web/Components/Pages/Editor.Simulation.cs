@@ -1,9 +1,6 @@
 using System.Diagnostics;
 using LogicLab.Application.Workspaces;
-using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
-using LogicLab.Domain.Components;
-using LogicLab.Engine;
 using LogicLab.Engine.Compilation;
 using StimulusAssignment = LogicLab.Engine.Simulation.StimulusAssignment;
 using StimulusBatch = LogicLab.Engine.Simulation.StimulusBatch;
@@ -102,14 +99,19 @@ public sealed partial class Editor
             : Text["SessionCreatedNoInputs"];
     }
 
-    private async Task ScheduleStimulus()
+    private HierarchyPath? InputHierarchyPath => CurrentSceneHierarchyPath is null || Projection is null
+        ? null
+        : new HierarchyPath(
+            Projection.ProjectRevision.Document.EntryCircuitDefinitionId,
+            [.. HierarchyNavigation.Select(step => new HierarchyPathStep(
+                step.ContainingCircuitDefinitionId, step.ComponentInstanceId))]);
+
+    private Task ScheduleInputsAsync(IReadOnlyList<StimulusAssignment> assignments) =>
+        RunCommandAsync("stimulus", () => CanScheduleStimulus,
+            () => ScheduleStimulus(assignments));
+
+    private async Task ScheduleStimulus(IReadOnlyList<StimulusAssignment> assignments)
     {
-        var definition = Projection!.ProjectRevision.Document.EntryCircuitDefinition;
-        var assignments = definition
-            .ComponentInstances
-            .Where(IsProgrammableInput)
-            .Select(input => CreateHighStimulus(definition.Id, input))
-            .ToArray();
         var logicalTime = checked(Projection!.Simulation!.LogicalTime + 1);
         var precondition = SessionPrecondition();
         var outcome = await Execute(context => new ScheduleStimulusBatch(
@@ -164,37 +166,6 @@ public sealed partial class Editor
             simulation.SessionId,
             simulation.SessionVersion,
             simulation.CompilationArtifactKey);
-    }
-
-    private static bool IsProgrammableInput(ComponentInstance instance)
-    {
-        return instance.Target is LibraryComponentTarget library
-            && string.Equals(
-                library.ContractKey.LibraryId,
-                CoreLibrarySchema.LibraryId,
-                StringComparison.Ordinal)
-            && string.Equals(
-                library.ContractKey.ContractId,
-                "source.input",
-                StringComparison.Ordinal);
-    }
-
-    private static StimulusAssignment CreateHighStimulus(
-        CircuitDefinitionId definitionId,
-        ComponentInstance input)
-    {
-        var width = input.Parameters.Single(parameter => string.Equals(
-            parameter.ParameterId,
-            "width",
-            StringComparison.Ordinal)).Value as Unsigned32ParameterValue
-            ?? throw new InvalidOperationException(
-                "A programmable input must define its validated width.");
-        return new StimulusAssignment(
-            new CompilationSource(
-                new InstancePortSourceIdentity(definitionId, input.Id, "Q"),
-                new HierarchyPath(definitionId, [])),
-            new LogicVector(
-                [.. Enumerable.Repeat(LogicValue.One, checked((int)width.Value))]));
     }
 
     private async Task RestartSimulationSession()

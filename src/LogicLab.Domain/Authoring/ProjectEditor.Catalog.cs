@@ -172,7 +172,7 @@ public static partial class ProjectEditor
             instance.Target,
             intent.Parameters,
             diagnostics);
-        if (diagnostics.Count == 0 && !oldPorts.SequenceEqual(newPorts))
+        if (diagnostics.Count == 0 && !oldPorts.HasSameShape(newPorts))
         {
             diagnostics.Add(InvalidParameter(instance.Target, "portSchemaChanged"));
         }
@@ -525,18 +525,17 @@ public static partial class ProjectEditor
     }
 
     private static Dictionary<string, string?>? ValidateInstancePortMigration(
-        IReadOnlyList<ResolvedAuthoringPort> oldPorts,
-        IReadOnlyList<ResolvedAuthoringPort> newPorts,
+        AuthoringPortResolution oldPorts,
+        AuthoringPortResolution newPorts,
         IReadOnlyList<InstancePortMigration> requested,
         List<AuthoringDiagnostic> diagnostics)
     {
-        var oldById = oldPorts.ToDictionary(port => port.Id, StringComparer.Ordinal);
-        var newById = newPorts.ToDictionary(port => port.Id, StringComparer.Ordinal);
         var result = new Dictionary<string, string?>(StringComparer.Ordinal);
         var destinations = new HashSet<string>(StringComparer.Ordinal);
         foreach (var migration in requested)
         {
-            if (!oldById.TryGetValue(migration.OldPortId, out var oldPort))
+            var oldPort = oldPorts.FindPort(migration.OldPortId);
+            if (oldPort is null)
             {
                 diagnostics.Add(MissingReference("instancePort"));
                 continue;
@@ -553,7 +552,8 @@ public static partial class ProjectEditor
                 continue;
             }
 
-            if (!newById.TryGetValue(migration.NewPortId, out var newPort))
+            var newPort = newPorts.FindPort(migration.NewPortId);
+            if (newPort is null)
             {
                 diagnostics.Add(MissingReference("newInstancePort"));
             }
@@ -567,7 +567,7 @@ public static partial class ProjectEditor
             }
         }
 
-        if (result.Count != oldPorts.Count)
+        if (!oldPorts.HasPortCount(result.Count))
         {
             diagnostics.Add(MissingReference("instancePortMigration"));
         }
@@ -634,7 +634,7 @@ public static partial class ProjectEditor
             [.. removed]);
     }
 
-    private static ResolvedAuthoringPort[] ResolveTargetPorts(
+    private static AuthoringPortResolution ResolveTargetPorts(
         ProjectDocument document,
         ComponentTarget target,
         ReadOnlyCollection<ComponentParameterBinding> parameters,
@@ -647,7 +647,7 @@ public static partial class ProjectEditor
                 if (schema is null)
                 {
                     diagnostics.Add(MissingReference("componentContract"));
-                    return [];
+                    return EmptyAuthoringPorts.Instance;
                 }
 
                 var parameterDiagnostics = ComponentParameterValidator.ValidateForDocument(
@@ -658,41 +658,26 @@ public static partial class ProjectEditor
                 diagnostics.AddRange(parameterDiagnostics);
                 if (parameterDiagnostics.Length != 0)
                 {
-                    return [];
+                    return EmptyAuthoringPorts.Instance;
                 }
 
-                var resolution = schema.ResolvePorts(parameters);
-                if (!resolution.TryGetPortCount(out var portCount)
-                    || portCount == 0
-                    || !resolution.TryMaterialize(portCount, out var ports))
-                {
-                    diagnostics.Add(InvalidParameter(target, "portCount"));
-                    return [];
-                }
-
-                return [.. ports.Select(port => new ResolvedAuthoringPort(
-                    port.Id,
-                    port.Direction,
-                    port.Width))];
+                return new LibraryAuthoringPorts(schema.ResolvePorts(parameters));
             case CircuitDefinitionComponentTarget definitionTarget:
                 var definition = document.FindCircuitDefinition(
                     definitionTarget.CircuitDefinitionId);
                 if (definition is null)
                 {
                     diagnostics.Add(MissingReference("circuitDefinitionTarget"));
-                    return [];
+                    return EmptyAuthoringPorts.Instance;
                 }
 
                 if (parameters.Count != 0)
                 {
                     diagnostics.Add(InvalidParameter(target, "definitionParametersEmpty"));
-                    return [];
+                    return EmptyAuthoringPorts.Instance;
                 }
 
-                return [.. definition.Ports.Select(port => new ResolvedAuthoringPort(
-                    port.Id.Value,
-                    port.Direction,
-                    port.Width))];
+                return new DefinitionAuthoringPorts(definition);
             default:
                 throw new InvalidOperationException(
                     "The Component Target variant is undefined.");
@@ -827,11 +812,6 @@ public static partial class ProjectEditor
             yield return new AnnotationSourceIdentity(definition.Id, annotation.Id);
         }
     }
-
-    private sealed record ResolvedAuthoringPort(
-        string Id,
-        PortDirection Direction,
-        uint Width);
 
     private sealed record TerminalMigrationResult(
         Net[] Nets,

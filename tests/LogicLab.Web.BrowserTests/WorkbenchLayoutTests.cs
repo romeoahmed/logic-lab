@@ -15,85 +15,124 @@ internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication applicatio
     }
 
     [Test]
-    public async Task ResponsiveWorkbench_NarrowViewport_PrioritizesCanvasAndKeepsLibraryControlsVisible()
+    [Arguments(390, 844)]
+    [Arguments(694, 838)]
+    [Arguments(768, 1024)]
+    [Arguments(1024, 768)]
+    [Arguments(1280, 900)]
+    public async Task ResponsiveWorkbench_ActiveProject_KeepsCanvasInstrumentsAndStatusInViewport(
+        int width, int height)
+    {
+        await OpenAsync(width, height);
+        var bounds = await Page.EvaluateAsync<double[]>(
+            """
+            () => [document.documentElement.scrollWidth, document.documentElement.scrollHeight]
+            """);
+        await Assert.That(bounds[0]).IsLessThanOrEqualTo(width);
+        await Assert.That(bounds[1]).IsLessThanOrEqualTo(height);
+        await Expect(Page.Locator("canvas[data-scene-canvas]")).ToBeInViewportAsync();
+        await Expect(Page.Locator(".instrument-bay")).ToBeInViewportAsync();
+        await Expect(Page.Locator(".status-strip")).ToBeInViewportAsync();
+    }
+
+    [Test]
+    [Arguments(844, 390, 100)]
+    [Arguments(640, 360, 100)]
+    [Arguments(844, 390, 200)]
+    public async Task ResponsiveWorkbench_ShortSimulation_ScrollsWithoutClippingInstrumentsOrStatus(
+        int width, int height, int textSizePercent)
+    {
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenExampleAsync(width: width, height: height);
+        await Page.EvaluateAsync("size => document.documentElement.style.fontSize = `${size}%`", textSizePercent);
+        await StartSimulationAsync(workbench);
+        var status = Page.Locator(".status-strip");
+        await AssertSurfaceOrderAsync();
+        await status.ScrollIntoViewIfNeededAsync();
+        await Expect(workbench.LogicalTime).ToBeInViewportAsync();
+        var toggle = Page.Locator("[data-instruments-toggle]");
+        await toggle.ClickAsync();
+        await Expect(workbench.Canvas).ToBeHiddenAsync();
+        await workbench.WaveformCanvas.ScrollIntoViewIfNeededAsync();
+        await Expect(workbench.WaveformCanvas).ToBeInViewportAsync();
+        await toggle.ClickAsync();
+        await workbench.Canvas.ScrollIntoViewIfNeededAsync();
+        await Expect(workbench.Canvas).ToBeInViewportAsync();
+        var overflow = await Page.EvaluateAsync<string[]>("""
+            () => [...document.querySelectorAll('body, body > *, .site-header-inner, .workbench-shell, .workbench-deck')]
+              .filter(element => element.getBoundingClientRect().right > innerWidth + 1)
+              .map(element => `${element.tagName}.${element.className}: ${element.getBoundingClientRect().right}`)
+            """);
+        await Assert.That(overflow).IsEmpty();
+        await Assert.That(await Page.EvaluateAsync<double>(
+            "document.documentElement.scrollWidth - window.innerWidth")).IsLessThanOrEqualTo(0);
+    }
+
+    [Test]
+    public async Task ResponsiveWorkbench_NarrowPanels_ToggleAndEscapeRestoreFocus()
     {
         await OpenAsync(390, 844);
         var library = Page.GetByTestId("workbench-library");
-        var canvas = Page.GetByTestId("workbench-canvas");
-
+        var inspector = Page.GetByTestId("workbench-inspector");
+        var libraryToggle = Page.Locator("[data-dock-toggle='library']");
+        var inspectorToggle = Page.Locator("[data-dock-toggle='inspector']");
+        await Expect(library).ToBeHiddenAsync();
+        await Expect(inspector).ToBeHiddenAsync();
+        await libraryToggle.ClickAsync();
+        await Expect(library).ToBeInViewportAsync();
+        await library.GetByRole(AriaRole.Searchbox).FillAsync("clock");
+        await Page.Keyboard.PressAsync("Escape");
+        await Expect(library).ToBeHiddenAsync();
+        await Expect(libraryToggle).ToBeFocusedAsync();
+        await inspectorToggle.ClickAsync();
+        await Expect(inspector).ToBeInViewportAsync();
+        await libraryToggle.ClickAsync();
+        await Expect(inspector).ToBeHiddenAsync();
         await Expect(library).ToBeVisibleAsync();
-        await Expect(canvas).ToBeVisibleAsync();
-        var palette = Page.GetByTestId("component-palette");
-        var controls = Page.GetByTestId("component-palette-controls");
-        var groups = palette.Locator("details");
-        for (var index = 0; index < await groups.CountAsync(); index++)
-        {
-            var group = groups.Nth(index);
-            if (await group.GetAttributeAsync("open") is null)
-            {
-                await group.Locator("summary").ClickAsync();
-            }
-        }
+        await Page.SetViewportSizeAsync(1280, 900);
+        await Expect(library).ToBeVisibleAsync();
+        await Expect(inspector).ToBeVisibleAsync();
+        await Expect(libraryToggle).ToBeHiddenAsync();
+    }
 
-        var scroll = await palette.EvaluateAsync<PaletteScrollState>(
-            """
-            element => {
-              element.scrollTop = element.scrollHeight;
-              return {
-                clientHeight: element.clientHeight,
-                scrollHeight: element.scrollHeight,
-                scrollTop: element.scrollTop,
-              };
-            }
-            """);
-        await Expect(controls).ToBeVisibleAsync();
-        var libraryBounds = await library.BoundingBoxAsync();
-        var canvasBounds = await canvas.BoundingBoxAsync();
-        var paletteBounds = await palette.BoundingBoxAsync();
-        var controlsBounds = await controls.BoundingBoxAsync();
+    [Test]
+    [Arguments(390, 844)]
+    [Arguments(694, 838)]
+    public async Task ResponsiveWorkbench_NarrowSimulation_KeepsCircuitAndControlsUsable(int width, int height)
+    {
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenExampleAsync("author-bit-serial", width: width, height: height);
+        await StartSimulationAsync(workbench);
+        await AssertCircuitAndControlsAsync();
 
-        using (Assert.Multiple())
+        await workbench.Step.ClickAsync();
+        await Expect(workbench.LogicalTime).ToHaveTextAsync("1");
+        await AssertCircuitAndControlsAsync();
+
+        async Task AssertCircuitAndControlsAsync()
         {
-            await Assert.That(libraryBounds).IsNotNull();
-            await Assert.That(canvasBounds).IsNotNull();
-            await Assert.That(paletteBounds).IsNotNull();
-            await Assert.That(controlsBounds).IsNotNull();
-            await Assert.That(canvasBounds!.Y).IsLessThan(libraryBounds!.Y);
-            await Assert.That(scroll.ScrollHeight).IsGreaterThan(scroll.ClientHeight);
-            await Assert.That(scroll.ScrollTop).IsGreaterThan(0);
-            await Assert.That(controlsBounds!.Y)
-                .IsEqualTo(paletteBounds!.Y).Within(1.5F);
+            await Expect(workbench.Canvas).ToBeInViewportAsync(new() { Ratio = 1 });
+            await Expect(workbench.Step).ToBeInViewportAsync(new() { Ratio = 1 });
+            await Expect(workbench.Run).ToBeInViewportAsync(new() { Ratio = 1 });
+            await Expect(workbench.LogicalTime).ToBeInViewportAsync(new() { Ratio = 1 });
+            await AssertSurfaceOrderAsync();
         }
     }
 
     [Test]
-    [Arguments(768, 1024)]
-    [Arguments(1024, 768)]
-    public async Task ResponsiveWorkbench_MediumViewport_KeepsCanvasInsideViewport(
-        int width,
-        int height)
+    public async Task Instruments_DesktopSimulation_ShowsWaveformAndReturnsToCircuit()
     {
-        await OpenAsync(width, height);
-        var library = Page.GetByTestId("workbench-library");
-        var canvas = Page.GetByTestId("workbench-canvas");
-
-        await Expect(library).ToBeVisibleAsync();
-        await Expect(canvas).ToBeVisibleAsync();
-        var libraryBounds = await library.BoundingBoxAsync();
-        var canvasBounds = await canvas.BoundingBoxAsync();
-        var documentWidth = await Page.EvaluateAsync<double>(
-            "() => document.documentElement.scrollWidth");
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(libraryBounds).IsNotNull();
-            await Assert.That(canvasBounds).IsNotNull();
-            await Assert.That(libraryBounds!.Y).IsEqualTo(canvasBounds!.Y).Within(1.5F);
-            await Assert.That(libraryBounds.X).IsLessThan(canvasBounds.X);
-            await Assert.That(canvasBounds.X).IsGreaterThanOrEqualTo(0);
-            await Assert.That(canvasBounds.X + canvasBounds.Width).IsLessThanOrEqualTo(width);
-            await Assert.That(documentWidth).IsLessThanOrEqualTo(width);
-        }
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenExampleAsync();
+        await StartSimulationAsync(workbench);
+        await Expect(workbench.WaveformCanvas).ToBeInViewportAsync();
+        var toggle = Page.Locator("[data-instruments-toggle]");
+        await toggle.ClickAsync();
+        await Expect(workbench.Canvas).ToBeHiddenAsync();
+        await Expect(workbench.LogicalTime).ToBeInViewportAsync();
+        await toggle.ClickAsync();
+        await Expect(workbench.Canvas).ToBeInViewportAsync();
+        await Expect(workbench.WaveformCanvas).ToBeInViewportAsync();
     }
 
     [Test]
@@ -117,12 +156,47 @@ internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication applicatio
         await workbench.OpenSandboxAsync(width, height);
     }
 
-    private sealed class PaletteScrollState
+    private async Task StartSimulationAsync(WorkbenchTestPage workbench)
     {
-        public int ClientHeight { get; set; }
-
-        public int ScrollHeight { get; set; }
-
-        public int ScrollTop { get; set; }
+        await workbench.StartSimulation.ClickAsync();
+        // A click acknowledges browser input, not the Interactive Server command.
+        await Expect(workbench.LogicalTime).ToHaveTextAsync("0");
+        await Expect(workbench.Step).ToBeEnabledAsync();
+        await Expect(Page.Locator(".command-bar[data-active-command]")).ToHaveCountAsync(0);
+        await Page.EvaluateAsync("() => document.fonts.ready.then(() => undefined)");
     }
+
+    private async Task AssertSurfaceOrderAsync()
+    {
+        // Read all regions in one browser turn. Platform font metrics may change
+        // their sizes; the product contract is usable, non-overlapping regions.
+        var bounds = await Page.EvaluateAsync<RegionBounds[]>("""
+            () => ['.workbench-dock', 'canvas[data-scene-canvas]', '.instrument-bay', '.status-strip']
+              .map(selector => {
+                const rect = document.querySelector(selector).getBoundingClientRect();
+                return { top: rect.top, bottom: rect.bottom, height: rect.height };
+              })
+            """);
+        var dock = bounds[0];
+        var canvas = bounds[1];
+        var instruments = bounds[2];
+        var status = bounds[3];
+        await Assert.That(dock.Height).IsGreaterThan(instruments.Height);
+        await Assert.That(canvas.Height).IsGreaterThan(0);
+        await Assert.That(instruments.Height).IsGreaterThan(0);
+        await Assert.That(canvas.Top).IsGreaterThanOrEqualTo(dock.Top);
+        await Assert.That(canvas.Bottom).IsLessThanOrEqualTo(dock.Bottom + 1);
+        await Assert.That(dock.Bottom).IsLessThanOrEqualTo(instruments.Top + 1);
+        await Assert.That(instruments.Bottom).IsLessThanOrEqualTo(status.Top + 1);
+    }
+
+    private sealed class RegionBounds
+    {
+        public double Top { get; set; }
+
+        public double Bottom { get; set; }
+
+        public double Height { get; set; }
+    }
+
 }

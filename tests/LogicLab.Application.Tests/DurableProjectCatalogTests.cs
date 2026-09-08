@@ -357,7 +357,7 @@ internal sealed class DurableProjectCatalogTests
             await Assert.That(rejected.Reason)
                 .IsEqualTo("project_catalog_internal_defect");
             await Assert.That(log.Level).IsEqualTo(LogLevel.Error);
-            await Assert.That(log.Exception).IsTypeOf<InvalidOperationException>();
+            await Assert.That(log.Exception).IsNull();
             await Assert.That(log.Properties["Correlation"])
                 .IsEqualTo(activity.TraceId.ToHexString());
             await Assert.That(log.Properties["Stage"]).IsEqualTo("repository");

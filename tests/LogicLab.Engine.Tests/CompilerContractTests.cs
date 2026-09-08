@@ -1,10 +1,44 @@
+using FsCheck;
+using FsCheck.Fluent;
 using LogicLab.Domain.Authoring;
 using LogicLab.Engine.Compilation;
+using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
 internal sealed class CompilerContractTests
 {
+    [Test, FsCheckProperty]
+    public Property CompilationSource_GeneratedOccurrences_EqualityAndOrderingPreserveEveryStep(
+        byte[] leftSteps,
+        byte[] rightSteps)
+    {
+        var circuit = CompilerTestCircuit.CreateComplete();
+        var definitionId = circuit.Revision.Document.EntryCircuitDefinitionId;
+        var identity = new NetSourceIdentity(definitionId, circuit.OutputNet.Id);
+        var left = Source(leftSteps);
+        var copy = Source(leftSteps);
+        var right = Source(rightSteps);
+        var expectedEqual = leftSteps.Select(step => step % 3)
+            .SequenceEqual(rightSteps.Select(step => step % 3));
+
+        return (left == copy
+            && left.GetHashCode() == copy.GetHashCode()
+            && (left == right) == expectedEqual
+            && (CompilationSourceComparer.Instance.Compare(left, right) == 0) == expectedEqual
+            && new HashSet<CompilationSource> { left }.Contains(right) == expectedEqual)
+            .ToProperty().Label("source equality, hashing and canonical ordering agree on occurrence identity");
+
+        CompilationSource Source(byte[] steps) => new(identity, new HierarchyPath(
+            definitionId,
+            [.. steps.Select(step => new HierarchyPathStep(definitionId, (step % 3) switch
+            {
+                0 => circuit.Input.Id,
+                1 => circuit.LogicNot.Id,
+                _ => circuit.Output.Id,
+            }))]));
+    }
+
     [Test]
     public async Task CompilationSource_NullIdentity_ThrowsArgumentNullException()
     {

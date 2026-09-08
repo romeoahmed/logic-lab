@@ -39,8 +39,10 @@ Compilation, and Session state do not enter this interface.
 - `CircuitDefinitionId` is project-wide. Component Instance, Net, Junction, and Wire
   Geometry IDs are local to their Circuit Definition; Port IDs are local to their
   Component Contract or Circuit Definition.
-- References include the containment and Hierarchy Path needed to distinguish local
-  IDs. Names, coordinates, array indexes, and runtime ordinals are never identity.
+- Circuit-scoped source identities carry their containing Circuit Definition ID.
+  Compilation adds the Hierarchy Path to distinguish occurrences of a reusable
+  definition. Project roots and Memory Images have no circuit container. Names,
+  coordinates, array indexes, and runtime ordinals are never identity.
 - Project Editor allocates creation IDs and returns them as changed source identities.
   Only validated import preserves supplied IDs; ordinary intents cannot choose them.
 - Ordered Ports, Terminal memberships, slices, and routes retain authored order.
@@ -82,14 +84,14 @@ or the edit is rejected; Port and state changes never silently rebind or truncat
 
 ### 4.1 Circuit Definitions
 
-| Intent | Input and atomic effect |
-| --- | --- |
-| `CreateCircuitDefinition` | Display name, ordered public Ports, and initial presentation create an unreferenced definition. |
-| `RenameCircuitDefinition` | Changes the identified definition's display name, preserving identity and call sites. |
-| `ChangePublicPortContract` | Retained Port IDs, new declarations without IDs, and complete call-site migrations replace the contract and every call site together. |
-| `MoveDefinitionPorts` | Nonempty Port IDs and final placements change presentation only. |
-| `SetEntryCircuitDefinition` | An existing definition ID replaces the entry reference. |
-| `RemoveCircuitDefinition` | Removes a non-entry definition only when no Component Instance references it. |
+| Intent                      | Input and atomic effect                                                                                                               |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `CreateCircuitDefinition`   | Display name, ordered public Ports, and initial presentation create an unreferenced definition.                                       |
+| `RenameCircuitDefinition`   | Changes the identified definition's display name, preserving identity and call sites.                                                 |
+| `ChangePublicPortContract`  | Retained Port IDs, new declarations without IDs, and complete call-site migrations replace the contract and every call site together. |
+| `MoveDefinitionPorts`       | Nonempty Port IDs and final placements change presentation only.                                                                      |
+| `SetEntryCircuitDefinition` | An existing definition ID replaces the entry reference.                                                                               |
+| `RemoveCircuitDefinition`   | Removes a non-entry definition only when no Component Instance references it.                                                         |
 
 Retained Ports preserve direction and width. New Ports receive new IDs; array
 positions never preserve identity. Every call site must map **every old Port** to a
@@ -99,35 +101,39 @@ are disconnected in the same transaction.
 
 ### 4.2 Component Instances
 
-| Intent | Input and atomic effect |
-| --- | --- |
-| `PlaceComponentInstance` | Exact target, complete parameters, and placement create a locally valid instance. |
-| `PlaceComponentWithNewMemoryImage` | Exact library target, non-memory parameters, a complete new Memory Image binding, and placement create both image and instance. |
-| `RenameComponentInstance` | Sets display name or null, preserving target, Ports, and state. |
-| `SetInstanceParameters` | Replaces complete parameters only when resolved Port and state schemas stay identical. |
-| `ChangeInstanceContract` | Exact target, complete parameters, Terminal migration, and Symbol Variant replace the contract, connections, and initial state together. |
-| `MoveComponentInstances` | Nonempty instance IDs and final placements change presentation only. |
-| `RemoveComponentInstances` | Removes the specified nonempty instance set and its Terminal memberships; a Net is removed only if no Terminal, Junction, or Wire Geometry remains. |
+| Intent                             | Input and atomic effect                                                                                                                             |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PlaceComponentInstance`           | Exact target, complete parameters, and placement create a locally valid instance.                                                                   |
+| `PlaceComponentWithNewMemoryImage` | Exact library target, non-memory parameters, a complete new Memory Image binding, and placement create both image and instance.                     |
+| `RenameComponentInstance`          | Sets display name or null, preserving target, Ports, and state.                                                                                     |
+| `SetInstanceParameters`            | Replaces complete parameters only when resolved Port and state schemas stay identical.                                                              |
+| `ChangeInstanceContract`           | Exact target, complete parameters, Terminal migration, and Symbol Variant replace the contract, connections, and initial state together.            |
+| `MoveComponentInstances`           | Nonempty instance IDs and final placements change presentation only.                                                                                |
+| `RemoveComponentInstances`         | Removes the specified nonempty instance set and its Terminal memberships; a Net is removed only if no Terminal, Junction, or Wire Geometry remains. |
 
 Parameter bindings follow [Component Contract Catalog V1](./component-contract-catalog-v1.md).
 Contract migrations map every old Port to a distinct compatible new Port or an
 explicit disconnection; incompatible state and Symbol Variants cannot survive by
-coincidence. `PlaceComponentWithNewMemoryImage` names the memory-image parameter
+coincidence. Parameter edits compare generated Port families without expanding
+them; migrations resolve only the named Ports and verify complete old-Port
+coverage against the generated count. A locally valid parameter edit does not
+acquire a Compiler scale limit or a managed-array length limit merely to compare
+Port schemas. `PlaceComponentWithNewMemoryImage` names the memory-image parameter
 and supplies display name, width, depth, and complete words. Project Editor allocates
 both IDs and rejects the whole intent if either image or binding is invalid.
 
 ### 4.3 Connectivity and geometry
 
-| Intent | Input and atomic effect |
-| --- | --- |
-| `ConnectTerminals` | Compatible Terminals, optional destination Net, new Junction declarations, route additions, and complete affected route replacements create, extend, or merge connectivity and its route. |
-| `MergeNets` | An existing destination Net and nonempty source Net IDs combine complete membership, preserving only the destination ID. |
-| `SplitNet` | A Net ID and complete nonempty membership partitions split the Net under Section 5's identity rule. |
-| `AddJunction` | A Net ID, position, route additions, and complete affected route replacements/removals add one Junction and update geometry. |
-| `RemoveJunction` | A Junction ID, resulting partitions if connectivity splits, route additions, and complete affected route replacements/removals remove the Junction and update topology. |
-| `AddWireGeometry` | A Net ID and complete routed/unrouted value add a route without changing electrical membership. |
-| `SetWireGeometry` | A geometry ID and complete routed/unrouted value replace that route only. |
-| `RemoveWireGeometry` | Removes the identified route without changing electrical membership; rejects removal of a Net's last remaining member. |
+| Intent               | Input and atomic effect                                                                                                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ConnectTerminals`   | Compatible Terminals, optional destination Net, new Junction declarations, route additions, and complete affected route replacements create, extend, or merge connectivity and its route. |
+| `MergeNets`          | An existing destination Net and nonempty source Net IDs combine complete membership, preserving only the destination ID.                                                                  |
+| `SplitNet`           | A Net ID and complete nonempty membership partitions split the Net under Section 5's identity rule.                                                                                       |
+| `AddJunction`        | A Net ID, position, route additions, and complete affected route replacements/removals add one Junction and update geometry.                                                              |
+| `RemoveJunction`     | A Junction ID, resulting partitions if connectivity splits, route additions, and complete affected route replacements/removals remove the Junction and update topology.                   |
+| `AddWireGeometry`    | A Net ID and complete routed/unrouted value add a route without changing electrical membership.                                                                                           |
+| `SetWireGeometry`    | A geometry ID and complete routed/unrouted value replace that route only.                                                                                                                 |
+| `RemoveWireGeometry` | Removes the identified route without changing electrical membership; rejects removal of a Net's last remaining member.                                                                    |
 
 `ConnectTerminals` requires at least two distinct electrical endpoints, counting the
 destination Net. A multi-Net merge requires an explicit destination. New Junctions
@@ -137,17 +143,17 @@ intent, not nested Edit Intents.
 
 ### 4.4 Authored data and presentation
 
-| Intent | Input and atomic effect |
-| --- | --- |
-| `CreateMemoryImage` | Display name, width, depth, and complete initial words create an image. |
-| `ReplaceMemoryImage` | Image ID, replacement shape/content, and complete affected instance parameter migrations update the image and references together. |
-| `RemoveMemoryImage` | Removes the image only when no instance references it. |
-| `SetSymbolProfile` | Exact profile/version/convention and complete incompatible-override removals or replacements change the project-wide profile without fallback. |
-| `SetSymbolVariant` | Instance ID and registered compatible variant or null change presentation only. |
-| `CreateAnnotation` | A complete annotation without ID creates authored presentation. |
-| `ChangeAnnotation` | An Annotation ID and complete replacement change authored presentation. |
-| `MoveAnnotations` | Nonempty Annotation IDs and final positions change presentation only. |
-| `RemoveAnnotation` | Removes the identified Annotation. |
+| Intent               | Input and atomic effect                                                                                                                        |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CreateMemoryImage`  | Display name, width, depth, and complete initial words create an image.                                                                        |
+| `ReplaceMemoryImage` | Image ID, replacement shape/content, and complete affected instance parameter migrations update the image and references together.             |
+| `RemoveMemoryImage`  | Removes the image only when no instance references it.                                                                                         |
+| `SetSymbolProfile`   | Exact profile/version/convention and complete incompatible-override removals or replacements change the project-wide profile without fallback. |
+| `SetSymbolVariant`   | Instance ID and registered compatible variant or null change presentation only.                                                                |
+| `CreateAnnotation`   | A complete annotation without ID creates authored presentation.                                                                                |
+| `ChangeAnnotation`   | An Annotation ID and complete replacement change authored presentation.                                                                        |
+| `MoveAnnotations`    | Nonempty Annotation IDs and final positions change presentation only.                                                                          |
+| `RemoveAnnotation`   | Removes the identified Annotation.                                                                                                             |
 
 Simulation memory writes and automated circuit replacement are not V1 authoring intents.
 

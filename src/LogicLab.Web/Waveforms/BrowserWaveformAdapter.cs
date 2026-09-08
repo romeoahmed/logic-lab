@@ -125,6 +125,12 @@ internal sealed class BrowserWaveformAdapter : IAsyncDisposable
         }
     }
 
+    public ValueTask RevealProbeAsync(string probeId, CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        return handle.InvokeVoidAsync("revealProbe", cancellationToken, probeId);
+    }
+
     private async Task TransferAsync(
         string kind,
         byte[] candidate,

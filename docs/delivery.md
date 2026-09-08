@@ -56,15 +56,18 @@ Git history. This table intentionally keeps only the delivery record.
 
 ## Active implementation frontier
 
-|   ID | Slice                          | Requires                           | Completion signal                                                                                                                            |
-| ---: | ------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `26` | Workbench authoring and inspection | `12`, `18`, `25` | documented authoring and revision-history actions are reachable; selection facts and shared Probe identity cues pass interaction evidence |
-| `27` | Instrument Bay observation and diagnostics | `18`, `26` | waveform observation and the complete ordered, source-linked Diagnostics list support navigation and recovery |
-| `33` | V1 Component evidence manifest | `15`, `16`, `18`, `22`, `25`, `27` | every `logiclab.core` Contract ID has the required schema, oracle, lowering, serialization, symbol, property, Hot Swap, and browser evidence |
+|   ID | Slice                                      | Requires                           | Completion signal                                                                                                                            |
+| ---: | ------------------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `26` | Workbench authoring and inspection         | `12`, `18`, `25`                   | documented authoring and revision-history actions are reachable; selection facts and shared Probe identity cues pass interaction evidence    |
+| `27` | Instrument Bay observation and diagnostics | `18`, `26`                         | waveform observation and the complete ordered, source-linked Diagnostics list support navigation and recovery                                |
+| `33` | V1 Component evidence manifest             | `15`, `16`, `18`, `22`, `25`, `27` | every `logiclab.core` Contract ID has the required schema, oracle, lowering, serialization, symbol, property, Hot Swap, and browser evidence |
 
-The current Workbench lacks revision-history controls and the Diagnostics tab;
-Inspector also lacks the shared Probe identity cue required by
-[Product](./product.md#inspector-diagnostics-and-waveform). Existing lower-layer
+The current Workbench exposes revision-history controls and a Diagnostics tab for
+ordered compiler and current Session diagnostics, with source navigation and
+component/browser evidence. Diagnostics from other operation phases remain to be
+integrated. Inspector and Probe Spine share identity cues and bidirectional
+navigation; Inspector shows current selection-local compiler and Session diagnostics
+with the same localized explanations as the Diagnostics tab. Existing lower-layer
 commands and passing Scene/waveform tests do not close these integration gaps.
 Items `26` and `27` must satisfy their completion signals before V1 behavior is
 called implementation-complete. Item `33` and production qualification remain

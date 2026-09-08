@@ -51,52 +51,6 @@ public sealed class AuthoringDiagnostic
     public AuthoredSourceIdentity? Primary { get; }
 }
 
-public abstract record AuthoredSourceIdentity
-{
-    private protected AuthoredSourceIdentity()
-    {
-    }
-}
-
-public sealed record ProjectRootSourceIdentity(ProjectId ProjectId)
-    : AuthoredSourceIdentity;
-
-public sealed record MemoryImageSourceIdentity(
-    ProjectId ProjectId,
-    MemoryImageId MemoryImageId) : AuthoredSourceIdentity;
-
-public sealed record CircuitRootSourceIdentity(CircuitDefinitionId CircuitDefinitionId)
-    : AuthoredSourceIdentity;
-
-public sealed record DefinitionPortSourceIdentity(
-    CircuitDefinitionId CircuitDefinitionId,
-    DefinitionPortId DefinitionPortId) : AuthoredSourceIdentity;
-
-public sealed record ComponentInstanceSourceIdentity(
-    CircuitDefinitionId CircuitDefinitionId,
-    ComponentInstanceId ComponentInstanceId) : AuthoredSourceIdentity;
-
-public sealed record InstancePortSourceIdentity(
-    CircuitDefinitionId CircuitDefinitionId,
-    ComponentInstanceId ComponentInstanceId,
-    string PortId) : AuthoredSourceIdentity;
-
-public sealed record NetSourceIdentity(
-    CircuitDefinitionId CircuitDefinitionId,
-    NetId NetId) : AuthoredSourceIdentity;
-
-public sealed record JunctionSourceIdentity(
-    CircuitDefinitionId CircuitDefinitionId,
-    JunctionId JunctionId) : AuthoredSourceIdentity;
-
-public sealed record WireGeometrySourceIdentity(
-    CircuitDefinitionId CircuitDefinitionId,
-    WireGeometryId WireGeometryId) : AuthoredSourceIdentity;
-
-public sealed record AnnotationSourceIdentity(
-    CircuitDefinitionId CircuitDefinitionId,
-    AnnotationId AnnotationId) : AuthoredSourceIdentity;
-
 public abstract record ProjectGenesisOutcome
 {
     private protected ProjectGenesisOutcome()

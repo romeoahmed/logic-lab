@@ -199,7 +199,7 @@ evidence: Project Format, Circuit Authoring, Compiler, then Simulation. Web appe
 one Diagram Presentation phase only after the matching Schematic Projection attempt,
 then current browser-local Web diagnostics in adapter order `Scene`, `Waveform` and
 canonical Diagnostic order within each adapter. Browser-local Diagnostics are not
-inserted into `WorkspaceProjectionV1` and do not increment Projection Version;
+inserted into `WorkspaceProjection` and do not increment Projection Version;
 replacing or recovering an adapter replaces its current local evidence. A view never
 interleaves Diagnostics from another Project Revision, Scene/Waveform version, or
 work arriving after publication.

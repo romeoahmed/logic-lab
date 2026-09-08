@@ -681,7 +681,7 @@ public static partial class Compiler
     private static void RequireTerminal(
         HierarchyOccurrence occurrence,
         AuthoredTerminalReference terminal,
-        AuthoredSourceIdentity source,
+        CircuitSourceIdentity source,
         Dictionary<HierarchyTerminalKey, int> scopedNetByTerminal,
         List<CompilerDiagnostic> diagnostics)
     {
@@ -967,7 +967,7 @@ public static partial class Compiler
 
     private sealed record HierarchyPort(
         uint Width,
-        AuthoredSourceIdentity Source);
+        CircuitSourceIdentity Source);
 
     private readonly record struct HierarchyCallKey(
         HierarchyOccurrence Occurrence,

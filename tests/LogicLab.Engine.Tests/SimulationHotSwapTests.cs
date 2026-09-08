@@ -431,7 +431,7 @@ internal sealed class SimulationHotSwapTests
         var outputPort = child.Ports.Single(port => port.Direction == PortDirection.Output);
         circuit.Apply(new PlaceComponentInstanceIntent(
             child.Id,
-            new ComponentContractKey(CoreLibrarySchema.LibraryId, "logic.buffer"),
+            new ComponentContractKey(LibrarySnapshot.Core.LibraryId, "logic.buffer"),
             [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
             new ComponentPlacement(new GridPoint(4, 0))));
         var buffer = circuit.Revision.Document.FindCircuitDefinition(child.Id)!

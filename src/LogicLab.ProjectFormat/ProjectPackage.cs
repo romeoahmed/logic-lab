@@ -226,14 +226,12 @@ public static partial class ProjectPackage
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8, 4), image.Width);
         BinaryPrimitives.WriteUInt64LittleEndian(bytes.AsSpan(12, 8), image.Depth);
 
-        for (var index = 0; index < image.PackedCells.Length; index++)
+        var cells = image.PackedCells;
+        for (var offset = 0; offset < cells.Length; offset += CancellationInterval)
         {
-            if ((index & (CancellationInterval - 1)) == 0)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-
-            bytes[20 + index] = image.PackedCells[index];
+            cancellationToken.ThrowIfCancellationRequested();
+            var length = Math.Min(CancellationInterval, cells.Length - offset);
+            cells.Slice(offset, length).CopyTo(bytes.AsSpan(20 + offset));
         }
 
         return bytes;
@@ -605,6 +603,8 @@ public static partial class ProjectPackage
 
     private sealed class CountingWriteStream(Stream destination) : Stream
     {
+        // .NET 10's ZIP entry wrapper disposes its compressor synchronously, even
+        // through DisposeAsync. Defer those final bytes to preserve async-only I/O.
         private readonly ArrayBufferWriter<byte> deferredSynchronousWrites = new();
 
         public ulong BytesWritten { get; private set; }
