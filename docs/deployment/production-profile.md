@@ -71,7 +71,10 @@ object ID, including after an identity is replaced under the same name. Identity
 Durable Project migrations use separate history tables in a Migrator-owned
 `migrations` schema and run in a deterministic order through the Migration Job. Web
 has read-only access to those tables for readiness, never calls `Migrate()`, and
-never becomes ready against an unexpected migration set.
+requires both applied migration histories to match the image's migration sets exactly.
+Adding a migration makes the previous image unready even when its queries remain
+schema-compatible. Schema-changing releases therefore require an accepted maintenance
+window; this profile does not support rolling schema upgrades.
 Before schema mutation, the release records a UTC recovery boundary covered by the
 server's automatic backups and point-in-time restore retention.
 
@@ -110,8 +113,10 @@ values.
 
 The runbook owns [release and verification](./runbook.md#release),
 [application rollback](./runbook.md#application-rollback), and
-[data recovery](./runbook.md#failed-migration-or-data-incident). Database changes
-must preserve N/N-1 application compatibility throughout the accepted rollback window.
+[data recovery](./runbook.md#failed-migration-or-data-incident). Application-only
+rollback requires an image with the same migration sets as the current database.
+Recovery across a schema change requires a reviewed forward release or PITR with a
+matching image; an older digest alone is insufficient.
 
 ## Cost and lifecycle
 

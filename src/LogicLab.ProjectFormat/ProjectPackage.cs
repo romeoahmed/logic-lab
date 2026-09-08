@@ -10,12 +10,18 @@ using LogicLab.Domain.Authoring;
 
 namespace LogicLab.ProjectFormat;
 
+/// <summary>Reads and writes the strict V1 .logiclab package under an explicit resource policy.</summary>
 public static partial class ProjectPackage
 {
     private const int CancellationInterval = 4_096;
     private static readonly DateTimeOffset CanonicalEntryTimestamp =
         new(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
+    /// <summary>Writes at the destination's current position and leaves the caller-owned stream open.</summary>
+    /// <remarks>
+    /// Use an unpublished staging stream: rejected or cancelled writes can leave bytes behind.
+    /// Publish those bytes only after <see cref="PackageWriteSucceeded"/>.
+    /// </remarks>
     public static async Task<PackageWriteOutcome> WriteAsync(
         ProjectPackageWriteRequest request,
         CancellationToken cancellationToken)
@@ -41,8 +47,7 @@ public static partial class ProjectPackage
                 cancellationToken);
             var domainBreach = FindBreach(
                 request.PackagePolicy,
-                observations,
-                includeCarrier: false);
+                observations);
             if (domainBreach is not null)
             {
                 return LimitRejected(
@@ -59,8 +64,7 @@ public static partial class ProjectPackage
             ObserveProjectPart(projectByteCount, observations);
             var projectBreach = FindBreach(
                 request.PackagePolicy,
-                observations,
-                includeCarrier: false);
+                observations);
             if (projectBreach is not null)
             {
                 return LimitRejected(
@@ -116,8 +120,7 @@ public static partial class ProjectPackage
 
             var preflightBreach = FindBreach(
                 request.PackagePolicy,
-                observations,
-                includeCarrier: false);
+                observations);
             if (preflightBreach is not null)
             {
                 return LimitRejected(
@@ -133,7 +136,9 @@ public static partial class ProjectPackage
                 cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
-            var countingDestination = new CountingWriteStream(request.Destination);
+            var countingDestination = new BoundedWriteStream(
+                request.Destination,
+                request.PackagePolicy.GetMaximum(PackageDimension.CarrierBytes));
             try
             {
                 await WriteCarrierAsync(
@@ -145,23 +150,11 @@ public static partial class ProjectPackage
             finally
             {
                 observations[(int)PackageDimension.CarrierBytes] =
-                    countingDestination.BytesWritten;
+                    countingDestination.BytesObserved;
             }
 
             var carrierBytes = countingDestination.BytesWritten;
             cancellationToken.ThrowIfCancellationRequested();
-
-            var carrierBreach = FindBreach(
-                request.PackagePolicy,
-                observations,
-                includeCarrier: true);
-            if (carrierBreach is not null)
-            {
-                return LimitRejected(
-                    request.PackagePolicy,
-                    observations,
-                    carrierBreach);
-            }
 
             return new PackageWriteSucceeded(
                 request.ProjectRevision.RevisionId,
@@ -347,7 +340,7 @@ public static partial class ProjectPackage
     }
 
     private static async Task WriteCarrierAsync(
-        CountingWriteStream destination,
+        BoundedWriteStream destination,
         byte[] manifestBytes,
         IReadOnlyList<PackagePart> parts,
         CancellationToken cancellationToken)
@@ -477,17 +470,10 @@ public static partial class ProjectPackage
 
     private static PackageDimensionObservation? FindBreach(
         PackagePolicy policy,
-        ulong[] observations,
-        bool includeCarrier)
+        ulong[] observations)
     {
         foreach (var limit in policy.Limits)
         {
-            if (!includeCarrier
-                && limit.Dimension == PackageDimension.CarrierBytes)
-            {
-                continue;
-            }
-
             var observed = observations[(int)limit.Dimension];
             if (observed > limit.Maximum)
             {
@@ -601,13 +587,16 @@ public static partial class ProjectPackage
         PackagePartDigest Digest,
         long Offset);
 
-    private sealed class CountingWriteStream(Stream destination) : Stream
+    private sealed class BoundedWriteStream(Stream destination, ulong maximumBytes) : Stream
     {
         // .NET 10's ZIP entry wrapper disposes its compressor synchronously, even
         // through DisposeAsync. Defer those final bytes to preserve async-only I/O.
         private readonly ArrayBufferWriter<byte> deferredSynchronousWrites = new();
+        private PackageDimensionObservation? limitBreach;
 
         public ulong BytesWritten { get; private set; }
+
+        public ulong BytesObserved => limitBreach?.Observed ?? BytesWritten;
 
         public override bool CanRead => false;
 
@@ -669,11 +658,13 @@ public static partial class ProjectPackage
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            deferredSynchronousWrites.Write(buffer.AsSpan(offset, count));
+            Write(buffer.AsSpan(offset, count));
         }
 
         public override void Write(ReadOnlySpan<byte> buffer)
         {
+            RequireCapacity(checked(
+                (ulong)deferredSynchronousWrites.WrittenCount + (ulong)buffer.Length));
             deferredSynchronousWrites.Write(buffer);
         }
 
@@ -715,6 +706,7 @@ public static partial class ProjectPackage
             ReadOnlyMemory<byte> buffer,
             CancellationToken cancellationToken)
         {
+            RequireCapacity(checked((ulong)buffer.Length));
             try
             {
                 await destination.WriteAsync(buffer, cancellationToken)
@@ -733,6 +725,23 @@ public static partial class ProjectPackage
             BytesWritten = SaturatingAdd(
                 BytesWritten,
                 checked((ulong)buffer.Length));
+        }
+
+        private void RequireCapacity(ulong pendingBytes)
+        {
+            var observed = SaturatingAdd(BytesWritten, pendingBytes);
+            if (limitBreach is null && observed > maximumBytes)
+            {
+                limitBreach = new PackageDimensionObservation(
+                    PackageDimension.CarrierBytes,
+                    observed);
+            }
+
+            // ZIP disposal may try to finish the archive after a failed write.
+            if (limitBreach is not null)
+            {
+                throw new PackagePolicyLimitException(limitBreach);
+            }
         }
     }
 

@@ -113,13 +113,21 @@ internal sealed class SceneIntentTests
             [new SceneComponentMoveV1(
                 source,
                 new SceneComponentPlacementV1(point, 0, false))],
-            "none");
+            "none",
+            [new SceneWireReplacementV1(new SceneSourceRefV1("definition-a", "wireGeometry", "w"),
+                new SceneOrthogonalWireRouteV1([point, new SceneGridPointV1(4, 2)]))],
+            [new SceneNetWireAdditionV1(new SceneSourceRefV1("definition-a", "net", "n"),
+                new SceneOrthogonalWireRouteV1([point, new SceneGridPointV1(1, 4)]))]);
         yield return () => new MoveDefinitionPortsSceneIntentV1(
             "build-a", 7, 11, "definition-a",
             [new SceneDefinitionPortMoveV1(
                 new SceneSourceRefV1("definition-a", "definitionPort", "p"),
                 new SceneDefinitionPortPlacementV1(point, "east"))],
-            "none");
+            "none",
+            [new SceneWireReplacementV1(new SceneSourceRefV1("definition-a", "wireGeometry", "w"),
+                new SceneOrthogonalWireRouteV1([point, new SceneGridPointV1(4, 2)]))],
+            [new SceneNetWireAdditionV1(new SceneSourceRefV1("definition-a", "net", "n"),
+                new SceneOrthogonalWireRouteV1([point, new SceneGridPointV1(1, 4)]))]);
         yield return () => new MoveAnnotationsSceneIntentV1(
             "build-a", 7, 11, "definition-a",
             [new SceneAnnotationMoveV1(

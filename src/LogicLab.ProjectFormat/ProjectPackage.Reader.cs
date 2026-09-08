@@ -16,6 +16,10 @@ public static partial class ProjectPackage
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         });
 
+    /// <summary>
+    /// Validates a carrier from the source's current position, leaving the stream open.
+    /// Only success exposes an Import Candidate; cancellation returns a rejected outcome.
+    /// </summary>
     public static async Task<PackageReadOutcome> ReadAsync(
         ProjectPackageReadRequest request,
         CancellationToken cancellationToken)
@@ -238,6 +242,7 @@ public static partial class ProjectPackage
             cancellationToken).ConfigureAwait(false)
             ?? throw Invalid("package_json_invalid", ("rule", "schema"));
         cancellationToken.ThrowIfCancellationRequested();
+        // Establish exact entry agreement before resolving any declared part.
         ValidateManifest(manifest, entries, cancellationToken);
         observations[(int)PackageDimension.MemoryPartCount] = checked(
             (ulong)manifest.MemoryParts.Length);
@@ -249,10 +254,8 @@ public static partial class ProjectPackage
         await using var decodedParts = CreateTemporaryFile("parts");
         var spooledParts = new List<SpooledPackagePart>(
             checked(manifest.MemoryParts.Length + 1));
-        var projectPart = await ReadDeclaredPartAsync(
-            entries,
-            manifest.ProjectPart.Path,
-            memoryImageId: null,
+        var projectPart = await ReadEntryAsync(
+            entries[manifest.ProjectPart.Path],
             decodedParts,
             policy,
             observations,
@@ -261,10 +264,8 @@ public static partial class ProjectPackage
         foreach (var memoryPart in manifest.MemoryParts)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            spooledParts.Add(await ReadDeclaredPartAsync(
-                entries,
-                memoryPart.Path,
-                memoryPart.MemoryImageId,
+            spooledParts.Add(await ReadEntryAsync(
+                entries[memoryPart.Path],
                 decodedParts,
                 policy,
                 observations,
@@ -436,38 +437,6 @@ public static partial class ProjectPackage
         {
             throw Invalid("package_illegal_entry", ("rule", "unknownPart"));
         }
-    }
-
-    private static async Task<SpooledPackagePart> ReadDeclaredPartAsync(
-        Dictionary<string, ZipArchiveEntry> entries,
-        string path,
-        string? memoryImageId,
-        FileStream destination,
-        PackagePolicy policy,
-        ulong[] observations,
-        CancellationToken cancellationToken)
-    {
-        if (!entries.TryGetValue(path, out var entry))
-        {
-            throw Invalid(
-                "package_integrity_mismatch",
-                ("partKind", memoryImageId is null ? "project" : "memory"),
-                ("check", "missing"));
-        }
-
-        var part = await ReadEntryAsync(
-            entry,
-            destination,
-            policy,
-            observations,
-            cancellationToken).ConfigureAwait(false);
-        if (memoryImageId is not null
-            && !string.Equals(path, $"memory/{memoryImageId}.bin", StringComparison.Ordinal))
-        {
-            throw Invalid("package_illegal_entry", ("rule", "memoryPath"));
-        }
-
-        return part;
     }
 
     private static void ValidatePartIntegrity(

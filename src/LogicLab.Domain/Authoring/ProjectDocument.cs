@@ -94,9 +94,6 @@ public sealed class ProjectDocument
         }
 
         definitions[index] = replacement;
-        Array.Sort(
-            definitions,
-            static (left, right) => string.CompareOrdinal(left.Id.Value, right.Id.Value));
         return new(this, circuitDefinitions: Array.AsReadOnly(definitions));
     }
 

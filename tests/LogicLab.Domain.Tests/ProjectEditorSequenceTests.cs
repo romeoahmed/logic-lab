@@ -127,7 +127,7 @@ internal sealed class ProjectEditorSequenceTests
             "move component",
             new MoveComponentInstancesIntent(
                 definitionId,
-                [new ComponentMove(id, placement)]),
+                [new ComponentMove(id, placement)], [], []),
             (_, _, model) => model.Components[id] = model.Components[id] with
             {
                 Placement = placement,

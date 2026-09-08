@@ -4,50 +4,35 @@
   inline-size: 100%;
   min-inline-size: 0;
   margin-inline: auto;
-  padding: clamp(0.6rem, 1.5vw, 1rem);
+  padding: 0.4rem;
 }
 
 .workbench-heading {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(18rem, 30rem);
-  align-items: end;
-  gap: 2rem;
-  padding: 0.25rem 0.25rem 0.65rem;
-}
-
-.workbench-heading h1,
-.workbench-heading p,
-.workbench-brief span {
-  margin-block-start: 0;
+  gap: 0.4rem;
+  padding: 0.75rem 0.5rem;
 }
 
 .workbench-heading h1 {
-  margin-block-end: 0;
-  font-size: clamp(2rem, 4vw, 3.5rem);
-  letter-spacing: -0.05em;
-  line-height: 1;
+  margin: 0;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  letter-spacing: -0.035em;
+  line-height: 1.15;
 }
 
-.workbench-brief {
-  padding-inline-start: 1.25rem;
-  border-inline-start: 1px solid var(--ll-border-strong);
+.workbench-heading p {
+  margin: 0;
+  color: var(--ll-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
 
-.workbench-brief > span,
 .eyebrow {
   color: var(--ll-signal);
   font-size: 0.68rem;
   font-weight: 750;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-}
-
-.workbench-brief > p {
-  max-inline-size: 30rem;
-  margin-block: 0.45rem 0;
-  color: var(--ll-muted);
-  font-size: 0.9rem;
-  line-height: 1.55;
 }
 
 .workbench-deck {
@@ -79,6 +64,8 @@
 }
 
 .instrument-bay {
+  display: flex;
+  flex-direction: column;
   position: relative;
   min-block-size: 0;
   min-inline-size: 0;
@@ -101,16 +88,15 @@
 [data-workbench-active="true"] .workbench-body {
   display: grid;
   min-block-size: 0;
-  grid-template-rows: minmax(10rem, 1fr) minmax(0, 24%);
+  grid-template-rows: minmax(14rem, 1fr) minmax(0, var(--instrument-height));
 }
 
 .inspector-heading {
-  padding: 0.85rem 0.9rem;
+  padding: 0.5rem 0.75rem;
   border-block-end: 1px solid var(--ll-border);
 }
 
-.inspector-heading h2,
-.inspector-heading p {
+.inspector-heading h2 {
   margin: 0;
 }
 
@@ -120,14 +106,6 @@
   font-weight: 750;
   letter-spacing: 0.11em;
   text-transform: uppercase;
-}
-
-.inspector-heading p {
-  margin-block-start: 0.25rem;
-  color: var(--ll-muted);
-  font-size: 0.76rem;
-  font-weight: 500;
-  line-height: 1.4;
 }
 
 .workbench-status-region {
@@ -263,19 +241,6 @@
   color: var(--ll-ink);
 }
 
-@media (max-width: 800px) {
-  .workbench-heading {
-    grid-template-columns: 1fr;
-  }
-
-  .workbench-brief {
-    padding-block-start: 0.75rem;
-    padding-inline-start: 0;
-    border-block-start: 1px solid var(--ll-border);
-    border-inline-start: 0;
-  }
-}
-
 @media (max-width: 560px) {
   .workbench-shell {
     padding: 0.4rem;
@@ -321,10 +286,9 @@
   overflow: hidden;
 }
 
-@media (min-width: 720px) {
-  [data-workbench-active="true"] .workbench-body:not([data-instruments-expanded="true"]) {
-    grid-template-rows: minmax(10rem, 1fr) minmax(0, 40%);
-  }
+[data-workbench-active="true"]
+  .workbench-body[data-instruments-idle="true"]:not([data-instruments-expanded="true"]) {
+  grid-template-rows: minmax(14rem, 1fr) 8rem;
 }
 
 @media (max-height: 40rem) {
@@ -334,5 +298,41 @@
 
   [data-workbench-active="true"] .workbench-deck {
     grid-template-rows: auto auto 32rem auto;
+  }
+}
+
+.instrument-bay ::deep .fluent-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-block-size: 0;
+}
+
+.instrument-bay ::deep fluent-tablist {
+  flex: none;
+  padding-inline-end: 14rem;
+}
+
+.instrument-bay ::deep .fluent-tab-panel {
+  flex: 1;
+  min-block-size: 0;
+  padding: 0;
+  overflow: auto;
+}
+
+.instrument-size-control input {
+  inline-size: 6rem;
+  min-block-size: 2rem;
+  margin: 0 0.5rem;
+  accent-color: var(--ll-signal);
+}
+
+@media (max-width: 560px) {
+  .instrument-size-control input {
+    display: none;
+  }
+
+  .instrument-bay ::deep fluent-tablist {
+    padding-inline-end: 10rem;
   }
 }

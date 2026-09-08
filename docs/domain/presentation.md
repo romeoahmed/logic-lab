@@ -1,25 +1,21 @@
 # Diagram Presentation Glossary
 
-Diagram Presentation projects authored semantics into reproducible, renderable, hittable, and exportable schematic geometry without changing circuit behavior.
+Diagram Presentation derives reproducible schematic geometry for rendering, hit
+testing, and export without changing circuit behavior. The
+[presentation specification](../specs/diagram-presentation.md) owns geometry rules.
 
-## Language
+**Symbol Profile**: A project-level, versioned mapping from Component Contracts to
+default Symbol Variants and diagram-wide indication conventions.
 
-**Symbol Profile**:
-A project-level, versioned mapping from Component Contracts to default Symbol Variants and diagram-wide indication conventions.
-_Avoid_: icon theme, Symbol Variant, component kind
+**Symbol Variant**: One template-constrained graphical representation of a Component
+Contract, preserving its semantics and Port ordering.
 
-**Symbol Variant**:
-One template-constrained graphical representation of the same Component Contract and Port ordering.
-_Avoid_: Component Contract, Symbol Profile
+**Geometry Plan**: An immutable, renderer-neutral result containing drawing
+operations, Port anchors, bounds, Hit Regions, and conformance evidence.
 
-**Geometry Plan**:
-An immutable, renderer-neutral result containing drawing operations, Port anchors, bounds, Hit Regions, and conformance evidence.
-_Avoid_: rendered image, pre-drawn asset
+**Schematic Projection**: Static geometry for one Circuit Definition in a Project
+Revision under one Symbol Profile and presentation fingerprint. Selection and live
+values are composed separately.
 
-**Schematic Projection**:
-The reproducible static geometry for one Circuit Definition in a Project Revision under one Symbol Profile and presentation fingerprint.
-_Avoid_: Workspace Projection, selection state
-
-**Transient Preview**:
-A local visual result of an in-progress gesture that has not become an Edit Transaction.
-_Avoid_: Project Revision, Edit Transaction
+**Transient Preview**: The local visual result of an in-progress gesture before it
+becomes an Edit Transaction.

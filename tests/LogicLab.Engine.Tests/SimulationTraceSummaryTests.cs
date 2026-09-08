@@ -10,7 +10,9 @@ namespace LogicLab.Engine.Tests;
 internal sealed class SimulationTraceSummaryTests
 {
     [Test]
-    public async Task Read_TransitionsWithoutContinuation_ReturnsBaselineForEveryProbe()
+    [Arguments(4UL)]
+    [Arguments(5UL)]
+    public async Task Read_TransitionsWithoutContinuation_ReturnsBaselineForEveryProbe(ulong rangeStart)
     {
         var context = SimulationTestContext.Create();
         var opened = (SimulationOpened)SimulationRuntime.Open(
@@ -31,7 +33,7 @@ internal sealed class SimulationTraceSummaryTests
             opened.Handle,
             new ReadTraceWindow(new SimulationTraceWindowRequest(
                 opened.ProbeIds,
-                new LogicalTimeRange(5, 8),
+                new LogicalTimeRange(rangeStart, 8),
                 TraceTransitionsRepresentation.Instance,
                 afterSequence: null)),
             CancellationToken.None);
@@ -42,7 +44,7 @@ internal sealed class SimulationTraceSummaryTests
                 (item.ProbeId, item.LogicalTime, Value: item.Value[0])))
             .IsEquivalentTo(
                 [(opened.ProbeIds[0], 4UL, LogicValue.One), (opened.ProbeIds[1], 4UL, LogicValue.Zero)],
-                CollectionOrdering.Any);
+                CollectionOrdering.Matching);
     }
 
     [Test]

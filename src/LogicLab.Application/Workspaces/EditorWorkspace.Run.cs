@@ -250,12 +250,12 @@ internal sealed partial class EditorWorkspace
             return outcome;
         }
 
-        if (outcome is NoScheduledStimulus)
+        if (outcome is NoScheduledEvents)
         {
             return PauseRunAtBoundary(
                 state,
                 generation,
-                RunPauseReason.NoScheduledStimulus);
+                RunPauseReason.NoScheduledEvents);
         }
 
         return outcome is SessionAdvanceFailed failed
@@ -300,7 +300,7 @@ internal sealed partial class EditorWorkspace
     {
         lock (state.ContinuityGate)
         {
-            if (reason == RunPauseReason.NoScheduledStimulus
+            if (reason == RunPauseReason.NoScheduledEvents
                 && IsRunPauseRequestedUnderLock(state, generation))
             {
                 reason = RunPauseReason.UserRequested;

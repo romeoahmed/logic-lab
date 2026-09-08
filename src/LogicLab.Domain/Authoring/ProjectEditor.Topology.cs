@@ -765,6 +765,41 @@ public static partial class ProjectEditor
         }
     }
 
+    private static GeometryChangeSet? BuildMoveGeometryChanges(
+        CircuitDefinition definition,
+        HashSet<NetId> allowedNetIds,
+        IReadOnlyList<WireGeometryReplacement> replacements,
+        ReadOnlyCollection<NetWireGeometryAddition> additions,
+        List<AuthoringDiagnostic> diagnostics)
+    {
+        foreach (var addition in additions)
+        {
+            if (!allowedNetIds.Contains(addition.NetId))
+            {
+                diagnostics.Add(MissingReference("net"));
+            }
+
+            var diagnostic = ValidateRoute(addition.Route);
+            if (diagnostic is not null)
+            {
+                diagnostics.Add(diagnostic);
+            }
+        }
+
+        var changes = BuildGeometryChanges(definition, allowedNetIds, replacements, [], diagnostics);
+        if (changes is null || additions.Count == 0)
+        {
+            return changes;
+        }
+
+        var added = additions.Select(addition => new WireGeometry(
+            WireGeometryId.Create(), addition.NetId, addition.Route)).ToArray();
+        return new GeometryChangeSet(
+            [.. changes.UpdatedGeometries, .. added],
+            [.. changes.ChangedGeometries, .. added],
+            []);
+    }
+
     private static GeometryChangeSet? BuildGeometryChanges(
         CircuitDefinition definition,
         HashSet<NetId> allowedNetIds,
@@ -998,6 +1033,6 @@ public static partial class ProjectEditor
 
     private sealed record GeometryChangeSet(
         WireGeometry[] UpdatedGeometries,
-        WireGeometry[] ReplacedGeometries,
+        WireGeometry[] ChangedGeometries,
         WireGeometryId[] RemovedGeometryIds);
 }

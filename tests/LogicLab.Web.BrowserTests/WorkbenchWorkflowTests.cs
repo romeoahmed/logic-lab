@@ -1,12 +1,17 @@
 using LogicLab.Application.Examples;
+using LogicLab.Domain;
+using LogicLab.Domain.Authoring;
+using LogicLab.Domain.Components;
+using LogicLab.ProjectFormat;
+using LogicLab.Web.Testing;
 using Microsoft.Playwright;
 using TUnit.Playwright;
 using static Microsoft.Playwright.Assertions;
 
 namespace LogicLab.Web.BrowserTests;
 
-[ClassDataSource<LogicLabBrowserApplication>]
-internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication application) : PageTest
+[ClassDataSource<LogicLabKestrelApplication>(Shared = SharedType.PerClass)]
+internal sealed class WorkbenchWorkflowTests(LogicLabKestrelApplication application) : PageTest
 {
     public override BrowserNewContextOptions ContextOptions(TestContext testContext)
     {
@@ -36,7 +41,7 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
 
         await Expect(Page.Locator("[data-command='author-bit-serial']")).ToBeVisibleAsync();
         await Expect(workbench.Canvas).ToBeHiddenAsync();
-        await Expect(workbench.LogicalTime).ToHaveTextAsync("—");
+        await Expect(workbench.LogicalTime).ToBeHiddenAsync();
         await Page.GoBackAsync();
         await Expect(workbench.LogicalTime).ToHaveTextAsync("1");
         await Assert.That(Page.Url).IsEqualTo(workspaceUrl);
@@ -67,6 +72,50 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
         await Expect(workbench.Renderer).ToHaveAttributeAsync("data-scene-renderer", "ready");
         await workbench.StartSimulation.ClickAsync();
         await Expect(workbench.Probes.Locator("strong")).ToHaveTextAsync("1");
+        await Expect(Page.Locator("#blazor-error-ui")).ToBeHiddenAsync();
+    }
+
+    [Test]
+    [Arguments(1280)]
+    [Arguments(390)]
+    public async Task ProjectImport_IncompleteCircuit_OpensDiagnosticsAndAllowsEditing(int width)
+    {
+        var revision = await StarterCircuitFixture.LoadAsync(ExampleProject.Inverter);
+        var definition = revision.Document.EntryCircuitDefinition;
+        var incomplete = ((EditCommitted)ProjectEditor.Apply(revision,
+            new PlaceComponentInstanceIntent(
+                definition.Id,
+                new ComponentContractKey(LibrarySnapshot.Core.LibraryId, "logic.not"),
+                [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
+                new ComponentPlacement(new GridPoint(0, 0))))).Revision;
+        using var buffer = new MemoryStream();
+        var write = await ProjectPackage.WriteAsync(new ProjectPackageWriteRequest(
+            incomplete, buffer, PackagePolicy.Default), CancellationToken.None);
+        await Assert.That(write).IsTypeOf<PackageWriteSucceeded>();
+
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenSandboxAsync(width: width);
+        await Page.GetByTestId("project-options-trigger").ClickAsync();
+        var chooser = await Page.RunAndWaitForFileChooserAsync(() =>
+            Page.Locator("[data-command='import']").ClickAsync());
+        await chooser.SetFilesAsync(new FilePayload
+        {
+            Name = "unfinished.logiclab",
+            MimeType = "application/vnd.logiclab+zip",
+            Buffer = buffer.ToArray(),
+        });
+
+        await Expect(Page.Locator("[data-diagnostic-code='compiler_required_terminal_unconnected']"))
+            .ToBeVisibleAsync();
+        await Expect(workbench.Renderer).ToHaveAttributeAsync("data-scene-renderer", "ready");
+        await Expect(Page.Locator("[data-command='session']")).ToHaveAttributeAsync("disabled", "");
+        await Expect(workbench.Compile).ToBeVisibleAsync();
+        await workbench.OpenLibraryAsync();
+        await Page.Locator("[data-place-option$=':source.input']").ClickAsync();
+        await workbench.Canvas.ClickAsync();
+        await Expect(workbench.Undo).ToBeVisibleAsync();
+        await workbench.Undo.ClickAsync();
+        await Expect(workbench.Redo).ToBeVisibleAsync();
         await Expect(Page.Locator("#blazor-error-ui")).ToBeHiddenAsync();
     }
 
@@ -143,6 +192,7 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
         await workbench.OpenExampleAsync("author-carry-lookahead", width: width);
         await workbench.StartSimulation.ClickAsync();
         await Expect(workbench.Probes).ToHaveCountAsync(2);
+        await workbench.OpenLibraryAsync();
         await Page.Locator("[data-instruments-toggle]").ClickAsync();
         var original = workbench.Probes.First.Locator("[data-probe-cue]");
         var probeId = (await original.GetAttributeAsync("data-probe-cue"))!;
@@ -158,6 +208,7 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
 
         await workbench.Probes.Last.GetByTitle("Find on circuit", new() { Exact = true }).ClickAsync();
         await Expect(workbench.Canvas).ToBeInViewportAsync();
+        await workbench.Canvas.ClickAsync(new() { Trial = true });
         var inspector = Page.Locator("[data-selection-inspector] [data-probe-cue]");
         await Expect(inspector).ToHaveAttributeAsync("data-probe-cue", probeId);
         await Expect(inspector).ToHaveAttributeAsync("data-probe-pattern", pattern);
@@ -192,10 +243,12 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
         await Expect(diagnostics).ToBeVisibleAsync();
         await Expect(diagnostics.Locator("[data-diagnostic-code='compiler_required_terminal_unconnected']"))
             .ToHaveCountAsync(1);
+        await workbench.OpenInspectorAsync();
         await Page.Locator("[data-instruments-toggle]").ClickAsync();
         await Expect(workbench.Canvas).ToBeHiddenAsync();
         await diagnostics.Locator("[data-diagnostic-reveal]").ClickAsync();
         await Expect(workbench.Canvas).ToBeInViewportAsync();
+        await workbench.Canvas.ClickAsync(new() { Trial = true });
         await Expect(Page.Locator("[data-selection-item] h3")).ToHaveTextAsync("Output · D");
         await Expect(Page.Locator("[data-selection-inspector]"))
             .ToContainTextAsync("Connect this required terminal to a net.");
@@ -208,10 +261,12 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
     }
 
     [Test]
-    public async Task Diagnostics_UnknownInput_TracksCauseAndPreservesWaveformPreferences()
+    [Arguments(1280)]
+    [Arguments(390)]
+    public async Task Diagnostics_UnknownInput_TracksCauseAndPreservesWaveformPreferences(int width)
     {
         var workbench = new WorkbenchTestPage(Page, application.EditorUri);
-        await workbench.OpenExampleAsync();
+        await workbench.OpenExampleAsync(width: width);
         await workbench.StartSimulation.ClickAsync();
         await workbench.WaveformSummary.ClickAsync();
         await workbench.OpenInspectorAsync();
@@ -228,12 +283,14 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
         await Expect(workbench.Canvas).ToBeHiddenAsync();
         await diagnostics.Locator("[data-diagnostic-reveal]").Last.ClickAsync();
         await Expect(workbench.Canvas).ToBeInViewportAsync();
+        await workbench.Canvas.ClickAsync(new() { Trial = true });
         await Expect(Page.Locator("[data-selection-inspector]"))
             .ToContainTextAsync("An unknown driver contributes X to this net.");
 
         await Page.GetByRole(AriaRole.Tab, new() { Name = "Waveform", Exact = true }).ClickAsync();
         await Expect(workbench.WaveformSummary).ToHaveAttributeAsync("pressed", "");
         await Expect(workbench.Probes.Locator("strong")).ToHaveTextAsync("X");
+        await workbench.OpenInspectorAsync();
         await input.FillAsync("0");
         await workbench.ApplyInputsAsync();
         await workbench.Step.ClickAsync();
@@ -451,10 +508,16 @@ internal sealed class WorkbenchWorkflowTests(LogicLabBrowserApplication applicat
         await Expect(workbench.WaveformCanvas).ToBeVisibleAsync();
 
         await Page.Locator("[data-instruments-toggle]").ClickAsync();
-        await workbench.WaveformSummary.ScrollIntoViewIfNeededAsync();
-        await Expect(workbench.WaveformSummary).ToBeInViewportAsync();
-        await Expect(workbench.WaveformZoomIn).ToBeInViewportAsync();
-        await Expect(workbench.WaveformLive).ToBeInViewportAsync();
+        foreach (var control in new[]
+        {
+            workbench.WaveformSummary,
+            workbench.WaveformZoomIn,
+            workbench.WaveformLive,
+        })
+        {
+            await control.ScrollIntoViewIfNeededAsync();
+            await Expect(control).ToBeInViewportAsync();
+        }
         await workbench.WaveformClose.ScrollIntoViewIfNeededAsync();
         await Expect(workbench.WaveformClose).ToBeInViewportAsync();
         var waveformBounds = await workbench.WaveformCanvas.BoundingBoxAsync();

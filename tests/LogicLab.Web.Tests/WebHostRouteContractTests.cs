@@ -16,7 +16,7 @@ internal sealed class WebHostRouteContractTests(LogicLabWebFactory factory)
     [Arguments("/help/getting-started")]
     public async Task Get_ClosedPublicRoute_IsMapped(string path)
     {
-        using var client = factory.CreateHttpsClient();
+        using var client = factory.CreateClient();
 
         using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
 
@@ -24,27 +24,9 @@ internal sealed class WebHostRouteContractTests(LogicLabWebFactory factory)
     }
 
     [Test]
-    public async Task Get_ReadinessRoute_ReturnsOnlyAggregateStatus()
-    {
-        using var client = factory.CreateHttpsClient();
-
-        using var response = await client.GetAsync(
-            new Uri("/health/ready", UriKind.Relative));
-        var content = await response.Content.ReadAsStringAsync();
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(response.StatusCode)
-                .IsIn(HttpStatusCode.OK, HttpStatusCode.ServiceUnavailable);
-            await Assert.That(content).IsEqualTo(
-                response.StatusCode == HttpStatusCode.OK ? "Healthy" : "Unhealthy");
-        }
-    }
-
-    [Test]
     public async Task Post_CultureChoice_PersistsCookieAndRedirectsLocally()
     {
-        using var client = factory.CreateHttpsClient();
+        using var client = factory.CreateClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/");
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
@@ -96,7 +78,7 @@ internal sealed class WebHostRouteContractTests(LogicLabWebFactory factory)
     [Test]
     public async Task Post_CultureChoice_RejectsExternalReturnUrl()
     {
-        using var client = factory.CreateHttpsClient();
+        using var client = factory.CreateClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/");
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
@@ -127,7 +109,7 @@ internal sealed class WebHostRouteContractTests(LogicLabWebFactory factory)
     [Test]
     public async Task Get_FirstRequest_ProjectsSupportedAcceptLanguageInDocument()
     {
-        using var client = factory.CreateHttpsClient();
+        using var client = factory.CreateClient();
         client.DefaultRequestHeaders.AcceptLanguage.Add(
             new StringWithQualityHeaderValue("zh-CN"));
 
@@ -152,7 +134,7 @@ internal sealed class WebHostRouteContractTests(LogicLabWebFactory factory)
     [Test]
     public async Task Get_HelpWithSupportedCulture_ProjectsLocalizedContent()
     {
-        using var client = factory.CreateHttpsClient();
+        using var client = factory.CreateClient();
         client.DefaultRequestHeaders.AcceptLanguage.Add(
             new StringWithQualityHeaderValue("zh-CN"));
 

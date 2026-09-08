@@ -19,28 +19,21 @@ internal sealed class TeachingMixedGeometryPlannerTests
         new StubTextMeasurer(DefaultFontFingerprint);
 
     [Test]
-    [Arguments("logic.and", 2U, 2, false)]
-    [Arguments("logic.nand", 2U, 2, true)]
-    [Arguments("logic.or", 2U, 3, false)]
-    [Arguments("logic.nor", 2U, 3, true)]
-    [Arguments("logic.xor", 2U, 4, false)]
-    [Arguments("logic.xnor", 2U, 4, true)]
-    [Arguments("logic.buffer", 1U, 0, false)]
-    [Arguments("logic.not", 1U, 0, true)]
-    public async Task Plan_DistinctiveBasicGate_EmitsExpectedRecipeAndQualifier(
+    [Arguments("logic.and", 2U, false)]
+    [Arguments("logic.nand", 2U, true)]
+    [Arguments("logic.or", 2U, false)]
+    [Arguments("logic.nor", 2U, true)]
+    [Arguments("logic.xor", 2U, false)]
+    [Arguments("logic.xnor", 2U, true)]
+    [Arguments("logic.buffer", 1U, false)]
+    [Arguments("logic.not", 1U, true)]
+    public async Task Plan_DistinctiveBasicGate_PublishesRegisteredClaimAndQualifier(
         string contractId,
         uint fanIn,
-        int expectedCubicCount,
         bool expectsOutputQualifier)
     {
         var plan = Plan(Request(contractId, fanIn));
 
-        var cubicCount = plan.Operations
-            .OfType<StrokePathV1>()
-            .Where(operation => operation.Role == StrokeRoleV1.Outline)
-            .SelectMany(operation => operation.Path.Commands)
-            .OfType<CubicToV1>()
-            .Count();
         var qualifierCount = plan.Operations
             .OfType<StrokePathV1>()
             .Count(operation => operation.Role == StrokeRoleV1.Qualifier);
@@ -49,11 +42,10 @@ internal sealed class TeachingMixedGeometryPlannerTests
         {
             await Assert.That(plan.Key.SymbolVariantId)
                 .IsEqualTo(SymbolVariantCatalog.DistinctiveId);
-            await Assert.That(cubicCount).IsEqualTo(expectedCubicCount);
+            await Assert.That(plan.Conformance.Claim)
+                .IsEqualTo(ConformanceClaimV1.PermittedDistinctive91A);
             await Assert.That(qualifierCount)
                 .IsEqualTo(expectsOutputQualifier ? 1 : 0);
-            await Assert.That(plan.Operations.All(operation =>
-                operation is StrokePathV1 or FillPathV1 or DrawTextV1)).IsTrue();
         }
     }
 

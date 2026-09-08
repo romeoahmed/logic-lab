@@ -80,11 +80,31 @@ public static partial class ProjectEditor
                 port.Width,
                 placement);
         }).ToArray();
-        return Commit(
-            revision,
-            definition.WithPorts(ports),
-            [.. moves.Keys.Select(id => (AuthoredSourceIdentity)
-                new DefinitionPortSourceIdentity(definition.Id, id))]);
+        var updated = definition.WithPorts(ports);
+        var changedSources = moves.Keys.Select(id => (AuthoredSourceIdentity)
+            new DefinitionPortSourceIdentity(definition.Id, id)).ToList();
+        if (intent.RouteReplacements.Count != 0 || intent.RouteAdditions.Count != 0)
+        {
+            var geometryChanges = BuildMoveGeometryChanges(
+                definition,
+                [.. definition.Nets.Where(net => net.Terminals.Any(terminal =>
+                    terminal is DefinitionTerminalReference port
+                    && moves.ContainsKey(port.DefinitionPortId)))
+                    .Select(net => net.Id)],
+                intent.RouteReplacements,
+                intent.RouteAdditions,
+                diagnostics);
+            if (geometryChanges is null)
+            {
+                return new EditRejected([.. diagnostics]);
+            }
+
+            updated = updated.WithWireGeometries(geometryChanges.UpdatedGeometries);
+            changedSources.AddRange(geometryChanges.ChangedGeometries.Select(geometry =>
+                new WireGeometrySourceIdentity(definition.Id, geometry.Id)));
+        }
+
+        return Commit(revision, updated, [.. changedSources]);
     }
 
     private static EditOutcome ApplyRemoveDefinition(

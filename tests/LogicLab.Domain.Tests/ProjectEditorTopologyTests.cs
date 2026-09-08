@@ -15,6 +15,108 @@ internal sealed class ProjectEditorTopologyTests
     }
 
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Apply_MoveWithBranchAddition_ValidatesNetAndPreservesExistingGeometry(bool unrelatedNet)
+    {
+        var topology = CreateTwoNetsWithTopology();
+        var original = topology.Revision.Document.EntryCircuitDefinition;
+        var terminal = topology.FirstNet.Terminals.OfType<InstanceTerminalReference>()
+            .Single(candidate => !topology.SecondNet.Terminals.OfType<InstanceTerminalReference>()
+                .Any(other => other.ComponentInstanceId == candidate.ComponentInstanceId));
+        var placement = new ComponentPlacement(new GridPoint(12, 3));
+        var route = new OrthogonalWireRoute([new GridPoint(0, 0), new GridPoint(0, 3)]);
+        var outcome = ProjectEditor.Apply(topology.Revision, new MoveComponentInstancesIntent(
+            original.Id, [new ComponentMove(terminal.ComponentInstanceId, placement)], [],
+            [new NetWireGeometryAddition(unrelatedNet ? topology.SecondNet.Id : topology.FirstNet.Id, route)]));
+
+        if (unrelatedNet)
+        {
+            await Assert.That(outcome).IsTypeOf<EditRejected>();
+            return;
+        }
+
+        var committed = Commit(outcome);
+        var updated = committed.Revision.Document.EntryCircuitDefinition;
+        var added = updated.WireGeometries.Single(wire => original.FindWireGeometry(wire.Id) is null);
+        using (Assert.Multiple())
+        {
+            await Assert.That(updated.FindComponentInstance(terminal.ComponentInstanceId)!.Placement)
+                .IsEqualTo(placement);
+            await Assert.That(added.NetId).IsEqualTo(topology.FirstNet.Id);
+            await Assert.That(added.Route).IsEqualTo(route);
+            await Assert.That(updated.WireGeometries.Where(wire => wire.Id != added.Id))
+                .IsEquivalentTo(original.WireGeometries, CollectionOrdering.Matching);
+            await Assert.That(updated.Nets).IsEquivalentTo(original.Nets, CollectionOrdering.Matching);
+            await Assert.That(committed.ChangedSources).Contains(new WireGeometrySourceIdentity(original.Id, added.Id));
+        }
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Apply_MoveWithRouteReplacement_ValidatesAndCommitsAtomically(bool invalidRoute)
+    {
+        var topology = CreateTwoNetsWithTopology();
+        var original = topology.Revision.Document.EntryCircuitDefinition;
+        var terminal = original.Nets[0].Terminals.OfType<InstanceTerminalReference>().First();
+        var geometry = original.WireGeometries.First(wire => wire.NetId == original.Nets[0].Id);
+        var placement = new ComponentPlacement(new GridPoint(12, 3));
+        var route = new OrthogonalWireRoute(invalidRoute
+            ? [new GridPoint(0, 0), new GridPoint(1, 1)]
+            : [new GridPoint(0, 0), new GridPoint(0, 3), new GridPoint(12, 3)]);
+
+        var outcome = ProjectEditor.Apply(topology.Revision, new MoveComponentInstancesIntent(
+            original.Id,
+            [new ComponentMove(terminal.ComponentInstanceId, placement)],
+            [new WireGeometryReplacement(geometry.Id, route)], []));
+
+        if (invalidRoute)
+        {
+            await Assert.That(outcome).IsTypeOf<EditRejected>();
+            await Assert.That(original.FindComponentInstance(terminal.ComponentInstanceId)!.Placement)
+                .IsNotEqualTo(placement);
+            await Assert.That(original.FindWireGeometry(geometry.Id)!.Route).IsEqualTo(geometry.Route);
+            return;
+        }
+
+        var committed = Commit(outcome);
+        var updated = committed.Revision.Document.EntryCircuitDefinition;
+        using (Assert.Multiple())
+        {
+            await Assert.That(updated.FindComponentInstance(terminal.ComponentInstanceId)!.Placement)
+                .IsEqualTo(placement);
+            await Assert.That(updated.FindWireGeometry(geometry.Id)!.Route).IsEqualTo(route);
+            await Assert.That(updated.Nets).IsEquivalentTo(original.Nets, CollectionOrdering.Matching);
+            await Assert.That(updated.Junctions).IsEquivalentTo(original.Junctions, CollectionOrdering.Matching);
+            await Assert.That(original.FindWireGeometry(geometry.Id)!.Route).IsEqualTo(geometry.Route);
+            await Assert.That(committed.ChangedSources).IsEquivalentTo(new AuthoredSourceIdentity[]
+            {
+                new ComponentInstanceSourceIdentity(original.Id, terminal.ComponentInstanceId),
+                new WireGeometrySourceIdentity(original.Id, geometry.Id),
+            });
+        }
+    }
+
+    [Test]
+    public async Task Apply_MoveWithUnrelatedRoute_RejectsEntireEdit()
+    {
+        var topology = CreateTwoNetsWithTopology();
+        var definition = topology.Revision.Document.EntryCircuitDefinition;
+        var terminal = topology.FirstNet.Terminals.OfType<InstanceTerminalReference>()
+            .Single(candidate => !topology.SecondNet.Terminals.OfType<InstanceTerminalReference>()
+                .Any(other => other.ComponentInstanceId == candidate.ComponentInstanceId));
+        var geometry = definition.WireGeometries.Single(wire => wire.NetId == topology.SecondNet.Id);
+
+        var outcome = ProjectEditor.Apply(topology.Revision, new MoveComponentInstancesIntent(
+            definition.Id,
+            [new ComponentMove(terminal.ComponentInstanceId, new ComponentPlacement(new GridPoint(20, 3)))],
+            [new WireGeometryReplacement(geometry.Id, new UnroutedWireRoute())], []));
+
+        await Assert.That(outcome).IsTypeOf<EditRejected>();
+    }
+
+    [Test]
     public async Task Apply_ConnectToExistingNetWithJunctionAndRoute_CommitsExplicitTopology()
     {
         var circuit = CreatePlacedCircuit();

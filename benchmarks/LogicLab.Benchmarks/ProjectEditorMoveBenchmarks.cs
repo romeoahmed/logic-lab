@@ -38,7 +38,7 @@ public class ProjectEditorMoveBenchmarks
             [.. revision.Document.EntryCircuitDefinition.ComponentInstances
                 .Reverse().Take(MoveAll ? ComponentCount : 1)
                 .Select(instance => new ComponentMove(instance.Id,
-                    new ComponentPlacement(new GridPoint(instance.Placement.Origin.X, 1))))]);
+                    new ComponentPlacement(new GridPoint(instance.Placement.Origin.X, 1))))], [], []);
     }
 
     [Benchmark]

@@ -75,6 +75,12 @@ reviewed code.
 Push an immutable reviewed semantic-version tag. Manual dispatch accepts an existing
 tag only. Production approval must happen before Azure credentials are issued.
 
+Before approving a schema-changing release, accept a maintenance window and select
+the recovery path. Readiness requires exact migration histories for both database
+contexts: once a new migration commits, the previous Web image becomes unready.
+Container Apps revision retention does not keep that image healthy against the
+changed database.
+
 The workflow compiles the tracked production `.bicepparam` profiles from the approved
 Environment values, then performs five ordered phases:
 
@@ -122,20 +128,23 @@ group, and delete the group only after explicit owner approval.
 
 ## Application rollback
 
-Rollback deploys the previous known-good Web and Migrator digests from immutable
-release evidence. Confirm N/N-1 schema compatibility, preview `application.bicep`, and
-deploy Web against the currently selected PostgreSQL server. Do not run migration for
-an ordinary application rollback.
+For an application-only rollback, select known-good Web and Migrator digests from
+immutable release evidence whose migration sets match both current database histories
+exactly. Verify representative reads and writes, preview `application.bicep`, and
+deploy Web against the currently selected PostgreSQL server. Do not run migration.
+If the histories differ, use the recovery procedure below; structural compatibility
+alone does not satisfy readiness.
 
 Never rebuild an old commit, move `latest`, retag an unknown image, or run an EF down
-migration against production. Contract schema only after the accepted rollback window
-has closed.
+migration against production.
 
 ## Failed migration or data incident
 
-If migration fails before Web deployment, keep the previous Web revision active,
-retain the failed Job evidence, and prefer a reviewed forward migration. Use PITR when
-schema or data is unsafe; do not guess an inverse migration.
+If migration fails before Web deployment, retain the failed Job evidence and inspect
+both migration histories. Earlier migrations or the first database context may
+already have committed; the previous Web revision may remain active but unready.
+Prefer a reviewed forward release that completes migration and deploys its matching
+Web image. Use PITR when schema or data is unsafe; do not guess an inverse migration.
 
 PITR procedure:
 

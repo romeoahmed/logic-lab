@@ -34,7 +34,7 @@ The trusted Web boundary supplies the current `AuthenticatedSubjectId`; anonymou
 
 ## 2. Order and cursor
 
-V1 order is the invariant tuple `(Durable Display Name canonical UTF-8 bytes ascending, Durable Project ID ordinal ascending)`. Durable Display Name is immutable in V1, so the ordering key of an existing row never moves. Database collation and localized display collation are not observable ordering rules.
+The order is the invariant tuple `(Durable Display Name canonical UTF-8 bytes ascending, Durable Project ID UTF-8 bytes ascending)`. Durable Display Name is immutable in V1, so the ordering key of an existing row never moves. Database collation and localized display collation are not observable ordering rules. Ordering-contract version `2` uses the same byte order for both fields; cursors for earlier ordering versions are rejected.
 
 Paging is keyset-based; offset paging and an unbounded `ListAll` call do not exist. `ProjectCatalogCursor` is a bounded opaque protected string that binds the authenticated subject, ordering-contract version, last emitted tuple, and applicable policy revision. It contains no bearer authority, is never logged, and is revalidated on every call. Malformed, tampered, subject-mismatched, obsolete, or oversized cursors return `project_catalog_cursor_invalid`; Web recovers by requesting the first page. Normal Data Protection rotation preserves a cursor while the protecting key remains available; intentional key retirement or key-store loss invalidates it safely.
 

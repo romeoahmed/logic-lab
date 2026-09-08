@@ -581,7 +581,7 @@ public sealed record AdvanceCommitted : SimulationCommandOutcome
     public TraceCursor TraceCursor { get; }
 }
 
-public sealed record NoScheduledStimulus(
+public sealed record NoScheduledEvents(
     ulong SessionVersion,
     ulong LogicalTime) : SimulationCommandOutcome;
 

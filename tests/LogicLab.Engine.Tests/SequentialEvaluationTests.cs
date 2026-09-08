@@ -4,7 +4,7 @@ using static LogicLab.Engine.Tests.FourStateTestData;
 
 namespace LogicLab.Engine.Tests;
 
-internal sealed class SequentialEvaluationTests
+internal sealed partial class SequentialEvaluationTests
 {
     [Test]
     public async Task SrLatch_EveryFourStateInput_MatchesReachableControlWorlds()
@@ -121,5 +121,4 @@ internal sealed class SequentialEvaluationTests
             violations.Add($"{scenario}: expected {expected}, actual {actual}");
         }
     }
-
 }

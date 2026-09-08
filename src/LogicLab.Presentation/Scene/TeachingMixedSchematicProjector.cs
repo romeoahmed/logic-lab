@@ -8,6 +8,10 @@ namespace LogicLab.Presentation.Scene;
 
 public static class TeachingMixedSchematicProjector
 {
+    /// <summary>
+    /// Discovers unique text measurements for one definition without validating or publishing a scene.
+    /// Cancellation throws before returning the collection; projection reports layout failures separately.
+    /// </summary>
     public static ReadOnlyCollection<SymbolTextMeasurementRequestV1> CollectTextRequests(
         ProjectRevision revision,
         CircuitDefinitionId circuitDefinitionId,
@@ -76,6 +80,10 @@ public static class TeachingMixedSchematicProjector
         }
     }
 
+    /// <summary>
+    /// Projects one definition using matching font and metric measurements. Rejection or cancellation
+    /// publishes no partial scene; successful geometry contains no selection or simulation state.
+    /// </summary>
     public static SchematicProjectionOutcomeV1 Project(
         ProjectRevision revision,
         CircuitDefinitionId circuitDefinitionId,
@@ -523,21 +531,28 @@ public static class TeachingMixedSchematicProjector
         return true;
     }
 
-    private static RectV1 ProjectionBounds(IReadOnlyList<SchematicItemV1> items)
+    private static RectV1 ProjectionBounds(IReadOnlyList<SchematicItemV1> items) =>
+        Enclose(ItemBounds(items));
+
+    private static IEnumerable<RectV1> ItemBounds(IReadOnlyList<SchematicItemV1> items)
     {
-        var bounds = new List<RectV1>();
         foreach (var item in items)
         {
             switch (item)
             {
                 case ComponentSymbolItemV1 component:
-                    bounds.Add(component.Plan.Bounds.Translate(component.Origin));
+                    yield return component.Plan.Bounds.Translate(component.Origin);
                     break;
                 case StaticSchematicItemV1 staticItem:
-                    AddStaticBounds(
-                        bounds,
-                        staticItem.Operations,
-                        staticItem.HitRegions);
+                    foreach (var operation in staticItem.Operations)
+                    {
+                        yield return OperationBounds(operation);
+                    }
+
+                    foreach (var hitRegion in staticItem.HitRegions)
+                    {
+                        yield return HitBounds(hitRegion);
+                    }
                     break;
                 case NetTopologyItemV1:
                     break;
@@ -547,16 +562,6 @@ public static class TeachingMixedSchematicProjector
             }
         }
 
-        return Enclose(bounds);
-    }
-
-    private static void AddStaticBounds(
-        List<RectV1> bounds,
-        IReadOnlyList<DrawOperationV1> operations,
-        IReadOnlyList<HitRegionV1> hitRegions)
-    {
-        bounds.AddRange(operations.Select(OperationBounds));
-        bounds.AddRange(hitRegions.Select(HitBounds));
     }
 
     private static RectV1 OperationBounds(DrawOperationV1 operation) => operation switch
@@ -580,17 +585,25 @@ public static class TeachingMixedSchematicProjector
             "The Schematic hit shape variant is undefined."),
     };
 
-    private static RectV1 Enclose(List<RectV1> bounds)
+    private static RectV1 Enclose(IEnumerable<RectV1> bounds)
     {
-        if (bounds.Count == 0)
+        using var iterator = bounds.GetEnumerator();
+        if (!iterator.MoveNext())
         {
             return new RectV1(0, 0, 1, 1);
         }
 
-        var left = bounds.Min(item => item.Left);
-        var top = bounds.Min(item => item.Top);
-        var right = bounds.Max(item => item.Right);
-        var bottom = bounds.Max(item => item.Bottom);
+        var left = iterator.Current.Left;
+        var top = iterator.Current.Top;
+        var right = iterator.Current.Right;
+        var bottom = iterator.Current.Bottom;
+        while (iterator.MoveNext())
+        {
+            left = Math.Min(left, iterator.Current.Left);
+            top = Math.Min(top, iterator.Current.Top);
+            right = Math.Max(right, iterator.Current.Right);
+            bottom = Math.Max(bottom, iterator.Current.Bottom);
+        }
         if (right == left)
         {
             right = checked(right + 1);

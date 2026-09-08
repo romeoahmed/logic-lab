@@ -8,6 +8,32 @@ namespace LogicLab.Domain.Tests;
 internal sealed class ProjectEditorGenesisTests
 {
     [Test]
+    public async Task Begin_MalformedUtf16DisplayText_RejectsUnicodeScalarRule()
+    {
+        string[] names = ["\uD800", "\uDC00", "\uD800A", "A\uDC00", "\uD800\uD800"];
+        foreach (var name in names)
+        {
+            var outcome = ProjectEditor.Begin(CreateSeed(name, "Main"));
+
+            var rejected = (await Assert.That(outcome).IsTypeOf<ProjectGenesisRejected>())!;
+            await Assert.That(rejected.Diagnostics.Single().Arguments.Single(
+                    argument => argument.Name == "rule").Value)
+                .IsEqualTo(new StableTokenDiagnosticValue("unicodeScalar"));
+        }
+    }
+
+    [Test]
+    [Arguments("Logic 🧪")]
+    [Arguments("Replacement \uFFFD")]
+    public async Task Begin_UnicodeScalarDisplayText_PreservesText(string name)
+    {
+        var outcome = ProjectEditor.Begin(CreateSeed(name, "Main"));
+
+        var committed = (await Assert.That(outcome).IsTypeOf<ProjectGenesisCommitted>())!;
+        await Assert.That(committed.Revision.Document.DisplayName).IsEqualTo(name);
+    }
+
+    [Test]
     public async Task Begin_ValidNewProjectSeed_CommitsEmptyEntryDefinition()
     {
         var seed = CreateSeed("Half Adder", "Main");

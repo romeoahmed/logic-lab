@@ -165,6 +165,12 @@
           "LogicLab.Domain": "[1.0.0, )"
         }
       },
+      "logiclab.presentation": {
+        "type": "Project",
+        "dependencies": {
+          "LogicLab.Domain": "[1.0.0, )"
+        }
+      },
       "logiclab.projectformat": {
         "type": "Project",
         "dependencies": {

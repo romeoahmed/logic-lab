@@ -143,6 +143,10 @@ public sealed record StrictConformanceViolationV1
 
 public static class TeachingMixedConformanceExporter
 {
+    /// <summary>
+    /// Builds a deterministic conformance manifest from an existing projection.
+    /// Strict mode rejects the whole export if any symbol lacks an accepted standard claim.
+    /// </summary>
     public static ConformanceExportOutcomeV1 Export(
         SchematicProjectionV1 projection,
         ConformanceExportModeV1 mode)

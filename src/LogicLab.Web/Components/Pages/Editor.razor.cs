@@ -64,14 +64,6 @@ public sealed partial class Editor : IAsyncDisposable
 
     private string EditorPageTitle => AttachmentFailure?.Title ?? WorkbenchTitle;
 
-    private string WorkbenchEyebrow => Projection?.Durability switch
-    {
-        DurableWorkspaceDurabilityProjection => Text["EyebrowDurable"],
-        SandboxWorkspaceDurabilityProjection => Text["EyebrowSandbox"],
-        _ when WorkspaceIdValue is not null => Text["EyebrowOpening"],
-        _ => Text["EyebrowSandbox"],
-    };
-
     private string WorkbenchTitle => Projection?.Durability switch
     {
         DurableWorkspaceDurabilityProjection => Text["TitleDurable"],
@@ -79,12 +71,9 @@ public sealed partial class Editor : IAsyncDisposable
         _ => Text["TitleSandbox"],
     };
 
-    private string WorkbenchDescription => Projection?.Durability switch
-    {
-        DurableWorkspaceDurabilityProjection => Text["DescriptionDurable"],
-        _ when WorkspaceIdValue is not null && Projection is null => Text["DescriptionOpening"],
-        _ => Text["DescriptionSandbox"],
-    };
+    private string WorkbenchDescription => WorkspaceIdValue is not null
+        ? Text["DescriptionOpening"]
+        : Text["DescriptionSandbox"];
 
     [Parameter]
     public string? WorkspaceIdValue { get; set; }
@@ -260,10 +249,10 @@ public sealed partial class Editor : IAsyncDisposable
             HierarchyNavigation.Clear();
             ProjectScene();
             await PreserveAttachmentFenceAsync(attached);
-            Status = attached.Projection.Durability
+            ShowOpenedProjectStatus(attached.Projection.Durability
                 is DurableWorkspaceDurabilityProjection
                     ? Text["StatusReopenedDurable"]
-                    : Text["StatusReopenedSandbox"];
+                    : Text["StatusReopenedSandbox"]);
             return;
         }
 
@@ -332,7 +321,20 @@ public sealed partial class Editor : IAsyncDisposable
         HierarchyNavigation.Clear();
         ProjectScene();
         await PreserveAttachmentFenceAsync(attached);
-        Status = successStatus;
+        ShowOpenedProjectStatus(successStatus);
+    }
+
+    private void ShowOpenedProjectStatus(string successStatus)
+    {
+        if (Projection?.Compilation is CompilationRejectedProjection)
+        {
+            instrumentTab = "diagnostics";
+            Status = Text["StatusOpenedWithErrors"];
+        }
+        else
+        {
+            Status = successStatus;
+        }
     }
 
     private async Task<WorkspaceCommandOutcome> Execute(
@@ -472,9 +474,7 @@ public sealed partial class Editor : IAsyncDisposable
         if (Volatile.Read(ref isDisposed) != 0
             || !IsCallerAvailable
             || caller != CurrentCaller
-            || Attachment is not { } currentAttachment
-            || currentAttachment.AttachmentId != attachment.AttachmentId
-            || currentAttachment.Generation != attachment.Generation)
+            || !HasCurrentFence(attachment))
         {
             return;
         }

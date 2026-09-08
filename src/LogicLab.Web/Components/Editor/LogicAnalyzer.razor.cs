@@ -554,14 +554,6 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         catch (OperationCanceledException) when (loadCancellation.IsCancellationRequested)
         {
         }
-        catch (Exception exception) when (exception is ArgumentException
-            or OverflowException)
-        {
-            if (epoch == loadEpoch)
-            {
-                traceFailure = TraceFailure.Unavailable;
-            }
-        }
         finally
         {
             if (ReferenceEquals(traceLoad, loadCancellation))

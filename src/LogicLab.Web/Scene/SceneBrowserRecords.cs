@@ -63,7 +63,8 @@ internal sealed record SceneHitRegionV1(
     IReadOnlyList<ScenePoint>? Points = null,
     SceneSourceRefV1? TargetSource = null,
     ScenePoint? Anchor = null,
-    string? OutwardDirection = null);
+    string? OutwardDirection = null,
+    SceneSourceRefV1? ConnectedNet = null);
 
 internal sealed record SceneItemV1(
     SceneSourceRefV1 Source,
@@ -562,6 +563,8 @@ internal static class SceneSnapshotValidator
             && target.EntityKind is "instancePort" or "definitionPort";
         return (region.TargetSource is null
                 || IsValidSource(region.TargetSource, circuitDefinitionId))
+            && (region.ConnectedNet is null
+                || targetsTerminal && IsValidNetSource(region.ConnectedNet, circuitDefinitionId))
             && targetsTerminal == (region.Anchor is not null)
             && targetsTerminal == (region.OutwardDirection is not null)
             && (region.Anchor is not { } anchor

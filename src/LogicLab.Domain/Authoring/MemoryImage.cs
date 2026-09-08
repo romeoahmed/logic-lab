@@ -42,9 +42,16 @@ public sealed class MemoryImage
         string displayName,
         uint width,
         uint depth,
-        MemoryImageWord[] words)
-        : this(id, displayName, width, depth, Pack(width, depth, words))
+        IReadOnlyList<MemoryImageWord> words)
     {
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentNullException.ThrowIfNull(displayName);
+        Id = id;
+        DisplayName = displayName;
+        Width = width;
+        Depth = depth;
+        // Pack creates and validates an owned buffer; imported spans are copied below.
+        packedCells = Pack(width, depth, words);
     }
 
     internal MemoryImage(
@@ -139,12 +146,12 @@ public sealed class MemoryImage
     private static byte[] Pack(
         uint width,
         uint depth,
-        MemoryImageWord[] words)
+        IReadOnlyList<MemoryImageWord> words)
     {
         ArgumentNullException.ThrowIfNull(words);
         ValidateDimensions(width, depth);
 
-        if (checked((ulong)words.Length) != depth)
+        if (checked((ulong)words.Count) != depth)
         {
             throw new ArgumentException(
                 "The Memory Image word count does not match its depth.",

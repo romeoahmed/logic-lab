@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using LogicLab.Application.Workspaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using TUnit.Assertions.Enums;
 
 namespace LogicLab.Application.Tests;
@@ -10,6 +11,39 @@ namespace LogicLab.Application.Tests;
 internal sealed class DurableProjectCatalogTests
 {
     private static readonly AuthenticatedSubjectId Subject = new("subject-1");
+
+    [Test]
+    public async Task ListAsync_Utf8IdOrderAcrossUnicodePlanes_AcceptsPage()
+    {
+        var repository = new RecordingCatalogRepository(
+            [Item("\uE000", "Same name"), Item("\U00010000", "Same name")]);
+        var catalog = CreateCatalog(repository, new RecordingCursorProtector());
+
+        var outcome = await catalog.ListAsync(
+            Subject, new DurableProjectPageRequest(2, null), CancellationToken.None);
+
+        var page = await Assert.That(outcome).IsTypeOf<DurableProjectPage>();
+        await Assert.That(page!.Items.Select(item => item.DurableProjectId.Value))
+            .IsEquivalentTo(["\uE000", "\U00010000"], CollectionOrdering.Matching);
+    }
+
+    [Test]
+    public async Task ListAsync_CancelledDuringCursorProtection_DoesNotPublishPage()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var repository = new RecordingCatalogRepository(
+            [Item("a", "Alpha"), Item("b", "Beta"), Item("c", "Gamma")]);
+        var protector = new RecordingCursorProtector(onProtect: cancellation.Cancel);
+        var catalog = CreateCatalog(repository, protector);
+
+        var outcome = await catalog.ListAsync(
+            Subject,
+            new DurableProjectPageRequest(2, null),
+            cancellation.Token);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<DurableProjectListRejected>())!;
+        await Assert.That(rejected.Reason).IsEqualTo("project_catalog_cancelled");
+    }
 
     [Test]
     [Arguments(0)]
@@ -64,7 +98,7 @@ internal sealed class DurableProjectCatalogTests
     {
         var state = new ProjectCatalogCursorState(
             Subject,
-            "1",
+            "2",
             "catalog-policy",
             "7",
             "Alpha"u8.ToArray(),
@@ -89,10 +123,10 @@ internal sealed class DurableProjectCatalogTests
     }
 
     [Test]
-    [Arguments("different-subject", "1", "catalog-policy", "7")]
-    [Arguments("subject-1", "obsolete", "catalog-policy", "7")]
-    [Arguments("subject-1", "1", "different-policy", "7")]
-    [Arguments("subject-1", "1", "catalog-policy", "obsolete")]
+    [Arguments("different-subject", "2", "catalog-policy", "7")]
+    [Arguments("subject-1", "1", "catalog-policy", "7")]
+    [Arguments("subject-1", "2", "different-policy", "7")]
+    [Arguments("subject-1", "2", "catalog-policy", "obsolete")]
     public async Task ListAsync_CursorBindingMismatch_DoesNotQuery(
         string subject,
         string orderVersion,
@@ -161,7 +195,7 @@ internal sealed class DurableProjectCatalogTests
         };
         var after = new ProjectCatalogCursorState(
             Subject,
-            "1",
+            "2",
             "catalog-policy",
             "7",
             "Alpha"u8.ToArray(),
@@ -194,7 +228,7 @@ internal sealed class DurableProjectCatalogTests
             await Assert.That(request.AfterDurableProjectId?.Value)
                 .IsEqualTo("project-0");
             await Assert.That(protectedState.SubjectId).IsEqualTo(Subject);
-            await Assert.That(protectedState.OrderingContractVersion).IsEqualTo("1");
+            await Assert.That(protectedState.OrderingContractVersion).IsEqualTo("2");
             await Assert.That(protectedState.PolicyId).IsEqualTo("catalog-policy");
             await Assert.That(protectedState.PolicyRevision).IsEqualTo("7");
             await Assert.That(protectedState.LastDisplayNameSortKey)
@@ -216,7 +250,7 @@ internal sealed class DurableProjectCatalogTests
     {
         var after = new ProjectCatalogCursorState(
             Subject,
-            "1",
+            "2",
             "catalog-policy",
             "7",
             System.Text.Encoding.UTF8.GetBytes(cursorName),
@@ -334,7 +368,8 @@ internal sealed class DurableProjectCatalogTests
         using var activity = new Activity("durable-catalog-test");
         activity.SetIdFormat(ActivityIdFormat.W3C);
         activity.Start();
-        using var loggerFactory = new RecordingLoggerFactory();
+        using var logs = new FakeLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(logs));
         using var cancellation = new CancellationTokenSource();
         var repository = new RecordingCatalogRepository(
             FailureKind.Defect,
@@ -351,17 +386,18 @@ internal sealed class DurableProjectCatalogTests
 
         var rejected = (await Assert.That(outcome)
             .IsTypeOf<DurableProjectListRejected>())!;
-        var log = loggerFactory.Entries.Single(entry => entry.EventId.Id == 1101);
+        var log = logs.Collector.GetSnapshot().Single(entry => entry.Id.Id == 1101);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Reason)
                 .IsEqualTo("project_catalog_internal_defect");
             await Assert.That(log.Level).IsEqualTo(LogLevel.Error);
             await Assert.That(log.Exception).IsNull();
-            await Assert.That(log.Properties["Correlation"])
+            await Assert.That(log.Message).DoesNotContain("broken adapter");
+            await Assert.That(log.GetStructuredStateValue("Correlation"))
                 .IsEqualTo(activity.TraceId.ToHexString());
-            await Assert.That(log.Properties["Stage"]).IsEqualTo("repository");
-            await Assert.That(log.Properties["OutcomeCode"])
+            await Assert.That(log.GetStructuredStateValue("Stage")).IsEqualTo("repository");
+            await Assert.That(log.GetStructuredStateValue("OutcomeCode"))
                 .IsEqualTo(rejected.Reason);
         }
     }
@@ -407,7 +443,8 @@ internal sealed class DurableProjectCatalogTests
     }
 
     private sealed class RecordingCursorProtector(
-        ProjectCatalogCursorState? unprotectedState = null)
+        ProjectCatalogCursorState? unprotectedState = null,
+        Action? onProtect = null)
         : IProjectCatalogCursorProtector
     {
         public int ProtectCallCount { get; private set; }
@@ -420,6 +457,7 @@ internal sealed class DurableProjectCatalogTests
         {
             ProtectCallCount++;
             LastProtectedState = state;
+            onProtect?.Invoke();
             return new ProjectCatalogCursor("protected");
         }
 

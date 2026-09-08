@@ -30,19 +30,14 @@ public sealed record PrepareExport : WorkspaceCommand
 {
     public PrepareExport(
         WorkspaceCommandContext context,
-        AuthoringPrecondition precondition,
-        ProjectRevisionId projectRevisionId)
+        AuthoringPrecondition precondition)
         : base(context)
     {
         ArgumentNullException.ThrowIfNull(precondition);
-        ArgumentNullException.ThrowIfNull(projectRevisionId);
         Precondition = precondition;
-        ProjectRevisionId = projectRevisionId;
     }
 
     public AuthoringPrecondition Precondition { get; }
-
-    public ProjectRevisionId ProjectRevisionId { get; }
 }
 
 public sealed record ExportPrepared(
@@ -67,6 +62,7 @@ public sealed record ProjectExportPreparationPolicy
 
 public interface IProjectExportStaging : IAsyncDisposable
 {
+    /// <summary>The writable carrier stream, available until publication transfers ownership.</summary>
     Stream Content { get; }
 }
 
@@ -124,9 +120,14 @@ public sealed record ProjectExportPublicationRejected(string Code) :
 
 public interface IProjectExportStore
 {
+    /// <summary>Creates staging owned by the caller until a successful publication.</summary>
     ValueTask<IProjectExportStaging> CreateStagingAsync(
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Transfers staging ownership to the store on success; rejection or cancellation
+    /// leaves disposal with the caller.
+    /// </summary>
     ValueTask<ProjectExportPublicationOutcome> PublishAsync(
         ProjectExportPublication publication,
         CancellationToken cancellationToken);
@@ -143,6 +144,7 @@ public abstract record ProjectExportDownloadOutcome
     }
 }
 
+/// <summary>A redeemed carrier whose stream must be disposed by the download handler.</summary>
 public sealed record ProjectExportDownloaded(
     Stream Content,
     ulong CarrierByteCount) : ProjectExportDownloadOutcome;

@@ -30,9 +30,8 @@ internal static class BrowserCandidateTransfer
         }
 
         var maximumBatch = policy.Limit(BrowserLimitDimension.InteropBatchBytes);
-        var encodedPayloadBudget = maximumBatch - BrowserPolicy.InteropEnvelopeBytes;
         var rawChunkSize = checked((int)Math.Min(
-            encodedPayloadBudget / 4 * 3,
+            maximumBatch - BrowserPolicy.InteropEnvelopeBytes,
             int.MaxValue));
         var transferId = Guid.CreateVersion7().ToString("N");
         var digest = Convert.ToHexStringLower(SHA256.HashData(candidate));
@@ -46,7 +45,7 @@ internal static class BrowserCandidateTransfer
                 candidate.Length,
                 digest);
             var ordinal = 0;
-            for (var offset = 0; offset < candidate.Length; offset += rawChunkSize)
+            for (var offset = 0; offset < candidate.Length;)
             {
                 var length = Math.Min(rawChunkSize, candidate.Length - offset);
                 await handle.InvokeVoidAsync(
@@ -54,7 +53,8 @@ internal static class BrowserCandidateTransfer
                     cancellationToken,
                     transferId,
                     ordinal,
-                    Convert.ToBase64String(candidate, offset, length));
+                    candidate.AsSpan(offset, length).ToArray());
+                offset += length;
                 ordinal++;
             }
 

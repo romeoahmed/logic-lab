@@ -1,12 +1,11 @@
+import { CandidateTransfers, interopEnvelopeBytes } from "../../js/candidate-transfer.js";
+
 const mountedHandles = new WeakMap();
 const encoder = new TextEncoder();
-const decoder = new TextDecoder("utf-8", { fatal: true });
 const decodedVectors = new WeakMap();
 const logicalTimeMaximum = 18_446_744_073_709_551_615n;
 const timeBoundaryMaximum = 18_446_744_073_709_551_616n;
 const contextRestoreTimeoutMilliseconds = 2_000;
-const interopEnvelopeBytes = 512;
-const minimumBase64QuantumBytes = 4;
 const recordShapes = Object.freeze({
   policy: shape(
     "policyId",
@@ -90,7 +89,7 @@ class WaveformHandle {
     this.density = 1;
     this.traceByProbe = new Map();
     this.rowLayoutCache = null;
-    this.transfers = new Map();
+    this.transfers = new CandidateTransfers(policy, ["snapshot"]);
     this.failed = false;
     this.destroyed = false;
     this.abortController = new AbortController();
@@ -112,92 +111,39 @@ class WaveformHandle {
 
   beginTransfer(transferId, kind, byteLength, digest) {
     this.ensureLive();
-    if (
-      !isToken(transferId) ||
-      kind !== "snapshot" ||
-      !Number.isSafeInteger(byteLength) ||
-      byteLength <= 0 ||
-      BigInt(byteLength) > BigInt(this.policy.candidateTransferBytes) ||
-      !isDigest(digest) ||
-      this.transfers.has(transferId)
-    ) {
-      throw new Error("invalid Waveform transfer envelope");
-    }
-
-    this.transfers.set(transferId, {
-      byteLength,
-      digest,
-      chunks: [],
-      receivedBytes: 0,
-      nextOrdinal: 0,
-    });
+    this.transfers.begin(transferId, kind, byteLength, digest);
   }
 
   appendTransfer(transferId, ordinal, chunk) {
     this.ensureLive();
-    const transfer = this.transfers.get(transferId);
-    if (
-      !transfer ||
-      transfer.committing ||
-      ordinal !== transfer.nextOrdinal ||
-      typeof chunk !== "string" ||
-      chunk.length === 0 ||
-      encoder.encode(chunk).byteLength + interopEnvelopeBytes > this.policy.interopBatchBytes
-    ) {
-      this.transfers.delete(transferId);
-      throw new Error("invalid Waveform transfer chunk");
-    }
-
-    const bytes = decodeBase64(chunk);
-    if (transfer.receivedBytes + bytes.byteLength > transfer.byteLength) {
-      this.transfers.delete(transferId);
-      throw new Error("Waveform transfer exceeds its declared length");
-    }
-    transfer.chunks.push(bytes);
-    transfer.receivedBytes += bytes.byteLength;
-    transfer.nextOrdinal += 1;
+    this.transfers.append(transferId, ordinal, chunk);
   }
 
   async commitTransfer(transferId) {
     this.ensureLive();
-    const transfer = this.transfers.get(transferId);
-    if (!transfer || transfer.committing) return false;
-    // Keep the candidate registered while hashing so abort/destroy can cancel it.
-    transfer.committing = true;
-
     try {
-      const candidateBytes = concatenate(transfer.chunks);
-      if (
-        candidateBytes.byteLength !== transfer.byteLength ||
-        (await sha256(candidateBytes)) !== transfer.digest ||
-        this.transfers.get(transferId) !== transfer
-      ) {
-        return false;
-      }
+      return await this.transfers.commit(transferId, (_, candidate) => {
+        const next = validateSnapshot(candidate, this.buildFingerprint);
+        const traceByProbe = indexTrace(next.trace);
 
-      const candidate = JSON.parse(decoder.decode(candidateBytes));
-      const next = validateSnapshot(candidate, this.buildFingerprint);
-      const traceByProbe = indexTrace(next.trace);
-
-      this.cancelGesture();
-      this.published = deepFreeze(next);
-      this.traceByProbe = traceByProbe;
-      this.rowLayoutCache = null;
-      this.transientViewport = null;
-      this.transientCursor = null;
-      this.cancelViewportCommit();
-      this.pendingIntent = null;
-      this.invalidate();
-      return true;
+        this.cancelGesture();
+        this.published = deepFreeze(next);
+        this.traceByProbe = traceByProbe;
+        this.rowLayoutCache = null;
+        this.transientViewport = null;
+        this.transientCursor = null;
+        this.cancelViewportCommit();
+        this.pendingIntent = null;
+        this.invalidate();
+        return true;
+      });
     } catch {
       return false;
-    } finally {
-      if (this.transfers.get(transferId) === transfer) this.transfers.delete(transferId);
     }
   }
 
   abortTransfer(transferId) {
-    this.transfers.delete(transferId);
+    this.transfers.abort(transferId);
   }
 
   setInteractionMode(mode) {
@@ -840,7 +786,7 @@ function validatePolicy(policy) {
     !isToken(policy.policyId) ||
     !isToken(policy.policyRevision) ||
     fields.some((field) => !Number.isSafeInteger(policy[field]) || policy[field] <= 0) ||
-    policy.interopBatchBytes < interopEnvelopeBytes + minimumBase64QuantumBytes
+    policy.interopBatchBytes < interopEnvelopeBytes + 1
   ) {
     throw new Error("invalid Browser Policy");
   }
@@ -1310,17 +1256,6 @@ function decodeBase64(value) {
   }
 }
 
-function concatenate(chunks) {
-  const length = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
-  const result = new Uint8Array(length);
-  let offset = 0;
-  chunks.forEach((chunk) => {
-    result.set(chunk, offset);
-    offset += chunk.byteLength;
-  });
-  return result;
-}
-
 function deepFreeze(value) {
   if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
   Object.values(value).forEach(deepFreeze);
@@ -1353,10 +1288,6 @@ function canonicalTimeBoundary(value) {
   );
 }
 
-function isDigest(value) {
-  return typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
-}
-
 function isToken(value) {
   return typeof value === "string" && /^[A-Za-z0-9._-]+$/.test(value);
 }
@@ -1373,9 +1304,4 @@ function hasExactShape(value, fields) {
 
 function clamp(value, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, value));
-}
-
-async function sha256(bytes) {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
 }

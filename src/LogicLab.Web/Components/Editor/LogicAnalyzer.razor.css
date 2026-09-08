@@ -1,6 +1,10 @@
 .logic-analyzer {
   --ll-waveform-cursor-primary: var(--ll-probe-1);
   --ll-waveform-cursor-secondary: var(--ll-probe-2);
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
   min-inline-size: 0;
   border-block-start: 1px solid var(--ll-border-strong);
   color: var(--ll-ink);
@@ -11,59 +15,18 @@
   );
 }
 
-.analyzer-heading {
-  display: flex;
-  min-inline-size: 0;
-  align-items: end;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.35rem clamp(0.7rem, 2vw, 1rem);
-  border-block-end: 1px solid var(--ll-border);
-}
-
-.analyzer-heading h2,
-.analyzer-heading p,
 .probe-spine h3 {
   margin: 0;
 }
 
-.analyzer-heading h2 {
-  font-size: 1rem;
-  letter-spacing: -0.02em;
-}
-
-.analyzer-readout {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem 1rem;
-  margin: 0;
-  font-family: var(--ll-font-mono);
-  font-size: 0.7rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.analyzer-readout div {
-  display: flex;
-  gap: 0.35rem;
-}
-
-.analyzer-readout dt {
-  color: var(--ll-muted);
-}
-
-.analyzer-readout dd {
-  margin: 0;
-  color: var(--ll-signal-strong);
-  font-weight: 750;
-}
-
 .analyzer-toolbar {
+  flex: none;
   display: flex;
   min-inline-size: 0;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.55rem clamp(0.7rem, 2vw, 1rem);
+  padding: 0.25rem 0.5rem;
   border-block-end: 1px solid var(--ll-border);
   background: color-mix(in oklab, var(--ll-panel) 93%, var(--ll-canvas));
 }
@@ -126,7 +89,8 @@
   display: grid;
   grid-template-columns: minmax(13rem, 18rem) minmax(24rem, 1fr);
   min-inline-size: 0;
-  block-size: clamp(15rem, 29svh, 22rem);
+  flex: 1;
+  min-block-size: 7rem;
   overflow: auto hidden;
 }
 
@@ -422,45 +386,29 @@
 }
 
 @container workbench (inline-size < 44rem) {
-  .logic-analyzer {
-    position: relative;
+  .analyzer-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .analyzer-toolbar > div,
+  .analyzer-toolbar .cursor-readout {
+    flex: none;
+    flex-wrap: nowrap;
+  }
+
+  .analyzer-toolbar ::deep .close-analyzer {
+    flex: none;
+    margin-inline-start: 0;
   }
 
   .analyzer-surface {
-    grid-template-columns: minmax(0, 1fr);
-    block-size: auto;
-    overflow: visible;
-  }
-
-  .probe-spine {
-    max-block-size: min(34svh, 18rem);
-    border-inline-end: 0;
-    border-block-end: 1px solid var(--ll-border-strong);
-    box-shadow: 0 0.55rem 1rem color-mix(in oklab, var(--ll-ink) 7%, transparent);
+    grid-template-columns: minmax(8rem, 35%) minmax(0, 1fr);
+    min-block-size: 0;
   }
 
   .waveform-frame {
     min-inline-size: 0;
-    min-block-size: 18rem;
-    block-size: min(55svh, 28rem);
-  }
-
-  .analyzer-heading {
-    align-items: start;
-  }
-
-  .analyzer-readout {
-    display: grid;
-  }
-}
-
-@media (max-width: 560px) {
-  .analyzer-heading {
-    display: grid;
-  }
-
-  .analyzer-toolbar ::deep .close-analyzer {
-    margin-inline-start: 0;
   }
 }
 
@@ -477,8 +425,4 @@
   .probe-controls ::deep .probe-icon-action {
     min-inline-size: 2.75rem;
   }
-}
-
-.analyzer-heading .eyebrow {
-  display: none;
 }

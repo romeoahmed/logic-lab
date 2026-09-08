@@ -1,6 +1,7 @@
 using LogicLab.Domain.Authoring;
 using LogicLab.Presentation.Geometry;
 using LogicLab.Web.Scene;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
 
@@ -51,7 +52,7 @@ internal sealed class BrowserTextMeasurementTests
         using (Assert.Multiple())
         {
             await Assert.That(first).IsNotEmpty();
-            await Assert.That(first).IsEquivalentTo(second);
+            await Assert.That(first).IsEquivalentTo(second, CollectionOrdering.Matching);
             await Assert.That(first.Select(request => request.Key).Distinct()).Count()
                 .IsEqualTo(first.Count);
         }

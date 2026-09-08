@@ -10,6 +10,71 @@ namespace LogicLab.Application.Tests;
 internal sealed class EditorWorkspaceFailureTests
 {
     [Test, Timeout(30_000)]
+    public async Task DisposeAsync_CancellationCallbackFails_StillClosesSession(
+        CancellationToken cancellationToken)
+    {
+        var compilationGate = new BlockingOperationGate();
+        var cancellationObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var blockCompilation = false;
+        var closes = 0;
+        var production = WorkspaceModuleOperations.Production;
+        var operations = production with
+        {
+            Compile = (request, token) =>
+            {
+                if (Volatile.Read(ref blockCompilation))
+                {
+                    using var registration = token.Register(() =>
+                    {
+                        cancellationObserved.TrySetResult();
+                        throw new InvalidOperationException("Cancellation callback failed.");
+                    });
+                    compilationGate.Block(CancellationToken.None);
+                }
+
+                return production.Compile(request, token);
+            },
+            CloseSimulation = handle =>
+            {
+                Interlocked.Increment(ref closes);
+                return production.CloseSimulation(handle);
+            },
+        };
+        var workspace = TestEditorWorkspaceFactory.CreateForTesting(operations);
+        Task? disposal = null;
+        try
+        {
+            var opened = await OpenCompiledCircuit(workspace, cancellationToken);
+            var projection = await Read(workspace, opened);
+            var created = await workspace.DispatchAsync(
+                new CreateSession(EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
+                    EditorWorkspaceTestDriver.SessionCreation(projection),
+                    SessionConfigurationV1.ForEntryOutputs(projection.ProjectRevision)), cancellationToken);
+            await Assert.That(created).IsTypeOf<SimulationSessionCreated>();
+            Volatile.Write(ref blockCompilation, true);
+            await workspace.DispatchAsync(
+                new RequestCompilation(EditorWorkspaceTestDriver.Command(opened.WorkspaceId, opened.Attached),
+                    EditorWorkspaceTestDriver.Compilation(projection)), cancellationToken);
+            await compilationGate.Started.WaitAsync(cancellationToken);
+
+            disposal = workspace.DisposeAsync().AsTask();
+            await cancellationObserved.Task.WaitAsync(cancellationToken);
+            compilationGate.Release();
+            await Assert.That(() => disposal.WaitAsync(cancellationToken))
+                .ThrowsExactly<AggregateException>();
+            await Assert.That(closes).IsEqualTo(1);
+        }
+        finally
+        {
+            compilationGate.Release();
+            if (disposal is null)
+            {
+                await workspace.DisposeAsync();
+            }
+        }
+    }
+
+    [Test, Timeout(30_000)]
     public async Task DisposeAsync_QueuedRunContinuation_ReleasesLeaseAndClosesSession(
         CancellationToken cancellationToken)
     {

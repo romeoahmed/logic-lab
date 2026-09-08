@@ -288,9 +288,9 @@ internal sealed partial class EditorWorkspace
                 state.ProjectionVersion);
         }
 
-        if (outcome is LogicLab.Engine.Simulation.NoScheduledStimulus idle)
+        if (outcome is LogicLab.Engine.Simulation.NoScheduledEvents idle)
         {
-            return new NoScheduledStimulus(
+            return new NoScheduledEvents(
                 idle.SessionVersion, idle.LogicalTime, state.ProjectionVersion);
         }
 

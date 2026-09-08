@@ -131,22 +131,32 @@ internal sealed class ProjectValueTests
         where TValue : notnull
     {
         var first = create(left);
-        var equalCopy = create(left);
-        var second = create(right);
-        var expectedEqual = left.AsSpan().SequenceEqual(right);
         var equality = EqualityComparer<TValue>.Default;
         var set = new HashSet<TValue> { first };
 
-        var matches = equality.Equals(first, equalCopy)
-            && equality.Equals(first, second) == expectedEqual
-            && first.GetHashCode() == equalCopy.GetHashCode()
-            && (!expectedEqual || first.GetHashCode() == second.GetHashCode())
-            && set.Contains(equalCopy)
-            && set.Contains(second) == expectedEqual;
+        // Related sequences exercise ordering and multiplicity on every generated sample.
+        return Compare([.. left], "equal copy")
+            .And(Compare(right, "independent sequence"))
+            .And(Compare([.. left.Reverse()], "reversed sequence"))
+            .And(Compare([.. left, .. left], "repeated sequence"))
+            .Label(subject)
+            .Classify(left.Length == 0, "empty")
+            .Classify(left.Length == 1, "single item")
+            .Classify(left.Length > 1, "multiple items");
 
-        return matches
-            .Label($"{subject} equality and hashing match sequence equality")
-            .Collect($"left={left.Length}, right={right.Length}");
+        Property Compare(TItem[] candidate, string relation)
+        {
+            var other = create(candidate);
+            var expectedEqual = left.AsSpan().SequenceEqual(candidate);
+            return (equality.Equals(first, other) == expectedEqual)
+                .Label($"{relation}: equality")
+                .And((equality.Equals(other, first) == expectedEqual)
+                    .Label($"{relation}: symmetric equality"))
+                .And((!expectedEqual || first.GetHashCode() == other.GetHashCode())
+                    .Label($"{relation}: equal values have equal hashes"))
+                .And((set.Contains(other) == expectedEqual)
+                    .Label($"{relation}: hash-set lookup"));
+        }
     }
 
     private static BitSlice[] ToSlices(uint[] offsets, uint[] lengths)

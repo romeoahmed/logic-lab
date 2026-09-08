@@ -42,6 +42,11 @@ PackageDimensionObservationV1
 
 The caller owns both streams; Project Format never closes them, retains them, or assumes a filesystem path. Read consumes one carrier from the supplied position and treats all bytes and stream behavior as untrusted. Write begins at the destination's current position. If Write is cancelled or rejected, bytes already written may remain, so the caller must provide an unpublished staging stream and expose or copy it only after `PackageWriteSucceeded`. A destination failure is an infrastructure outcome, not a malformed Project outcome.
 
+The writer enforces `CarrierBytes` before buffering or forwarding each ZIP write.
+It stops at the first write that would exceed the limit and emits no further bytes.
+For that rejection, the observation includes the refused bytes; it can exceed the
+bytes actually written. Existing destination content is outside the carrier budget.
+
 The Package Policy is captured once and applies symmetrically: the writer never emits a carrier that the same Project Format build and policy would reject for a size or shape dimension. Calls own their parser, builder, hash, compression, and temporary resources and may run concurrently. Cancellation observed before the terminal result publishes no Import Candidate or successful carrier; Project Format performs no hidden retry and creates no background queue.
 
 ## 1. Logical contents
@@ -189,7 +194,7 @@ Diagnostics use the Project Format catalog in [Diagnostics V1](./diagnostics-v1.
 
 - golden V1 packages and canonical Project content digests;
 - all nested DTO and canonical-byte evidence required by [Project Document JSON V1](./project-document-json-v1.md);
-- strict JSON tests for every member, discriminator, number, ordering, and migration;
+- strict JSON tests for every member, discriminator, number, ordering, and unsupported schema version;
 - memory header, endianness, tail-field, overflow, and round-trip properties;
 - duplicate path, traversal, case, Unicode, ZIP64, encrypted, truncated, and zip-bomb corpus;
 - read-count enforcement against false ZIP metadata;

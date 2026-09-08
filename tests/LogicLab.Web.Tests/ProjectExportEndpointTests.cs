@@ -26,7 +26,7 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
         const string ticket = "export-ticket-private-response";
         var downloads = new OneTimeDownloads("unused"u8.ToArray());
         using var host = CreateAnonymousHost(downloads);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         using var request = new HttpRequestMessage(new HttpMethod(method),
             new Uri($"/downloads/{ticket}", UriKind.Relative));
 
@@ -44,7 +44,7 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
     {
         var downloads = new OneTimeDownloads("package-bytes"u8.ToArray());
         using var host = CreateAnonymousHost(downloads);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         using var bootstrap = await client.GetAsync(
             new Uri("/editor", UriKind.Relative));
         client.DefaultRequestHeaders.Add("Cookie", AnonymousCookie(bootstrap));
@@ -78,7 +78,7 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
     {
         var downloads = new OneTimeDownloads("package-bytes"u8.ToArray());
         using var host = CreateAnonymousHost(downloads);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         using var bootstrap = await client.GetAsync(
             new Uri("/editor", UriKind.Relative));
         client.DefaultRequestHeaders.Add("Cookie", AnonymousCookie(bootstrap));
@@ -121,8 +121,8 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
     {
         var downloads = new AlwaysDownloads("package-bytes"u8.ToArray());
         using var host = CreateAnonymousHost(downloads);
-        using var clientA = host.CreateHttpsClient();
-        using var clientB = host.CreateHttpsClient();
+        using var clientA = host.CreateClient();
+        using var clientB = host.CreateClient();
         using var bootstrapA = await clientA.GetAsync(
             new Uri("/editor", UriKind.Relative));
         using var bootstrapB = await clientB.GetAsync(
@@ -170,7 +170,7 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
                 services.RemoveAll<IProjectExportDownloads>();
                 services.AddSingleton<IProjectExportDownloads>(downloads);
             }));
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
 
         using var response = await client.GetAsync(
             new Uri("/downloads/export-ticket-owner-0001", UriKind.Relative));
@@ -201,7 +201,7 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
                 services.AddSingleton<IProjectExportDownloads>(downloads);
             });
         });
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         var firstRequest = client.GetAsync(
             new Uri("/downloads/export-ticket-concurrent-01", UriKind.Relative),
             cancellationToken);
@@ -257,7 +257,7 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
     {
         var downloads = new OneTimeDownloads("unused"u8.ToArray());
         using var host = CreateAnonymousHost(downloads);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
 
         using var response = await client.GetAsync(
             new Uri("/downloads/INVALID!", UriKind.Relative));
@@ -283,7 +283,7 @@ internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
     {
         var downloads = new OneTimeDownloads("unused"u8.ToArray());
         using var host = CreateAnonymousHost(downloads);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         using var request = new HttpRequestMessage(
             new HttpMethod(method),
             new Uri("/downloads/export-ticket-method-0001", UriKind.Relative));

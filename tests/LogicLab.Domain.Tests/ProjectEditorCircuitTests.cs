@@ -129,7 +129,7 @@ internal sealed class ProjectEditorCircuitTests
             circuit.Revision,
             new MoveComponentInstancesIntent(
                 circuit.Revision.Document.EntryCircuitDefinition.Id,
-                moves)));
+                moves, [], [])));
         var movedDefinition = committed.Revision.Document.EntryCircuitDefinition;
         var originalDefinition = circuit.Revision.Document.EntryCircuitDefinition;
 
@@ -460,7 +460,7 @@ internal sealed class ProjectEditorCircuitTests
                     new ComponentMove(
                         otherCircuit.Input.Id,
                         new ComponentPlacement(new GridPoint(30, 30))),
-                ]));
+                ], [], []));
 
         var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())
@@ -514,7 +514,7 @@ internal sealed class ProjectEditorCircuitTests
         {
             var outcome = ProjectEditor.Apply(
                 circuit.Revision,
-                new MoveComponentInstancesIntent(definitionId, moves));
+                new MoveComponentInstancesIntent(definitionId, moves, [], []));
 
             var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
             await Assert.That(rejected.Diagnostics.Select(diagnostic =>
@@ -538,7 +538,7 @@ internal sealed class ProjectEditorCircuitTests
             new ComponentPlacement(new GridPoint(30, 30), (QuarterTurn)99));
 
         var outcome = ProjectEditor.Apply(circuit.Revision, new MoveComponentInstancesIntent(
-            definition.Id, invalidFirst ? [invalid, valid] : [valid, invalid]));
+            definition.Id, invalidFirst ? [invalid, valid] : [valid, invalid], [], []));
 
         var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         string[] expected = invalidFirst
@@ -558,7 +558,7 @@ internal sealed class ProjectEditorCircuitTests
         var outcome = ProjectEditor.Apply(circuit.Revision, new MoveComponentInstancesIntent(
             definition.Id,
             [new ComponentMove(ComponentInstanceId.Create(),
-                new ComponentPlacement(new GridPoint(20, 20), (QuarterTurn)99))]));
+                new ComponentPlacement(new GridPoint(20, 20), (QuarterTurn)99))], [], []));
 
         var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         await Assert.That(rejected.Diagnostics.Select(diagnostic => diagnostic.Code))
@@ -574,7 +574,7 @@ internal sealed class ProjectEditorCircuitTests
             circuit.Revision,
             new MoveComponentInstancesIntent(
                 circuit.Revision.Document.EntryCircuitDefinition.Id,
-                []));
+                [], [], []));
 
         var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
         using (Assert.Multiple())

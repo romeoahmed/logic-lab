@@ -5,10 +5,12 @@
     {
         <div class="history-actions">
             <FluentButton data-command="undo"
+                          Size="ButtonSize.Small"
                           Appearance="ButtonAppearance.Outline"
                           Disabled="@(!Model.CanUndo || IsBusy)"
                           OnClick="@(() => OnCommand.InvokeAsync(WorkbenchCommand.Undo))">@Text["Undo"]</FluentButton>
             <FluentButton data-command="redo"
+                          Size="ButtonSize.Small"
                           Appearance="ButtonAppearance.Outline"
                           Disabled="@(!Model.CanRedo || IsBusy)"
                           OnClick="@(() => OnCommand.InvokeAsync(WorkbenchCommand.Redo))">@Text["Redo"]</FluentButton>
@@ -32,17 +34,28 @@
         }
     </div>
 
-    <FluentMenuButton Id="project-options-trigger"
-                      data-testid="project-options-trigger"
-                      Class="project-options-trigger"
-                      Appearance="ButtonAppearance.Subtle"
-                      Disabled="IsBusy"
-                      OnClick="ToggleProjectOptions">@Text["ProjectOptions"]</FluentMenuButton>
+    <div class="project-command-actions">
+        @if (Model.ShowSave)
+        {
+            <FluentButton data-command="save"
+                          Appearance="@(Model.CanSave ? ButtonAppearance.Primary : ButtonAppearance.Outline)"
+                          Disabled="@(!Model.CanSave || IsBusy)"
+                          Loading="@(Model.ActiveCommand is "save")"
+                          OnClick="@(() => InvokeProjectCommandAsync(WorkbenchCommand.Save))">@Text["SaveDurable"]</FluentButton>
+        }
+
+        <FluentMenuButton Id="project-options-trigger"
+                          data-testid="project-options-trigger"
+                          Class="project-options-trigger"
+                          Appearance="ButtonAppearance.Subtle"
+                          Disabled="IsBusy"
+                          OnClick="ToggleProjectOptions">@Text["ProjectOptions"]</FluentMenuButton>
+    </div>
     <FluentPopover Id="project-options-popover"
                    Class="project-options-popover"
                    AnchorId="project-options-trigger"
                    OffsetVertical="6"
-                   Width="10rem"
+                   Width="min(22rem, 90vw)"
                    @bind-Opened="projectOptionsOpened">
         <div class="project-options-panel" data-testid="project-options-panel">
             <div class="project-actions">
@@ -76,14 +89,6 @@
                                   Disabled="@(!Model.CanClaim || IsBusy)"
                                   Loading="@(Model.ActiveCommand is "claim")"
                                   OnClick="@(() => InvokeProjectCommandAsync(WorkbenchCommand.Claim))">@Text["KeepDurable"]</FluentButton>
-                }
-                @if (Model.ShowSave)
-                {
-                    <FluentButton data-command="save"
-                                  Appearance="@(Model.CanSave ? ButtonAppearance.Primary : ButtonAppearance.Outline)"
-                                  Disabled="@(!Model.CanSave || IsBusy)"
-                                  Loading="@(Model.ActiveCommand is "save")"
-                                  OnClick="@(() => InvokeProjectCommandAsync(WorkbenchCommand.Save))">@Text["SaveDurable"]</FluentButton>
                 }
             </div>
         </div>

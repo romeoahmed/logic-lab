@@ -829,7 +829,7 @@ internal sealed partial class EditorWorkspaceTests
         var after = await Read(workspace, opened);
 
         var idle = (await Assert.That(outcome)
-            .IsTypeOf<LogicLab.Application.Workspaces.NoScheduledStimulus>())!;
+            .IsTypeOf<LogicLab.Application.Workspaces.NoScheduledEvents>())!;
         using (Assert.Multiple())
         {
             await Assert.That(idle.SessionVersion).IsEqualTo(before.Simulation!.SessionVersion);

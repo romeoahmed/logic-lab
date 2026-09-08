@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Numerics;
 using LogicLab.Domain;
 using LogicLab.Domain.Components;
 using LogicLab.Engine.Compilation;
@@ -274,12 +275,11 @@ internal static class SimulationNetDiagnostics
     private static ulong CountUnknown(LogicVector vector)
     {
         ulong count = 0;
-        for (var bit = 0; bit < vector.Width; bit++)
+        for (var word = 0; word < vector.WordCount; word++)
         {
-            if (vector[bit] == LogicValue.X)
-            {
-                count = checked(count + 1);
-            }
+            // X is high=1, low=0; the vector's unused tail bits are zero.
+            count += (ulong)BitOperations.PopCount(
+                vector.GetHighWord(word) & ~vector.GetLowWord(word));
         }
 
         return count;

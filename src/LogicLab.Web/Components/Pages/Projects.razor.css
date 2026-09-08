@@ -3,7 +3,7 @@
   gap: 1.5rem;
   max-inline-size: 80rem;
   margin-inline: auto;
-  padding: clamp(2rem, 6vw, 5rem) clamp(1rem, 5vw, 4rem);
+  padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 5vw, 4rem);
 }
 
 .projects-heading {
@@ -14,26 +14,23 @@
 }
 
 .projects-heading h1 {
-  margin: 0.85rem 0 0;
-  font-size: clamp(2.7rem, 6vw, 5.4rem);
-  letter-spacing: -0.06em;
-  line-height: 0.98;
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  letter-spacing: -0.035em;
+  line-height: 1.15;
 }
 
-.projects-heading > p {
+.projects-heading p {
   max-inline-size: 32rem;
-  margin: 0;
+  margin: 0.5rem 0 0;
   color: var(--ll-muted);
   line-height: 1.65;
 }
 
-.projects-eyebrow {
-  margin: 0 0 0.3rem;
-  color: var(--ll-signal);
-  font-size: 0.76rem;
-  font-weight: 750;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
+.project-count {
+  color: var(--ll-muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 .projects-shell ::deep .catalog-card {
@@ -45,20 +42,6 @@
   box-shadow: var(--ll-shadow-panel);
 }
 
-.catalog-card-heading {
-  display: flex;
-  gap: 1rem;
-  align-items: end;
-  justify-content: space-between;
-  padding: 0.25rem 0.25rem 1.15rem;
-}
-
-.catalog-card-heading h2 {
-  margin: 0;
-  font-size: clamp(1.35rem, 3vw, 1.8rem);
-  letter-spacing: -0.035em;
-}
-
 .project-catalog {
   display: grid;
   grid-template-columns:
@@ -67,7 +50,7 @@
     [action] auto;
   column-gap: 0.9rem;
   row-gap: 0;
-  margin: 1rem 0 0;
+  margin: 0;
   padding: 0.25rem;
   list-style: none;
 }
@@ -169,6 +152,7 @@
 @media (max-width: 680px) {
   .projects-heading {
     display: grid;
+    gap: 0.75rem;
   }
 
   .project-catalog {

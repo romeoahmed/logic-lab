@@ -2,10 +2,10 @@
 
 > Status: normative V1 product and interaction contract
 
-Logic Lab is a digital-logic workbench that connects authored topology, four-state
-behavior, and Logical Time. The schematic is the specimen, the command strip is the
-control surface, the Inspector is the notebook, and the Instrument Bay is the logic
-analyzer.
+Logic Lab is a digital-logic workbench for authoring circuits, simulating four-state
+behavior, and inspecting signals over Logical Time. Canvas shows the circuit,
+Inspector edits the selection and inputs, and Instrument Bay holds waveforms and
+diagnostics.
 
 [Architecture](./architecture.md) owns system structure, [Diagram Presentation](./specs/diagram-presentation.md)
 owns static geometry, [Browser Runtime](./specs/browser-runtime.md) owns Canvas and
@@ -55,7 +55,7 @@ two-way navigation reinforce the relation.
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────┐
-│ Project · history │ Compile │ Step Run Pause │ Save Import Export   │
+│ Undo Redo │ Current simulation actions │ Save │ Project options     │
 ├──────────────────────────────────────────────────────────────────────┤
 │ Definition navigation and hierarchy breadcrumb                      │
 ├────────────┬─────────────────────────────┬──────┬───────────────────┤
@@ -72,10 +72,12 @@ two-way navigation reinforce the relation.
 - Canvas owns the largest flexible region.
 - Library, definition navigation, and Inspector support discovery and editing without
   deriving domain identity from display order.
-- Instrument Bay resizes vertically; its arrangement is browser preference, not
-  Project Document or Workspace state.
-- Status always exposes Logical Time, quiescence, Trace range, Compilation, save, and
-  connection independently. A generic global spinner is not enough.
+- Instrument Bay has a keyboard-accessible height slider and an expand control.
+  Its arrangement is local UI state. Before Simulation, the empty waveform uses a
+  compact area.
+- With a Project open, Status exposes Logical Time, quiescence, Trace range,
+  Compilation, save, and connection independently. The welcome view shows only its
+  current message.
 
 ## Tools and Canvas
 
@@ -114,6 +116,7 @@ a fallback editor.
 
 ## Inspector, diagnostics, and waveform
 
+During Simulation, the input controls appear first in the Inspector.
 Inspector projects the current selection: circuit summary, component contract and
 parameters, Net drivers/receivers/value, Junction ownership, definition ports and
 references, or common multi-selection properties. It does not duplicate the complete
@@ -138,6 +141,11 @@ not Simulation; returning live is explicit.
 
 Commands keep one verb across action and result: Save/Saved, Run/Running,
 Pause/Paused. Compile, save, Simulation, Trace, and connection state remain separate.
+The command bar shows the Simulation actions available in the current state: Compile,
+Start simulation, Step, Run, Pause, Restart simulation, Apply changes (Hot Swap), or
+Close simulation. Project
+options groups import, export, and saving a Sandbox to an account. Save remains visible
+for an already saved Project.
 
 Undo and Redo remain visible while a Project is open, with unavailable directions
 disabled. Each action restores one retained Project Revision and updates the Canvas
@@ -158,7 +166,9 @@ and while another command is being processed.
 The initial workbench offers an empty Sandbox or a complete built-in example. Opening
 an example publishes an already compiled Sandbox; the user can start Simulation
 immediately, edit it normally, and export it as a `.logiclab` project. Examples have
-ordinary topology and authored state, with no example-specific Runtime behavior.
+ordinary topology and authored state, with no example-specific Runtime behavior. The
+welcome view keeps these choices visible and introduces navigation and Simulation
+status after a Project is open.
 
 During a paused, current Simulation, the Inspector offers independent binary input
 drafts for the viewed Circuit Definition occurrence. Values use the exact input width,
@@ -171,6 +181,10 @@ to schedule.
 Import exposes upload, package validation, Genesis, Compilation, and publication as
 named phases. Failure leaves the current Workspace unchanged. Export separates
 preparation from download availability.
+
+An unfinished saved or imported circuit opens for editing with its Compilation
+diagnostics selected. The user can repair and compile it before starting Simulation;
+ordinary circuit errors do not lock the Project out of the editor.
 
 A save conflict offers Reload remote, Keep as copy, and Export local; overwrite is not
 the default. Stale Compilation leaves Canvas editable but disables Step and Run. The
@@ -189,11 +203,13 @@ use exclusive, toggleable overlays for both panels; Escape closes the active pan
 returns focus to its toggle. Selecting a Component closes the Palette overlay.
 The active workbench allocates the remaining viewport height after the site header to
 Canvas, Instrument Bay, and Status Strip. Instruments can expand into the Canvas area;
-returning to the circuit or revealing a diagnostic or Probe source restores the Canvas.
+returning to the circuit restores the Canvas. Revealing a diagnostic or Probe source
+also closes panel overlays so the source is visible and the Canvas is usable.
 When the available height cannot fit usable Canvas and Instrument Bay regions, the
 workbench scrolls vertically without overlapping controls or clipping the Status Strip. Narrow layouts
-prioritize Canvas review, Probe, Step, Run, and expanded waveform; dense authoring may
-remain unsupported.
+keep signal labels beside the waveform and let the waveform toolbar scroll horizontally.
+They prioritize Canvas review, Probe, Step, Run, and expanded waveform; dense authoring may
+remain unsupported. The smallest layout uses the expand button instead of the height slider.
 No layout hides save state, diagnostics, Logical Time, or connection state.
 
 English, Simplified Chinese, long-label, bidi-content, text zoom, browser zoom, and

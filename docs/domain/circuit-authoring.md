@@ -1,89 +1,77 @@
 # Circuit Authoring Glossary
 
-Circuit Authoring is the language of the gate-level design that a person creates and revises. It excludes compiled representations, simulation state, browser state, and file carriers.
+Circuit Authoring describes the design a person creates and revises. The
+[authoring specification](../specs/circuit-authoring.md) defines valid documents and
+atomic edits; compiled state, browser state, and file carriers have separate owners.
 
-## Language
+## Projects and revisions
 
-**Logic Lab**:
-A teaching-oriented environment for constructing, running, and explaining gate-level digital circuits under its own explicit semantics.
-_Avoid_: SystemVerilog simulator, industrial EDA suite, HDL compatibility layer
+**Logic Lab**: A teaching environment for constructing, simulating, and inspecting
+gate-level digital circuits under its own explicit semantics.
 
-**Project**:
-One authored circuit-design lineage identified by a Project ID and represented by immutable Project Revisions from Project Genesis onward.
-_Avoid_: Durable Project, Editor Workspace, file package
+**Project**: One authored design lineage, identified by a Project ID and represented
+by immutable Project Revisions from Project Genesis onward.
 
-**Project Document**:
-The complete authored design at one point in its edit history, including Circuit Definitions, initial data, and presentation choices.
-_Avoid_: file package, simulation snapshot
+**Project ID**: Authored identity preserved across revisions and native export/import.
+It is independent of durable storage location and authorization.
 
-**Project ID**:
-Stable authored identity preserved across a Project's revisions and native export/import. It is not a durable resource locator or authorization fact.
-_Avoid_: Durable Project ID, Project Revision ID, content digest
+**Project Document**: The complete authored design at one point in its edit history,
+including Circuit Definitions, initial data, and presentation choices.
 
-**Project Genesis**:
-The atomic creation of a Project's first Project Revision from a new-project request or a validated Import Candidate.
-_Avoid_: Edit Transaction, Workspace publication, Durable Project creation, package decoding
+**Project Revision**: An immutable Project Document created by Project Genesis or
+one committed Edit Transaction.
 
-**Project Revision**:
-An immutable Project Document created by Project Genesis or one committed Edit Transaction.
-_Avoid_: saved file, Circuit Definition revision, content digest
+**Project Genesis**: Atomic creation of the first Project Revision from a new-project
+request or validated Import Candidate. Decoding a package, publishing a Workspace,
+and creating durable storage are separate operations.
 
-**Circuit Definition**:
-A named design with an ordered Port contract that can be opened as an entry circuit or instantiated by another Circuit Definition.
-_Avoid_: page, canvas, compiled module
+## Circuit structure
 
-**Component Contract**:
-The stable semantic kind, Ports, parameters, and behavior available for instantiation.
-_Avoid_: symbol template, component instance
+**Circuit Definition**: A named design with an ordered Port contract. It can serve as
+an entry circuit or be instantiated by another Circuit Definition.
 
-**Component Contract Key**:
-The stable pair of Library identity and Contract identity that resolves one Component Contract within a Library Snapshot.
-_Avoid_: display name, Symbol Variant
+**Component Contract**: The stable semantic kind, Ports, parameters, and behavior
+available for instantiation, independent of its graphical symbol.
 
-**Library Snapshot**:
-The immutable, versioned set of Component Contracts against which a Project Revision is authored and compiled.
-_Avoid_: mutable catalog, palette
+**Component Contract Key**: The pair of Library identity and Contract identity that
+resolves one Component Contract within a Library Snapshot.
 
-**Component Instance**:
-One use of a Component Contract or Circuit Definition inside a Circuit Definition.
-_Avoid_: component kind, palette item, symbol image
+**Library Snapshot**: The immutable, versioned set of Component Contracts against
+which a Project Revision is authored and compiled.
 
-**Port**:
-A named, directed, fixed-width connection point in a Component Contract or Circuit Definition contract.
-_Avoid_: parameter, screen coordinate, implicit pin
+**Component Instance**: One use of a Component Contract or Circuit Definition inside
+a Circuit Definition.
 
-**Terminal**:
-A concrete occurrence of a Port inside a Circuit Definition, identified either by a Component Instance and Port or by the Circuit Definition interface.
-_Avoid_: wire endpoint inferred from pixels
+**Port**: A named, directed, fixed-width connection point in a Component Contract or
+Circuit Definition contract.
 
-**Net**:
-A stable electrical connection that owns the membership of Terminals and Junctions and carries one fixed-width Logic Vector.
-_Avoid_: line segment, last-written value, screen path
+**Terminal**: A concrete Port occurrence inside a Circuit Definition, identified by
+a Component Instance and Port or by the Circuit Definition interface.
 
-**Junction**:
-A stable topological point that explicitly joins branches of one Net. A geometric crossing is not a Junction.
-_Avoid_: decorative dot, pixel intersection, implicit connection
+**Net**: A stable electrical connection that owns Terminal and Junction membership
+and carries one fixed-width Logic Vector.
 
-**Wire Geometry**:
-The editable visual route associated with a Net. It presents connectivity but never defines it.
-_Avoid_: Net, simulation edge, electrical identity
+**Junction**: A stable topological point that explicitly joins branches of one Net.
+A geometric crossing alone creates no Junction.
 
-**Logic Vector**:
-An ordered, fixed positive-width sequence of Logic Values whose index zero is the least-significant bit. It has no implicit signed interpretation.
-_Avoid_: integer, dynamically sized array, signed Net
+**Wire Geometry**: The editable visual route associated with a Net. It presents
+connectivity; topology determines the connection.
 
-**Memory Image**:
-Immutable authored initial contents for one ROM or RAM shape. Runtime RAM changes never modify the Memory Image.
-_Avoid_: runtime memory, binary package part, Trace
+**Hierarchy Path**: The ordered sequence of scoped steps
+`(containing Circuit Definition, Component Instance)` from an entry Circuit Definition
+to an entity inside an elaborated instance. These stable identities distinguish
+repeated uses of a definition.
 
-**Hierarchy Path**:
-The stable ordered sequence of scoped steps `(containing Circuit Definition, Component Instance)` from an entry Circuit Definition to an entity inside an elaborated instance.
-_Avoid_: display name, coordinate path
+## Values and edits
 
-**Edit Transaction**:
-One atomic authoring intention that either produces one Project Revision or produces none. It is the smallest Undo and Redo unit.
-_Avoid_: Edit Intent, simulation event
+**Logic Vector**: An ordered, fixed positive-width sequence of Logic Values with the
+least-significant bit at index zero and no implicit signed interpretation.
 
-**Edit Intent**:
-A closed request describing one authoring intention whose successful validation becomes one Edit Transaction.
-_Avoid_: arbitrary patch, pointer gesture, Edit Transaction
+**Memory Image**: Immutable authored initial contents for one ROM or RAM shape.
+Runtime RAM writes leave it unchanged.
+
+**Edit Intent**: A closed request describing one authoring intention. Successful
+validation turns it into an Edit Transaction.
+
+**Edit Transaction**: One atomic authoring intention that produces one Project
+Revision or none. It is the smallest Undo and Redo unit.

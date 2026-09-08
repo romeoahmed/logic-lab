@@ -655,9 +655,9 @@ internal sealed class SimulationHotSwapTests
     [Test]
     public async Task Execute_CyclicHotSwap_AccountsForReusableSettlementScratch()
     {
-        // 544 retained/candidate/publication bytes, 48 reusable SCC scratch bytes,
+        // 544 retained/candidate/publication bytes, 56 reusable SCC scratch bytes,
         // and a 48-byte evaluator envelope including the prior output plane.
-        const ulong exactPeakOwnedBufferBytes = 640;
+        const ulong exactPeakOwnedBufferBytes = 648;
         var circuit = SequentialTestCircuit.Create();
         var input = circuit.Place(
             "source.input",
@@ -780,7 +780,7 @@ internal sealed class SimulationHotSwapTests
     {
         circuit.Apply(new MoveComponentInstancesIntent(
             circuit.Revision.Document.EntryCircuitDefinitionId,
-            [new ComponentMove(component.Id, new ComponentPlacement(new GridPoint(20, 3)))]));
+            [new ComponentMove(component.Id, new ComponentPlacement(new GridPoint(20, 3)))], [], []));
         return circuit.Compile();
     }
 

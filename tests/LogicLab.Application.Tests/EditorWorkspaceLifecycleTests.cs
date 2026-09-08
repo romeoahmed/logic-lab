@@ -345,19 +345,11 @@ internal sealed class EditorWorkspaceLifecycleTests
         string projectNamePrefix,
         CancellationToken cancellationToken)
     {
-        var allReady = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
         var start = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        var readyCount = 0;
         var contenders = Enumerable.Range(0, contenderCount)
             .Select(async index =>
             {
-                if (Interlocked.Increment(ref readyCount) == contenderCount)
-                {
-                    allReady.TrySetResult();
-                }
-
                 await start.Task.WaitAsync(cancellationToken);
                 return await workspace.OpenAsync(
                     new CreateSandbox($"{projectNamePrefix} {index}", "Main", AnonymousWorkspaceCaller.Instance),
@@ -365,15 +357,7 @@ internal sealed class EditorWorkspaceLifecycleTests
             })
             .ToArray();
 
-        try
-        {
-            await allReady.Task.WaitAsync(cancellationToken);
-        }
-        finally
-        {
-            start.TrySetResult();
-        }
-
+        start.SetResult();
         return await Task.WhenAll(contenders).WaitAsync(cancellationToken);
     }
 }

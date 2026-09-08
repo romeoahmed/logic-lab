@@ -18,15 +18,18 @@
 }
 
 .status-facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 0;
   margin: 0;
 }
 
 .status-facts > div {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   min-inline-size: 0;
-  padding-inline: 0.75rem;
+  padding-inline: 0.6rem;
   border-inline-start: 1px solid var(--ll-border);
 }
 
@@ -43,7 +46,7 @@
 }
 
 .status-facts dd {
-  margin: 0.2rem 0 0;
+  margin: 0;
   color: var(--ll-ink);
   font-family: var(--ll-font-mono);
   font-variant-numeric: tabular-nums;
@@ -58,7 +61,6 @@
 
 @media (max-width: 850px) {
   .status-facts {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
     row-gap: 0.3rem;
   }
   .status-facts > div {

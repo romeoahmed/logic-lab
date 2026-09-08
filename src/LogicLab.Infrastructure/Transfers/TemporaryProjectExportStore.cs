@@ -162,6 +162,7 @@ public sealed class TemporaryProjectExportStore :
                         staging,
                         expiresAtUtc,
                         carrierByteCount);
+                    cancellationToken.ThrowIfCancellationRequested();
                     staging.Register();
                     exportsByTicket.Add(publication.ExportTicket.Value, published);
                     ticketsByWorkspace[publication.WorkspaceId] =
@@ -319,12 +320,11 @@ public sealed class TemporaryProjectExportStore :
     private List<PublishedExport> RemoveExpiredUnderLock(DateTimeOffset now)
     {
         List<PublishedExport> retired = [];
-        foreach (var ticket in exportsByTicket
-                     .Where(pair => pair.Value.ExpiresAtUtc <= now)
-                     .Select(pair => pair.Key)
-                     .ToArray())
+        // Dictionary.Remove preserves active enumerators; the gate excludes additions.
+        foreach (var (ticket, export) in exportsByTicket)
         {
-            if (RemoveUnderLock(ticket) is { } expired)
+            if (export.ExpiresAtUtc <= now
+                && RemoveUnderLock(ticket) is { } expired)
             {
                 retired.Add(expired);
             }

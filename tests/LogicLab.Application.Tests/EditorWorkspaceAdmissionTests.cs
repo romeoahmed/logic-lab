@@ -8,6 +8,37 @@ namespace LogicLab.Application.Tests;
 internal sealed class EditorWorkspaceAdmissionTests
 {
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task DispatchAsync_MoveRouteExceedsCommandLimit_RejectsWithoutPublication(bool addRoute)
+    {
+        await using var workspace = CreateWorkspace(new WorkspaceAuthoringLimits(10, 100, 2));
+        var example = (WorkspaceOpened)await workspace.OpenAsync(
+            new OpenExample(LogicLab.Application.Examples.ExampleProject.Inverter,
+                AnonymousWorkspaceCaller.Instance), CancellationToken.None);
+        var opened = new ControlledWorkspace(example,
+            await EditorWorkspaceTestDriver.AttachAsync(workspace, example.WorkspaceId));
+        var before = opened.Projection;
+        var definition = before.ProjectRevision.Document.EntryCircuitDefinition;
+        var geometry = definition.WireGeometries[0];
+        var terminal = definition.FindNet(geometry.NetId)!.Terminals.OfType<InstanceTerminalReference>().First();
+        var intent = new MoveComponentInstancesIntent(definition.Id,
+            [new ComponentMove(terminal.ComponentInstanceId, new ComponentPlacement(new GridPoint(4, 0)))],
+            addRoute ? [] : [new WireGeometryReplacement(geometry.Id,
+                new OrthogonalWireRoute([new GridPoint(0, 0), new GridPoint(4, 0)]))],
+            addRoute ? [new NetWireGeometryAddition(geometry.NetId,
+                new OrthogonalWireRoute([new GridPoint(0, 0), new GridPoint(4, 0)]))] : []);
+
+        var outcome = await workspace.DispatchAsync(Edit(opened, before, intent), CancellationToken.None);
+        var after = await ReadProjection(workspace, opened);
+
+        await AssertRejectedWithoutPublication(outcome, before, after);
+        var rejected = (WorkspaceCommandRejected)outcome;
+        await Assert.That(rejected.PolicyEvidence).IsNotNull();
+        await Assert.That(rejected.PolicyEvidence!.Dimension).IsEqualTo("authoring_command_item_count");
+    }
+
+    [Test]
     public async Task DispatchAsync_AuthoringLimitsAtMaximum_CommitThenRejectNextDefinition()
     {
         await using var workspace = CreateWorkspace(

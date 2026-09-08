@@ -134,14 +134,17 @@ public sealed record SymbolTextMeasurementV1
     }
 }
 
+/// <summary>Measures symbol text in plan units for one fixed font and Metric Set.</summary>
 public interface ISymbolTextMeasurerV1
 {
     FontFingerprintV1 FontFingerprint { get; }
 
     SymbolMetricSetV1 MetricSet { get; }
 
-    // Advance and ink bounds are separate because glyph overhang can exceed advance width.
-    // Source: https://html.spec.whatwg.org/multipage/canvas.html#textmetrics
+    /// <summary>
+    /// Returns advance width and ink bounds relative to the requested alignment point and baseline.
+    /// Ink may extend beyond the advance or be empty; both contribute to layout.
+    /// </summary>
     SymbolTextMeasurementV1 Measure(
         SymbolTextMeasurementRequestV1 request,
         CancellationToken cancellationToken = default);

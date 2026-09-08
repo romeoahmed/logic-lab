@@ -342,6 +342,86 @@ internal sealed class ProjectPackageWriterTests
     }
 
     [Test]
+    [Arguments(1UL)]
+    [Arguments(128UL)]
+    public async Task WriteAsync_CarrierLimitExceeded_StopsBeforeWritingPastBudget(
+        ulong maximum)
+    {
+        var limits = PackagePolicy.Default.Limits.ToArray();
+        limits[(int)PackageDimension.CarrierBytes] = new PackageLimit(
+            PackageDimension.CarrierBytes, maximum);
+        var policy = new PackagePolicy("bounded-carrier", "1", limits);
+        await using var destination = new MemoryStream();
+
+        var outcome = await ProjectPackage.WriteAsync(
+            new ProjectPackageWriteRequest(
+                BeginProject("Bounded export", "Main"), destination, policy),
+            CancellationToken.None);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageWriteRejected>())!;
+        var breach = (await Assert.That(rejected.Evidence.PolicyLimitBreach).IsNotNull())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason).IsEqualTo("package_limit_exceeded");
+            await Assert.That(breach.Dimension).IsEqualTo(PackageDimension.CarrierBytes);
+            await Assert.That(breach.Observed).IsGreaterThan(maximum);
+            await Assert.That(rejected.Evidence.ObservedDimensions.Single(
+                    item => item.Dimension == PackageDimension.CarrierBytes))
+                .IsEqualTo(breach);
+            await Assert.That(checked((ulong)destination.Length)).IsLessThanOrEqualTo(maximum);
+            await Assert.That(destination.CanWrite).IsTrue();
+        }
+    }
+
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task WriteAsync_CarrierLimitAtFinalByte_PreservesPrefixAndEnforcesBudget(bool fits)
+    {
+        var revision = BeginProject("Exact carrier limit", "Main");
+        await using var reference = new MemoryStream();
+        var baseline = await ProjectPackage.WriteAsync(
+            new ProjectPackageWriteRequest(revision, reference, PackagePolicy.Default),
+            CancellationToken.None);
+        var succeeded = (await Assert.That(baseline).IsTypeOf<PackageWriteSucceeded>())!;
+        var maximum = succeeded.CarrierByteCount - (fits ? 0UL : 1UL);
+        var limits = PackagePolicy.Default.Limits.ToArray();
+        limits[(int)PackageDimension.CarrierBytes] = new PackageLimit(
+            PackageDimension.CarrierBytes, maximum);
+        var policy = new PackagePolicy("exact-carrier", "1", limits);
+        await using var destination = new MemoryStream();
+        var prefix = "Existing caller data"u8.ToArray();
+        await destination.WriteAsync(prefix);
+
+        var outcome = await ProjectPackage.WriteAsync(
+            new ProjectPackageWriteRequest(revision, destination, policy),
+            CancellationToken.None);
+
+        await Assert.That(destination.ToArray().Take(prefix.Length))
+            .IsEquivalentTo(prefix, CollectionOrdering.Matching);
+        await Assert.That(checked((ulong)(destination.Length - prefix.Length)))
+            .IsLessThanOrEqualTo(maximum);
+        if (!fits)
+        {
+            var rejected = (await Assert.That(outcome).IsTypeOf<PackageWriteRejected>())!;
+            var breach = (await Assert.That(rejected.Evidence.PolicyLimitBreach).IsNotNull())!;
+            await Assert.That(rejected.Reason).IsEqualTo("package_limit_exceeded");
+            await Assert.That(breach.Dimension).IsEqualTo(PackageDimension.CarrierBytes);
+            await Assert.That(breach.Observed).IsGreaterThan(maximum);
+            return;
+        }
+
+        var written = (await Assert.That(outcome).IsTypeOf<PackageWriteSucceeded>())!;
+        await Assert.That(written.CarrierByteCount).IsEqualTo(maximum);
+        await Assert.That(checked((ulong)(destination.Length - prefix.Length)))
+            .IsEqualTo(written.CarrierByteCount);
+        destination.Position = prefix.Length;
+        var read = await ProjectPackage.ReadAsync(
+            new ProjectPackageReadRequest(destination, policy), CancellationToken.None);
+        await Assert.That(read).IsTypeOf<PackageReadSucceeded>();
+    }
+
+    [Test]
     public async Task WriteAsync_AlreadyCancelled_RejectsAndLeavesDestinationUntouched()
     {
         var revision = BeginProject("Cancelled project", "Main");

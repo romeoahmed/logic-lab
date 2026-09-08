@@ -2,6 +2,7 @@ using System.Diagnostics;
 using LogicLab.Application.Work;
 using LogicLab.Application.Workspaces;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 
 namespace LogicLab.Application.Tests;
 
@@ -260,7 +261,8 @@ internal sealed class WorkCoordinatorTests
         string lane,
         CancellationToken cancellationToken)
     {
-        using var loggerFactory = new RecordingLoggerFactory();
+        using var logs = new FakeLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(logs));
         var coordinator = CreateUnderActivity(
             loggerFactory.CreateLogger<WorkCoordinator>(),
             out var constructionTrace);
@@ -302,16 +304,74 @@ internal sealed class WorkCoordinatorTests
             _ = await scheduled!.Completion.WaitAsync(cancellationToken);
         }
 
-        var log = loggerFactory.Entries.Single(entry => entry.EventId.Id == 1001);
+        var log = logs.Collector.GetSnapshot().Single(entry => entry.Id.Id == 1001);
         using (Assert.Multiple())
         {
             await Assert.That(rejection).IsNull();
-            await Assert.That(log.Properties["Lane"]).IsEqualTo(lane);
+            await Assert.That(log.GetStructuredStateValue("Lane")).IsEqualTo(lane);
             await Assert.That(log.Exception).IsNull();
-            await Assert.That(log.Properties["Correlation"])
+            await Assert.That(log.Message).DoesNotContain("Compilation failed.");
+            await Assert.That(log.Message).DoesNotContain("Session failed.");
+            await Assert.That(log.GetStructuredStateValue("Correlation"))
                 .IsEqualTo(schedulingTrace.ToHexString());
-            await Assert.That(log.Properties["Correlation"])
+            await Assert.That(log.GetStructuredStateValue("Correlation"))
                 .IsNotEqualTo(constructionTrace.ToHexString());
+        }
+    }
+
+    [Test, Timeout(30_000)]
+    public async Task DisposeAsync_CancellationCallbackFails_DrainsRunningWorkBeforeReportingFailure(
+        CancellationToken cancellationToken)
+    {
+        var coordinator = new WorkCoordinator(
+            SchedulingPolicy.Default,
+            TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WorkCoordinator>.Instance);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancellationObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var released = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var accepted = coordinator.TryScheduleCompilation(
+            new WorkspaceId("disposal-failure"),
+            AnonymousWorkspaceCaller.Instance,
+            async context =>
+            {
+                using var registration = context.CancellationToken.Register(() =>
+                {
+                    cancellationObserved.TrySetResult();
+                    throw new InvalidOperationException("Cancellation callback failed.");
+                });
+                started.TrySetResult();
+                await finish.Task.ConfigureAwait(false);
+            },
+            () => released.TrySetResult(),
+            cancellationToken,
+            out _);
+        Task? disposal = null;
+        try
+        {
+            await Assert.That(accepted).IsTrue();
+            await started.Task.WaitAsync(cancellationToken);
+            disposal = coordinator.DisposeAsync().AsTask();
+            await cancellationObserved.Task.WaitAsync(cancellationToken);
+
+            // The worker is deliberately held after cancellation: a callback failure
+            // must not let disposal cross the dependency-lifetime boundary early.
+            await Assert.That(() => disposal.WaitAsync(TimeSpan.FromMilliseconds(100), cancellationToken))
+                .ThrowsExactly<TimeoutException>();
+            finish.TrySetResult();
+            await Assert.That(() => disposal.WaitAsync(cancellationToken))
+                .ThrowsExactly<AggregateException>();
+            await Assert.That(released.Task.IsCompletedSuccessfully).IsTrue();
+        }
+        finally
+        {
+            finish.TrySetResult();
+            await released.Task.WaitAsync(cancellationToken);
+            if (disposal is null)
+            {
+                await coordinator.DisposeAsync();
+            }
         }
     }
 

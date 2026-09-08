@@ -1,3 +1,4 @@
+using System.Net;
 using Azure.Core;
 using Azure.Identity;
 using LogicLab.DatabaseMigrator;
@@ -19,21 +20,42 @@ if (string.IsNullOrWhiteSpace(connectionString))
         $"Environment variable {ConnectionStringEnvironmentVariable} is required.");
 }
 
-var managedIdentityClientId = Environment.GetEnvironmentVariable(
-    ManagedIdentityClientIdEnvironmentVariable);
-if (!Guid.TryParse(managedIdentityClientId, out var clientId))
+if (args is not ([] or ["bootstrap"] or ["local"]))
 {
-    throw new InvalidOperationException(
-        $"Environment variable {ManagedIdentityClientIdEnvironmentVariable} must be a GUID.");
+    throw new InvalidOperationException("Usage: LogicLab.DatabaseMigrator [bootstrap|local]");
 }
 
+var local = args is ["local"];
 var database = new NpgsqlConnectionStringBuilder(connectionString);
-if (!string.IsNullOrEmpty(database.Password)
-    || string.IsNullOrWhiteSpace(database.Username)
-    || database.SslMode != SslMode.VerifyFull)
+TokenCredential? credential = null;
+if (local)
 {
-    throw new InvalidOperationException(
-        "The migration connection must be passwordless and use SSL Mode=VerifyFull.");
+    if (!string.Equals(database.Host, "localhost", StringComparison.OrdinalIgnoreCase)
+        && !(IPAddress.TryParse(database.Host, out var address) && IPAddress.IsLoopback(address)))
+    {
+        throw new InvalidOperationException("Local migrations require a loopback database host.");
+    }
+}
+else
+{
+    var managedIdentityClientId = Environment.GetEnvironmentVariable(
+        ManagedIdentityClientIdEnvironmentVariable);
+    if (!Guid.TryParse(managedIdentityClientId, out var clientId))
+    {
+        throw new InvalidOperationException(
+            $"Environment variable {ManagedIdentityClientIdEnvironmentVariable} must be a GUID.");
+    }
+
+    if (!string.IsNullOrEmpty(database.Password)
+        || string.IsNullOrWhiteSpace(database.Username)
+        || database.SslMode != SslMode.VerifyFull)
+    {
+        throw new InvalidOperationException(
+            "The migration connection must be passwordless and use SSL Mode=VerifyFull.");
+    }
+
+    credential = new ManagedIdentityCredential(
+        ManagedIdentityId.FromUserAssignedClientId(clientId.ToString()));
 }
 
 using var cancellationSource = new CancellationTokenSource();
@@ -42,9 +64,6 @@ Console.CancelKeyPress += (_, eventArgs) =>
     eventArgs.Cancel = true;
     cancellationSource.Cancel();
 };
-
-var credential = new ManagedIdentityCredential(
-    ManagedIdentityId.FromUserAssignedClientId(clientId.ToString()));
 
 if (args is ["bootstrap"])
 {
@@ -68,13 +87,14 @@ if (args is ["bootstrap"])
     return;
 }
 
-if (args.Length != 0)
+await using var dataSource = CreateDataSource(connectionString, credential);
+if (local)
 {
-    throw new InvalidOperationException(
-        "The only supported operation argument is bootstrap.");
+    await using var schema = dataSource.CreateCommand(
+        $"CREATE SCHEMA IF NOT EXISTS {LogicLabPostgreSqlOptionsExtensions.MigrationsSchema}");
+    await schema.ExecuteNonQueryAsync(cancellationSource.Token).ConfigureAwait(false);
 }
 
-await using var dataSource = CreateDataSource(connectionString, credential);
 var identityHostBuilder = Host.CreateApplicationBuilder();
 identityHostBuilder.Services.AddLogicLabIdentity(dataSource);
 using var identityHost = identityHostBuilder.Build();
@@ -103,8 +123,13 @@ Console.WriteLine("Database migrations completed.");
 
 static NpgsqlDataSource CreateDataSource(
     string connectionString,
-    TokenCredential credential)
+    TokenCredential? credential)
 {
+    if (credential is null)
+    {
+        return NpgsqlDataSource.Create(connectionString);
+    }
+
     var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
     var tokenRequest = new TokenRequestContext(
         ["https://ossrdbms-aad.database.windows.net/.default"]);

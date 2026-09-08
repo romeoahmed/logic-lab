@@ -4,15 +4,15 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="ErrorDescription" xml:space="preserve"><value>Your work was not changed. Return home or open a new Sandbox to continue.</value></data>
+  <data name="ErrorDescription" xml:space="preserve"><value>We could not confirm the outcome. Return to the previous page to check your work, or return home.</value></data>
   <data name="ErrorEyebrow" xml:space="preserve"><value>Request interrupted</value></data>
   <data name="ErrorOpenSandbox" xml:space="preserve"><value>Open a new Sandbox</value></data>
   <data name="ErrorPageTitle" xml:space="preserve"><value>Error</value></data>
   <data name="ErrorRequestId" xml:space="preserve"><value>Request ID</value></data>
   <data name="ErrorReturnHome" xml:space="preserve"><value>Return home</value></data>
   <data name="ErrorTitle" xml:space="preserve"><value>The request could not be completed.</value></data>
-  <data name="HelpDescriptionClaim" xml:space="preserve"><value>Sign in to save a Sandbox and reopen it later from Projects.</value></data>
-  <data name="HelpDescriptionStart" xml:space="preserve"><value>Create a Sandbox, choose an example or draw a circuit, then compile and simulate it.</value></data>
+  <data name="HelpDescriptionClaim" xml:space="preserve"><value>In Project options, choose Export project to download a .logiclab file. To save to your account, sign in and choose Save project; reopen it later from Projects. Save again after making changes.</value></data>
+  <data name="HelpDescriptionStart" xml:space="preserve"><value>Open an example to explore a working circuit, or start an empty Sandbox to draw your own.</value></data>
   <data name="HelpEyebrow" xml:space="preserve"><value>Logic Lab help</value></data>
   <data name="HelpOpenWorkbench" xml:space="preserve"><value>Open the Workbench</value></data>
   <data name="HelpPageTitle" xml:space="preserve"><value>Help · Logic Lab</value></data>
@@ -44,21 +44,25 @@
   <data name="HelpStepChooseTitle" xml:space="preserve"><value>Open Inverter basics</value></data>
   <data name="HelpStepChooseDescription" xml:space="preserve"><value>Choose the example on the Workbench start page. It opens as a complete, compiled Sandbox with one input, one NOT gate, and one output.</value></data>
   <data name="HelpStepStartTitle" xml:space="preserve"><value>Start simulation</value></data>
-  <data name="HelpStepStartDescription" xml:space="preserve"><value>Start the simulation session. The output appears in the logic analyzer; after editing the circuit, compile it again before starting a new session.</value></data>
+  <data name="HelpStepStartDescription" xml:space="preserve"><value>Choose Start simulation. The output appears in the logic analyzer below the Canvas.</value></data>
   <data name="HelpStepInputsTitle" xml:space="preserve"><value>Apply an input</value></data>
-  <data name="HelpStepInputsDescription" xml:space="preserve"><value>In the Inspector, enter 1 in the input field and choose Apply inputs. This schedules the change for the next logical time.</value></data>
+  <data name="HelpStepInputsDescription" xml:space="preserve"><value>In the Inspector, enter 1 and choose Apply inputs. On narrow screens, open Inspect selection to show these controls. The change is scheduled for the next logical time.</value></data>
   <data name="HelpStepRunTitle" xml:space="preserve"><value>Step and observe</value></data>
   <data name="HelpStepRunDescription" xml:space="preserve"><value>Step once. The inverter output becomes 0. Change the input to 0, apply it, and step again to see the output become 1.</value></data>
   <data name="HelpExamplesEyebrow" xml:space="preserve"><value>Choose the right example</value></data>
   <data name="HelpExamplesTitle" xml:space="preserve"><value>Start small, then reveal more structure.</value></data>
   <data name="HelpInverterTitle" xml:space="preserve"><value>Inverter basics</value></data>
-  <data name="HelpInverterDescription" xml:space="preserve"><value>One clear signal path demonstrates applying inputs, stepping, and reading the output. The example opens compiled.</value></data>
+  <data name="HelpInverterDescription" xml:space="preserve"><value>Follow one signal path to learn how inputs, a NOT gate, and an output work together.</value></data>
   <data name="HelpCombinationalExamplesTitle" xml:space="preserve"><value>Combinational structure</value></data>
   <data name="HelpCombinationalExamplesDescription" xml:space="preserve"><value>The multiplexer stays compact; the four-bit carry-lookahead adder exposes generate, propagate, and parallel carry terms.</value></data>
   <data name="HelpBitSerialTitle" xml:space="preserve"><value>Bit-serial addition</value></data>
   <data name="HelpBitSerialDescription" xml:space="preserve"><value>The default 11 + 6 reaches Serial result 0001 and Carry out 1 after four rising clock edges (seven steps). To reuse the circuit, enter binary A and B, set Load operands to 1, apply, and step through the next rising edge. Then set Load operands to 0, apply, and advance four more rising edges. Each step toggles the clock.</value></data>
   <data name="HelpCanvasEyebrow" xml:space="preserve"><value>Canvas controls</value></data>
-  <data name="HelpCanvasTitle" xml:space="preserve"><value>Select, pan, and zoom the schematic.</value></data>
+  <data name="HelpCanvasTitle" xml:space="preserve"><value>Draw, inspect, and change the circuit.</value></data>
+  <data name="HelpCanvasDraw" xml:space="preserve"><value>Place and connect</value></data>
+  <data name="HelpCanvasDrawDescription" xml:space="preserve"><value>Choose a component in Components, then click the Canvas to place it. Choose Wire and drag between two terminals to connect them. Escape cancels an active gesture.</value></data>
+  <data name="HelpContinueSimulation" xml:space="preserve"><value>Simulate after editing</value></data>
+  <data name="HelpContinueSimulationDescription" xml:space="preserve"><value>Compile the changed circuit. For an existing simulation, choose Apply changes to retain compatible state or Restart simulation to reset it. Use Diagnostics to locate compilation errors.</value></data>
   <data name="HelpCanvasSelect" xml:space="preserve"><value>Select</value></data>
   <data name="HelpCanvasSelectDescription" xml:space="preserve"><value>Click a component, terminal, wire, or net anchor to select it and show its actions.</value></data>
   <data name="HelpCanvasPan" xml:space="preserve"><value>Pan</value></data>

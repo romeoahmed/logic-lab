@@ -208,33 +208,48 @@ internal static class CompilationArtifactValidator
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var memberships = ir.StronglyConnectedComponents
-            .SelectMany(component => component.EvaluatorOrdinals.Select(
-                evaluator => (Component: component.Ordinal, Evaluator: evaluator)))
-            .ToArray();
-        RequireInBounds(
-            memberships.Select(item => item.Evaluator),
-            ir.Evaluators.Count,
-            "SCC evaluator",
-            cancellationToken);
-        if (!memberships.Select(item => item.Evaluator).Order().SequenceEqual(
-                Enumerable.Range(0, ir.Evaluators.Count)))
+        var componentByEvaluator = new int[ir.Evaluators.Count];
+        Array.Fill(componentByEvaluator, -1);
+        foreach (var component in ir.StronglyConnectedComponents)
+        {
+            foreach (var evaluator in component.EvaluatorOrdinals)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                RequireInBounds(evaluator, ir.Evaluators.Count, "SCC evaluator");
+                if (componentByEvaluator[evaluator] != -1)
+                {
+                    Invalid("An evaluator belongs to more than one SCC membership slot.");
+                }
+
+                componentByEvaluator[evaluator] = component.Ordinal;
+            }
+        }
+
+        if (componentByEvaluator.Contains(-1))
         {
             Invalid("Every evaluator must belong to exactly one SCC.");
         }
 
-        if (!ir.CondensationOrder.Order().SequenceEqual(
-                Enumerable.Range(0, ir.StronglyConnectedComponents.Count)))
+        var orderByComponent = new int[ir.StronglyConnectedComponents.Count];
+        Array.Fill(orderByComponent, -1);
+        for (var order = 0; order < ir.CondensationOrder.Count; order++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var component = ir.CondensationOrder[order];
+            RequireInBounds(component, orderByComponent.Length, "condensation SCC");
+            if (orderByComponent[component] != -1)
+            {
+                Invalid("The condensation order repeats an SCC.");
+            }
+
+            orderByComponent[component] = order;
+        }
+
+        if (orderByComponent.Contains(-1))
         {
             Invalid("The condensation order must cover every SCC exactly once.");
         }
 
-        var componentByEvaluator = memberships.ToDictionary(
-            item => item.Evaluator,
-            item => item.Component);
-        var orderByComponent = ir.CondensationOrder
-            .Select((component, order) => (Component: component, Order: order))
-            .ToDictionary(item => item.Component, item => item.Order);
         foreach (var driver in ir.Drivers.Where(item => item.NetOrdinal is not null))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -299,12 +314,10 @@ internal static class CompilationArtifactValidator
 
         var expectedInputs = ir.Evaluators
             .SelectMany(evaluator => Enumerable.Range(0, evaluator.InputNetOrdinals.Count)
-                .Select(input => (Evaluator: evaluator.Ordinal, Input: input)))
-            .ToArray();
+                .Select(input => (Evaluator: evaluator.Ordinal, Input: input)));
         cancellationToken.ThrowIfCancellationRequested();
         var actualInputs = sourceMap.EvaluatorInputs
-            .Select(item => (Evaluator: item.EvaluatorOrdinal, Input: item.InputOrdinal))
-            .ToArray();
+            .Select(item => (Evaluator: item.EvaluatorOrdinal, Input: item.InputOrdinal));
         if (!actualInputs.SequenceEqual(expectedInputs))
         {
             Invalid("The Source Map does not cover every evaluator input in order.");
@@ -312,14 +325,12 @@ internal static class CompilationArtifactValidator
 
         var expectedMembers = ir.StronglyConnectedComponents
             .SelectMany(component => component.EvaluatorOrdinals.Select(
-                evaluator => (Component: component.Ordinal, Evaluator: evaluator)))
-            .ToArray();
+                evaluator => (Component: component.Ordinal, Evaluator: evaluator)));
         cancellationToken.ThrowIfCancellationRequested();
         var actualMembers = sourceMap.StronglyConnectedComponentMembers
             .Select(item => (
                 Component: item.StronglyConnectedComponentOrdinal,
-                Evaluator: item.EvaluatorOrdinal))
-            .ToArray();
+                Evaluator: item.EvaluatorOrdinal));
         if (!actualMembers.SequenceEqual(expectedMembers))
         {
             Invalid("The Source Map does not cover every SCC member in order.");

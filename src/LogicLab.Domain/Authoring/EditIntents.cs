@@ -433,16 +433,25 @@ public sealed record MoveComponentInstancesIntent : EditIntent
 {
     public MoveComponentInstancesIntent(
         CircuitDefinitionId circuitDefinitionId,
-        IReadOnlyList<ComponentMove> moves)
+        IReadOnlyList<ComponentMove> moves,
+        IReadOnlyList<WireGeometryReplacement> routeReplacements,
+        IReadOnlyList<NetWireGeometryAddition> routeAdditions)
     {
         ArgumentNullException.ThrowIfNull(circuitDefinitionId);
         CircuitDefinitionId = circuitDefinitionId;
         Moves = AuthoringInput.CopyRequiredReferences(moves, nameof(moves));
+        RouteReplacements = AuthoringInput.CopyRequiredReferences(
+            routeReplacements, nameof(routeReplacements));
+        RouteAdditions = AuthoringInput.CopyRequiredReferences(routeAdditions, nameof(routeAdditions));
     }
 
     public CircuitDefinitionId CircuitDefinitionId { get; }
 
     public ReadOnlyCollection<ComponentMove> Moves { get; }
+
+    public ReadOnlyCollection<WireGeometryReplacement> RouteReplacements { get; }
+
+    public ReadOnlyCollection<NetWireGeometryAddition> RouteAdditions { get; }
 }
 
 public sealed record RenameCircuitDefinitionIntent : EditIntent
@@ -570,16 +579,25 @@ public sealed record MoveDefinitionPortsIntent : EditIntent
 {
     public MoveDefinitionPortsIntent(
         CircuitDefinitionId circuitDefinitionId,
-        IReadOnlyList<DefinitionPortMove> moves)
+        IReadOnlyList<DefinitionPortMove> moves,
+        IReadOnlyList<WireGeometryReplacement> routeReplacements,
+        IReadOnlyList<NetWireGeometryAddition> routeAdditions)
     {
         ArgumentNullException.ThrowIfNull(circuitDefinitionId);
         CircuitDefinitionId = circuitDefinitionId;
         Moves = AuthoringInput.CopyRequiredReferences(moves, nameof(moves));
+        RouteReplacements = AuthoringInput.CopyRequiredReferences(
+            routeReplacements, nameof(routeReplacements));
+        RouteAdditions = AuthoringInput.CopyRequiredReferences(routeAdditions, nameof(routeAdditions));
     }
 
     public CircuitDefinitionId CircuitDefinitionId { get; }
 
     public ReadOnlyCollection<DefinitionPortMove> Moves { get; }
+
+    public ReadOnlyCollection<WireGeometryReplacement> RouteReplacements { get; }
+
+    public ReadOnlyCollection<NetWireGeometryAddition> RouteAdditions { get; }
 }
 
 public sealed record RemoveCircuitDefinitionIntent : EditIntent
@@ -934,4 +952,20 @@ public sealed record RemoveAnnotationIntent : EditIntent
     public CircuitDefinitionId CircuitDefinitionId { get; }
 
     public AnnotationId AnnotationId { get; }
+}
+
+/// <summary>Adds authored route geometry to an existing Net without changing its membership.</summary>
+public sealed record NetWireGeometryAddition
+{
+    public NetWireGeometryAddition(NetId netId, WireRoute route)
+    {
+        ArgumentNullException.ThrowIfNull(netId);
+        ArgumentNullException.ThrowIfNull(route);
+        NetId = netId;
+        Route = route;
+    }
+
+    public NetId NetId { get; }
+
+    public WireRoute Route { get; }
 }

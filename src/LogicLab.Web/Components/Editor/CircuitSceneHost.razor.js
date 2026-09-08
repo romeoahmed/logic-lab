@@ -1,3 +1,4 @@
+import { CandidateTransfers, sha256 } from "../../js/candidate-transfer.js";
 import {
   loadSymbolFont,
   packagedFontSupports,
@@ -24,6 +25,7 @@ import {
   selectionModeFromModifiers,
   terminalFromSource,
   terminalWireRoutes,
+  movedTerminalRoutes,
   translateComponentPlacement,
   translateGridPoint,
   translateRect,
@@ -44,7 +46,6 @@ import {
   isDirection,
   isLocale,
   isTextRole,
-  isToken,
   sourceKey,
   spatialCellKey,
   validTool,
@@ -108,7 +109,7 @@ class CircuitSceneHandle {
     this.density = 1;
     this.fontFingerprint = null;
     this.symbolFontFamily = null;
-    this.transfers = new Map();
+    this.transfers = new CandidateTransfers(policy, ["replacement", "patch"]);
     this.destroyed = false;
     this.abortController = new AbortController();
     this.resizeObserver = null;
@@ -226,101 +227,35 @@ class CircuitSceneHandle {
 
   beginTransfer(transferId, kind, byteLength, digest) {
     this.ensureLive();
-    if (
-      !isToken(transferId) ||
-      !["replacement", "patch"].includes(kind) ||
-      !Number.isSafeInteger(byteLength) ||
-      byteLength <= 0 ||
-      BigInt(byteLength) > BigInt(this.policy.candidateTransferBytes) ||
-      !isDigest(digest) ||
-      this.transfers.has(transferId)
-    ) {
-      this.rejectBatch("invalid scene transfer envelope");
+    try {
+      this.transfers.begin(transferId, kind, byteLength, digest);
+    } catch (error) {
+      this.rejectBatch(error.message);
     }
-
-    this.transfers.set(transferId, {
-      kind,
-      byteLength,
-      digest,
-      nextOrdinal: 0,
-      received: 0,
-      chunks: [],
-    });
   }
 
-  appendTransfer(transferId, ordinal, base64Chunk) {
+  appendTransfer(transferId, ordinal, chunk) {
     this.ensureLive();
-    const transfer = this.transfers.get(transferId);
-    if (
-      !transfer ||
-      transfer.committing ||
-      ordinal !== transfer.nextOrdinal ||
-      typeof base64Chunk !== "string"
-    ) {
-      this.transfers.delete(transferId);
-      this.rejectBatch("invalid scene transfer batch");
-    }
-    if (
-      BigInt(textEncoder.encode(base64Chunk).byteLength) + interopEnvelopeBytes >
-      BigInt(this.policy.interopBatchBytes)
-    ) {
-      this.transfers.delete(transferId);
-      this.rejectBatch("scene transfer batch policy exhausted");
-    }
-
-    let chunk;
     try {
-      chunk = decodeBase64(base64Chunk);
-    } catch {
-      this.transfers.delete(transferId);
-      this.rejectBatch("invalid scene transfer encoding");
+      this.transfers.append(transferId, ordinal, chunk);
+    } catch (error) {
+      this.rejectBatch(error.message);
     }
-    transfer.received += chunk.byteLength;
-    if (transfer.received > transfer.byteLength) {
-      this.transfers.delete(transferId);
-      this.rejectBatch("scene transfer exceeds its envelope");
-    }
-
-    transfer.chunks.push(chunk);
-    transfer.nextOrdinal++;
   }
 
   async commitTransfer(transferId) {
     this.ensureLive();
-    const transfer = this.transfers.get(transferId);
-    if (transfer?.committing) return false;
-    if (!transfer || transfer.received !== transfer.byteLength) {
-      this.transfers.delete(transferId);
-      await this.rejectCandidate("invalidBatch");
-      return false;
-    }
-    // Keep the candidate registered while hashing so abort/destroy can cancel it.
-    transfer.committing = true;
-
-    const bytes = new Uint8Array(transfer.byteLength);
-    let offset = 0;
-    for (const chunk of transfer.chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-
-    let candidate;
     try {
-      const digest = await sha256(bytes);
-      if (this.transfers.get(transferId) !== transfer) return false;
-      if (digest !== transfer.digest) {
-        throw new Error("scene transfer digest mismatch");
-      }
-
-      candidate = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+      return await this.transfers.commit(transferId, (kind, candidate) =>
+        this.commitCandidate(kind, candidate),
+      );
     } catch {
-      if (this.transfers.get(transferId) !== transfer) return false;
       await this.rejectCandidate("invalidBatch");
       return false;
-    } finally {
-      if (this.transfers.get(transferId) === transfer) this.transfers.delete(transferId);
     }
+  }
 
+  async commitCandidate(kind, candidate) {
     if (candidate?.buildFingerprint !== this.buildFingerprint) {
       await this.dotnetSink?.invokeMethodAsync("SceneBuildMismatchAsync").catch(() => {});
       this.destroy();
@@ -328,7 +263,7 @@ class CircuitSceneHandle {
     }
 
     try {
-      if (transfer.kind === "replacement") {
+      if (kind === "replacement") {
         this.replace(candidate);
       } else {
         const replacement = validatePatch(
@@ -349,13 +284,13 @@ class CircuitSceneHandle {
         await this.reportPolicyFailure(error);
         return false;
       }
-      await this.rejectCandidate(transfer.kind === "patch" ? "invalidPatch" : "invalidSnapshot");
+      await this.rejectCandidate(kind === "patch" ? "invalidPatch" : "invalidSnapshot");
       return false;
     }
   }
 
   abortTransfer(transferId) {
-    this.transfers.delete(transferId);
+    this.transfers.abort(transferId);
   }
 
   rejectBatch(message) {
@@ -1286,7 +1221,10 @@ class CircuitSceneHandle {
         if (!placement) {
           return;
         }
+        const routes = movedTerminalRoutes(snapshot, hit.item, start, end);
+        if (!routes) return;
         this.emitIntent("moveComponents", gesture, {
+          ...routes,
           moves: [
             {
               component: hit.item.source,
@@ -1300,7 +1238,10 @@ class CircuitSceneHandle {
         if (!position) {
           return;
         }
+        const routes = movedTerminalRoutes(snapshot, hit.item, start, end);
+        if (!routes) return;
         this.emitIntent("moveDefinitionPorts", gesture, {
+          ...routes,
           moves: [
             {
               port: hit.item.source,
@@ -1765,8 +1706,4 @@ function checkedInteger(value) {
   if (!Number.isSafeInteger(value) || value < -2147483648 || value > 2147483647)
     throw new Error("integer overflow");
   return value;
-}
-async function sha256(bytes) {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
 }

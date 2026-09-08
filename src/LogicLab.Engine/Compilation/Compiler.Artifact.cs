@@ -70,16 +70,23 @@ public static partial class Compiler
         CancellationToken cancellationToken)
     {
         var fanoutOffsets = new int[simulationNets.Length + 1];
-        var fanoutEvaluators = new List<int>();
         for (var netOrdinal = 0; netOrdinal < simulationNets.Length; netOrdinal++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            fanoutOffsets[netOrdinal] = fanoutEvaluators.Count;
-            fanoutEvaluators.AddRange(simulationNets[netOrdinal].ReceiverEvaluatorOrdinals);
+            fanoutOffsets[netOrdinal + 1] = checked(
+                fanoutOffsets[netOrdinal]
+                + simulationNets[netOrdinal].ReceiverEvaluatorOrdinals.Count);
         }
 
-        fanoutOffsets[^1] = fanoutEvaluators.Count;
-        return (fanoutOffsets, fanoutEvaluators.ToArray());
+        var fanoutEvaluators = new int[fanoutOffsets[^1]];
+        for (var netOrdinal = 0; netOrdinal < simulationNets.Length; netOrdinal++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            simulationNets[netOrdinal].ReceiverEvaluatorOrdinals.CopyTo(
+                fanoutEvaluators, fanoutOffsets[netOrdinal]);
+        }
+
+        return (fanoutOffsets, fanoutEvaluators);
     }
 
     private static int[][] BuildEvaluatorAdjacency(

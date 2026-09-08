@@ -117,6 +117,9 @@ public sealed class CircuitDefinition
     internal CircuitDefinition WithComponentInstances(ReadOnlySpan<ComponentInstance> instances) =>
         new(this, componentInstances: [.. instances]);
 
+    internal CircuitDefinition WithWireGeometries(WireGeometry[] geometries) =>
+        new(this, wireGeometries: [.. geometries]);
+
     internal CircuitDefinition WithTopology(
         Net[] updatedNets,
         Junction[] updatedJunctions,

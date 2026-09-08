@@ -234,11 +234,13 @@ public static partial class Compiler
 
     private static ulong CountMemoryCells(
         ProjectDocument document,
-        IEnumerable<ComponentInstance> instances)
+        IEnumerable<ComponentInstance> instances,
+        CancellationToken cancellationToken)
     {
         ulong cells = 0;
         foreach (var instance in instances)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var reference = (MemoryImageParameterValue)instance.Parameters.Single(binding =>
                 string.Equals(
                     binding.ParameterId,

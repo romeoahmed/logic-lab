@@ -23,7 +23,7 @@ public static partial class ProjectEditor
             intent.DisplayName,
             intent.Width,
             intent.Depth,
-            [.. intent.Words]);
+            intent.Words);
         var images = revision.Document.MemoryImages.Append(image).ToArray();
         return Commit(
             revision.Document.WithMemoryImages(images),
@@ -55,7 +55,7 @@ public static partial class ProjectEditor
             intent.DisplayName,
             intent.Width,
             intent.Depth,
-            [.. intent.Words]);
+            intent.Words);
         var candidateDocument = revision.Document.WithMemoryImages(
             [.. revision.Document.MemoryImages.Select(image =>
                 image.Id == original.Id ? replacement : image)]);

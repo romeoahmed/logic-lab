@@ -1,5 +1,6 @@
 using LogicLab.Domain;
 using LogicLab.Engine.Compilation;
+using TUnit.Assertions.Enums;
 using static LogicLab.Engine.Tests.FourStateTestData;
 
 namespace LogicLab.Engine.Tests;
@@ -176,10 +177,14 @@ internal sealed class SteeringLogicTests
     }
 
     [Test]
-    public async Task PriorityEncoder_ThreeInputsAndBothDirections_MatchPossibleWorlds()
+    [Arguments(2)]
+    [Arguments(3)]
+    [Arguments(4)]
+    [Arguments(5)]
+    public async Task PriorityEncoder_ShortInputsAndBothDirections_MatchPossibleWorlds(int inputCount)
     {
         var violations = new List<string>();
-        foreach (var inputs in Tuples(3))
+        foreach (var inputs in Tuples(inputCount))
         {
             foreach (var lowestIndex in new[] { false, true })
             {
@@ -199,6 +204,44 @@ internal sealed class SteeringLogicTests
         }
 
         await Assert.That(violations).IsEmpty();
+    }
+
+    [Test]
+    [Arguments(63)]
+    [Arguments(64)]
+    [Arguments(65)]
+    [Arguments(255)]
+    [Arguments(256)]
+    [Arguments(257)]
+    public async Task PriorityEncoder_LargeInputCounts_PreservesKnownAndUnknownIndices(int inputCount)
+    {
+        foreach (var lowestIndex in new[] { false, true })
+        {
+            var inputs = new LogicValue[inputCount];
+            var none = CombinationalEvaluation.PriorityEncoder(inputs, lowestIndex);
+            await Assert.That(none.Valid).IsEqualTo(LogicValue.Zero);
+            await Assert.That(Values(none.Index)).IsEquivalentTo(
+                Enumerable.Repeat(LogicValue.Zero, IndexWidth(inputCount)),
+                CollectionOrdering.Matching);
+
+            inputs[^1] = LogicValue.One;
+            var last = CombinationalEvaluation.PriorityEncoder(inputs, lowestIndex);
+            await Assert.That(last.Valid).IsEqualTo(LogicValue.One);
+            await Assert.That(Values(last.Index)).IsEquivalentTo(
+                Enumerable.Range(0, IndexWidth(inputCount)).Select(bit =>
+                    Boolean(((inputCount - 1) & (1 << bit)) != 0)),
+                CollectionOrdering.Matching);
+
+            foreach (var unknown in new[] { LogicValue.X, LogicValue.Z })
+            {
+                Array.Fill(inputs, unknown);
+                var uncertain = CombinationalEvaluation.PriorityEncoder(inputs, lowestIndex);
+                await Assert.That(uncertain.Valid).IsEqualTo(LogicValue.X);
+                await Assert.That(Values(uncertain.Index)).IsEquivalentTo(
+                    Enumerable.Repeat(LogicValue.X, IndexWidth(inputCount)),
+                    CollectionOrdering.Matching);
+            }
+        }
     }
 
     private static LogicValue GateOracle(
@@ -274,7 +317,7 @@ internal sealed class SteeringLogicTests
         bool lowestIndex)
     {
         var worlds = BinaryWorlds(inputs).ToArray();
-        var possibleIndices = new LogicValue[2][];
+        var possibleIndices = new LogicValue[IndexWidth(inputs.Length)][];
         for (var bit = 0; bit < possibleIndices.Length; bit++)
         {
             possibleIndices[bit] =
@@ -288,8 +331,19 @@ internal sealed class SteeringLogicTests
         }
 
         return (
-            [Merge(possibleIndices[0]), Merge(possibleIndices[1])],
+            [.. possibleIndices.Select(Merge)],
             Merge(worlds.Select(world => Boolean(PriorityIndex(world, lowestIndex) >= 0))));
+    }
+
+    private static int IndexWidth(int inputCount)
+    {
+        var width = 1;
+        while ((1 << width) < inputCount)
+        {
+            width++;
+        }
+
+        return width;
     }
 
     private static int PriorityIndex(bool[] inputs, bool lowestIndex) => lowestIndex

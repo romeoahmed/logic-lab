@@ -72,7 +72,7 @@ public sealed partial class Editor
     private string SimulationRunMessage() => Projection?.Simulation?.Run switch
     {
         RunRunningProjection => Text["RunStarted"],
-        RunPausedProjection { PauseReason: RunPauseReason.NoScheduledStimulus } => Text["NoScheduledStimulus"],
+        RunPausedProjection { PauseReason: RunPauseReason.NoScheduledEvents } => Text["NoScheduledEvents"],
         RunPausedProjection => Text["RunPaused"],
         RunFailedProjection failed => Text["RunFailed", AdvanceFailureText(failed.Failure.Reason)],
         _ => Text["RunStopped"],
@@ -130,7 +130,7 @@ public sealed partial class Editor
         Status = outcome switch
         {
             SessionStepped stepped => Text["StepCommitted", stepped.Advance.LogicalTime],
-            NoScheduledStimulus => Text["NoScheduledStimulus"],
+            NoScheduledEvents => Text["NoScheduledEvents"],
             SessionAdvanceFailed failed => Text[
                 "StepFailed",
                 AdvanceFailureText(failed.Failure.Reason)],

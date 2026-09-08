@@ -2,12 +2,34 @@ using System.Text.Json;
 using LogicLab.Domain;
 using LogicLab.Presentation.Geometry;
 using LogicLab.Web.Scene;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Web.Tests;
 
 internal sealed class BrowserSceneProjectionTests
 {
     private static readonly FontFingerprintV1 FontFingerprint = new(new string('7', 64));
+
+    [Test]
+    public async Task Project_TerminalConnections_UsesAuthoredMembership()
+    {
+        var revision = WebTestCircuit.CreateCompleteCircuit();
+        var definition = revision.Document.EntryCircuitDefinition;
+        var snapshot = (SceneSnapshotV1)BrowserSceneProjection.Project(
+            "build-a", 1, 1, revision, definition.Id, "en-US",
+            BrowserPolicy.Default, 10_000, new TestTextMeasurer());
+        var terminals = snapshot.Items.SelectMany(item => item.HitRegions)
+            .Where(region => region.TargetSource is not null).ToArray();
+
+        await Assert.That(terminals).IsNotEmpty();
+        foreach (var region in terminals)
+        {
+            var net = definition.Nets.SingleOrDefault(candidate => candidate.Terminals.Any(terminal =>
+                SceneSourceMap.From(definition.Id, terminal) == region.TargetSource));
+            await Assert.That(region.ConnectedNet).IsEqualTo(net is null ? null :
+                SceneSourceMap.From(new LogicLab.Domain.Authoring.NetSourceIdentity(definition.Id, net.Id)));
+        }
+    }
 
     [Test]
     public async Task Project_CompleteCircuit_MapsOrderedPresentationWithoutReconstructingGeometry()
@@ -28,7 +50,7 @@ internal sealed class BrowserSceneProjectionTests
         using (Assert.Multiple())
         {
             await Assert.That(snapshot!.Items.Select(item => item.Order))
-                .IsEquivalentTo(Enumerable.Range(0, snapshot.Items.Count));
+                .IsEquivalentTo(Enumerable.Range(0, snapshot.Items.Count), CollectionOrdering.Matching);
             await Assert.That(snapshot.Items.Any(item =>
                     item.Source.EntityKind == "componentInstance"))
                 .IsTrue();

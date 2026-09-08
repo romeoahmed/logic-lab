@@ -2,7 +2,7 @@ using LogicLab.Application.Workspaces;
 
 namespace LogicLab.Web.Tests;
 
-internal abstract class DelegatingEditorWorkspace(
+internal class DelegatingEditorWorkspace(
     WorkspacePolicy? workspacePolicy = null,
     IDurableProjectLoader? durableProjectLoader = null,
     IDurableProjectRepository? durableProjectRepository = null,

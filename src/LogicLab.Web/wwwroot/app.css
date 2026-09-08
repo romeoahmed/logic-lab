@@ -119,15 +119,13 @@ a {
   background: color-mix(in oklab, var(--ll-signal-bright) 35%, white);
 }
 
-h1,
-h2,
-h3 {
+body.logic-lab-root :is(h1, h2, h3) {
   text-wrap: balance;
+  line-height: 1.25;
 }
 
 body.logic-lab-root:lang(zh-CN) :is(h1, h2, h3) {
   letter-spacing: normal;
-  line-height: 1.25;
 }
 
 p,
@@ -182,6 +180,7 @@ body:has([data-workbench-active="true"]) > main {
 
   body:has([data-workbench-active="true"]) .site-header-inner {
     display: flex;
+    flex-wrap: nowrap;
     gap: 0.75rem;
     min-block-size: 3.25rem;
     padding: 0.35rem 0.6rem;
@@ -192,6 +191,8 @@ body:has([data-workbench-active="true"]) > main {
   }
 
   body:has([data-workbench-active="true"]) .primary-navigation {
+    flex: 1;
+    inline-size: auto;
     min-inline-size: 0;
     flex-wrap: nowrap;
     overflow: auto hidden;

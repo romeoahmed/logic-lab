@@ -10,7 +10,6 @@
   <data name="Build" xml:space="preserve"><value>构建</value></data>
   <data name="Circuit" xml:space="preserve"><value>电路</value></data>
   <data name="CircuitDefinitionInstance" xml:space="preserve"><value>电路定义实例</value></data>
-  <data name="CircuitSceneEyebrow" xml:space="preserve"><value>电路图</value></data>
   <data name="Compilation" xml:space="preserve"><value>编译</value></data>
   <data name="CompilationNotRequested" xml:space="preserve"><value>尚未请求</value></data>
   <data name="CompilationPublished" xml:space="preserve"><value>已发布</value></data>
@@ -24,7 +23,6 @@
   <data name="Connection" xml:space="preserve"><value>连接</value></data>
   <data name="CreateSandbox" xml:space="preserve"><value>创建沙盒</value></data>
   <data name="CreateSession" xml:space="preserve"><value>开始仿真</value></data>
-  <data name="DefinitionContext" xml:space="preserve"><value>电路导航</value></data>
   <data name="DefinitionView" xml:space="preserve"><value>定义视图</value></data>
   <data name="DurableProjectName" xml:space="preserve"><value>项目名称</value></data>
   <data name="ElaboratedOccurrence" xml:space="preserve"><value>实例视图</value></data>
@@ -32,29 +30,24 @@
   <data name="Entry" xml:space="preserve"><value>入口</value></data>
   <data name="EntryCircuitDefinition" xml:space="preserve"><value>入口电路定义</value></data>
   <data name="ImportProject" xml:space="preserve"><value>导入项目</value></data>
-  <data name="InputsHigh" xml:space="preserve"><value>输入 = 1</value></data>
-  <data name="InstrumentBay" xml:space="preserve"><value>信号监视</value></data>
   <data name="KeepDurable" xml:space="preserve"><value>保存项目</value></data>
-  <data name="LiveReadout" xml:space="preserve"><value>实时</value></data>
   <data name="LogicalTime" xml:space="preserve"><value>逻辑时间</value></data>
   <data name="NoActiveSession" xml:space="preserve"><value>尚未开始仿真</value></data>
   <data name="NoDefinitions" xml:space="preserve"><value>没有打开的电路定义。</value></data>
   <data name="Output" xml:space="preserve"><value>输出</value></data>
-  <data name="SignalOrdinal" xml:space="preserve"><value>信号 {0}</value></data>
   <data name="PrepareExport" xml:space="preserve"><value>导出项目</value></data>
   <data name="Probe" xml:space="preserve"><value>探针</value></data>
-  <data name="ProbeEmptyHelp" xml:space="preserve"><value>请先编译电路，再开始仿真。</value></data>
+  <data name="ProbeEmptyHelp" xml:space="preserve"><value>开始仿真后可查看信号。</value></data>
   <data name="Project" xml:space="preserve"><value>项目</value></data>
   <data name="Quiescence" xml:space="preserve"><value>求值状态</value></data>
   <data name="Quiescent" xml:space="preserve"><value>稳定</value></data>
   <data name="Save" xml:space="preserve"><value>保存</value></data>
   <data name="SaveDurable" xml:space="preserve"><value>保存</value></data>
-  <data name="SaveDurableChanged" xml:space="preserve"><value>有未保存更改 · {0}</value></data>
-  <data name="SaveDurableClean" xml:space="preserve"><value>已保存 · {0}</value></data>
-  <data name="SaveDurableConflict" xml:space="preserve"><value>保存冲突 · {0}</value></data>
+  <data name="SaveDurableChanged" xml:space="preserve"><value>有未保存更改</value></data>
+  <data name="SaveDurableClean" xml:space="preserve"><value>已保存</value></data>
+  <data name="SaveDurableConflict" xml:space="preserve"><value>保存冲突</value></data>
   <data name="SaveDurableUnavailable" xml:space="preserve"><value>保存状态不可用</value></data>
   <data name="SaveSandbox" xml:space="preserve"><value>沙盒 · 仅内存</value></data>
-  <data name="SceneCount" xml:space="preserve"><value>{0} 个元件 · {1} 个网络</value></data>
   <data name="SessionVersion" xml:space="preserve"><value>会话版本</value></data>
   <data name="SetAsEntry" xml:space="preserve"><value>设为入口</value></data>
   <data name="Simulation" xml:space="preserve"><value>仿真</value></data>
@@ -71,11 +64,9 @@
   <data name="RunStatePaused" xml:space="preserve"><value>已暂停</value></data>
   <data name="RunStateFailed" xml:space="preserve"><value>失败</value></data>
   <data name="RunStateReady" xml:space="preserve"><value>就绪</value></data>
-  <data name="NoScheduledStimulus" xml:space="preserve"><value>没有待处理的后续事件。</value></data>
-  <data name="TabsHierarchyEntry" xml:space="preserve"><value>电路定义 · 层级 · 入口</value></data>
+  <data name="NoScheduledEvents" xml:space="preserve"><value>没有待处理的后续事件。</value></data>
   <data name="TraceRange" xml:space="preserve"><value>跟踪范围</value></data>
   <data name="Unavailable" xml:space="preserve"><value>不可用</value></data>
-  <data name="WireOrthogonal" xml:space="preserve"><value>正交 · {0}</value></data>
   <data name="ConflictDescription" xml:space="preserve"><value>本地修订仍然可用。请选择恢复方式。</value></data>
   <data name="ConflictExportLocal" xml:space="preserve"><value>导出本地版本</value></data>
   <data name="ConflictKeepCopy" xml:space="preserve"><value>保留为副本</value></data>
@@ -86,13 +77,11 @@
   <data name="ReloadLogicLab" xml:space="preserve"><value>重新加载 Logic Lab</value></data>
   <data name="StartNewSandbox" xml:space="preserve"><value>启动新沙盒</value></data>
   <data name="ViewDurableProjects" xml:space="preserve"><value>查看已保存项目</value></data>
-  <data name="WorkbenchBrief" xml:space="preserve"><value>工作台简介</value></data>
   <data name="WorkspaceUnavailable" xml:space="preserve"><value>工作区不可用</value></data>
   <data name="AttachmentRejected" xml:space="preserve"><value>无法连接工作区：{0}。</value></data>
   <data name="AuthenticationChanged" xml:space="preserve"><value>认证已更改。请重新加载工作区以继续。</value></data>
   <data name="AuthenticationMissingSubject" xml:space="preserve"><value>认证信息缺少稳定的主体标识。请重新加载以继续。</value></data>
   <data name="AuthoringRejected" xml:space="preserve"><value>无法创建示例：{0}。</value></data>
-  <data name="CircuitAuthored" xml:space="preserve"><value>电路已就绪。请编译后继续。</value></data>
   <data name="ClaimRejected" xml:space="preserve"><value>无法保存沙盒：{0}。</value></data>
   <data name="ClaimSucceeded" xml:space="preserve"><value>项目“{0}”已保存。</value></data>
   <data name="CompilationAccepted" xml:space="preserve"><value>第 {0} 次编译已开始。</value></data>
@@ -102,12 +91,8 @@
   <data name="CompilationStatusDetached" xml:space="preserve"><value>工作区连接已关闭，无法获取编译状态。</value></data>
   <data name="CompilationStatusUnavailable" xml:space="preserve"><value>编译状态不可用：{0}。</value></data>
   <data name="CompilationWasSuperseded" xml:space="preserve"><value>第 {0} 次编译已由更新的修订取代。</value></data>
-  <data name="DescriptionDurable" xml:space="preserve"><value>检查已保存的修订、编译，并在经过授权的工作区中继续。</value></data>
   <data name="DescriptionOpening" xml:space="preserve"><value>正在安全地重新连接项目…</value></data>
   <data name="DescriptionSandbox" xml:space="preserve"><value>绘制门电路，编译后运行确定性仿真。</value></data>
-  <data name="EyebrowDurable" xml:space="preserve"><value>已保存电路</value></data>
-  <data name="EyebrowOpening" xml:space="preserve"><value>正在打开电路工作区</value></data>
-  <data name="EyebrowSandbox" xml:space="preserve"><value>交互式电路沙盒</value></data>
   <data name="ExportPrepared" xml:space="preserve"><value>导出已准备，将在 {0} 秒后过期。</value></data>
   <data name="ExportRejected" xml:space="preserve"><value>导出准备被拒绝：{0}。</value></data>
   <data name="FailureAccessChangedDescription" xml:space="preserve"><value>请使用项目所有者账户登录，再从项目列表重新打开。</value></data>
@@ -129,7 +114,7 @@
   <data name="ProjectCreationRejected" xml:space="preserve"><value>无法创建项目：{0}。</value></data>
   <data name="SaveConflictStatus" xml:space="preserve"><value>保存冲突：项目已在其他位置更改。</value></data>
   <data name="SaveRejected" xml:space="preserve"><value>保存被拒绝：{0}。</value></data>
-  <data name="SaveSucceeded" xml:space="preserve"><value>项目已保存为版本 {0}。</value></data>
+  <data name="SaveSucceeded" xml:space="preserve"><value>项目已保存。</value></data>
   <data name="SessionCreated" xml:space="preserve"><value>仿真已启动，逻辑时间为 0。</value></data>
   <data name="SessionCreatedNoInputs" xml:space="preserve"><value>仿真已启动，逻辑时间为 0。此电路没有可编程输入。</value></data>
   <data name="SessionRejected" xml:space="preserve"><value>无法启动仿真：{0}。</value></data>
@@ -137,6 +122,7 @@
   <data name="StatusReady" xml:space="preserve"><value>已就绪，可以创建沙盒。</value></data>
   <data name="StatusReopenedDurable" xml:space="preserve"><value>已重新打开项目。</value></data>
   <data name="StatusReopenedSandbox" xml:space="preserve"><value>已重新打开沙盒。</value></data>
+  <data name="StatusOpenedWithErrors" xml:space="preserve"><value>项目已打开。请修复电路错误后再开始仿真。</value></data>
   <data name="StatusSandboxCreated" xml:space="preserve"><value>沙盒已创建。放置元件，开始绘制电路。</value></data>
   <data name="StepCommitted" xml:space="preserve"><value>已推进到逻辑时间 {0}。</value></data>
   <data name="StepFailed" xml:space="preserve"><value>步进失败：{0}。</value></data>
@@ -152,44 +138,10 @@
   <data name="FailureSimulationCancelled" xml:space="preserve"><value>仿真已取消</value></data>
   <data name="FailureSimulationInfrastructure" xml:space="preserve"><value>仿真基础设施故障</value></data>
   <data name="FailureSimulationInternal" xml:space="preserve"><value>仿真内部缺陷</value></data>
-  <data name="CarryLookaheadExampleAuthored" xml:space="preserve"><value>四位超前进位加法器已创建。编译后可修改 A、B 或进位输入，观察并行进位网络。</value></data>
-  <data name="BitSerialExampleAuthored" xml:space="preserve"><value>位串行加法器已创建。编译后步进四个时钟上升沿；可用“装载”写入修改后的操作数。</value></data>
-  <data name="ExampleCarryIn" xml:space="preserve"><value>进位输入</value></data>
-  <data name="ExampleCarryOut" xml:space="preserve"><value>进位输出</value></data>
-  <data name="ExampleCarry1" xml:space="preserve"><value>进位 C1</value></data>
-  <data name="ExampleCarry2" xml:space="preserve"><value>进位 C2</value></data>
-  <data name="ExampleCarry3" xml:space="preserve"><value>进位 C3</value></data>
-  <data name="ExampleCarry4" xml:space="preserve"><value>进位 C4</value></data>
-  <data name="ExampleCarryTerm" xml:space="preserve"><value>进位乘积项</value></data>
-  <data name="ExampleCarryVector" xml:space="preserve"><value>进位向量 C0–C3</value></data>
-  <data name="ExampleData0" xml:space="preserve"><value>数据 0</value></data>
-  <data name="ExampleData1" xml:space="preserve"><value>数据 1</value></data>
-  <data name="ExampleInputA" xml:space="preserve"><value>输入 A = 1011</value></data>
-  <data name="ExampleInputB" xml:space="preserve"><value>输入 B = 0110</value></data>
-  <data name="ExamplePropagate" xml:space="preserve"><value>传播项 P</value></data>
-  <data name="ExampleGenerate" xml:space="preserve"><value>生成项 G</value></data>
-  <data name="ExamplePropagateBits" xml:space="preserve"><value>传播位</value></data>
-  <data name="ExampleGenerateBits" xml:space="preserve"><value>生成位</value></data>
-  <data name="ExampleMultiplexer" xml:space="preserve"><value>二选一复用器</value></data>
-  <data name="ExampleSelect" xml:space="preserve"><value>选择端</value></data>
-  <data name="ExampleSelectedOutput" xml:space="preserve"><value>选择结果</value></data>
-  <data name="ExampleSum" xml:space="preserve"><value>和</value></data>
-  <data name="ExampleLoad" xml:space="preserve"><value>装载操作数</value></data>
-  <data name="ExampleClock" xml:space="preserve"><value>串行时钟</value></data>
-  <data name="ExampleSerialZero" xml:space="preserve"><value>串行补零</value></data>
-  <data name="ExampleParallelZero" xml:space="preserve"><value>结果清零值</value></data>
-  <data name="ExampleEnable" xml:space="preserve"><value>移位使能</value></data>
-  <data name="ExampleOperandARegister" xml:space="preserve"><value>A 移位寄存器</value></data>
-  <data name="ExampleOperandBRegister" xml:space="preserve"><value>B 移位寄存器</value></data>
-  <data name="ExampleSerialAdder" xml:space="preserve"><value>一位全加器</value></data>
-  <data name="ExampleCarryRegister" xml:space="preserve"><value>进位寄存器</value></data>
-  <data name="ExampleResultRegister" xml:space="preserve"><value>结果移位寄存器</value></data>
-  <data name="ExampleResult" xml:space="preserve"><value>串行结果</value></data>
   <data name="EditingDefinition" xml:space="preserve"><value>正在编辑电路定义 {0}。</value></data>
   <data name="EntryDefinitionChanged" xml:space="preserve"><value>{0} 现在是入口电路定义。</value></data>
   <data name="HierarchyObserving" xml:space="preserve"><value>正在查看实例 {0}。</value></data>
   <data name="HierarchyReturned" xml:space="preserve"><value>已返回 {0}。</value></data>
-  <data name="SteeringExampleAuthored" xml:space="preserve"><value>二选一复用器已创建。编译后可切换选择端，观察输出。</value></data>
   <data name="CanvasReady" xml:space="preserve"><value>电路画布已就绪。</value></data>
   <data name="CanvasStarting" xml:space="preserve"><value>正在准备电路画布。</value></data>
   <data name="CanvasUnavailable" xml:space="preserve"><value>电路画布暂不可用，请重试渲染。</value></data>
@@ -203,13 +155,8 @@
   <data name="WireTool" xml:space="preserve"><value>连线</value></data>
   <data name="ChooseStarterHint" xml:space="preserve"><value>请在下方选择一个起始电路。</value></data>
   <data name="ProjectOptions" xml:space="preserve"><value>项目选项</value></data>
-  <data name="StarterEyebrow" xml:space="preserve"><value>从可运行的电路开始</value></data>
   <data name="StarterTitle" xml:space="preserve"><value>选择一个示例</value></data>
   <data name="StarterDescription" xml:space="preserve"><value>打开完整电路并开始仿真，然后修改输入、观察信号。</value></data>
-  <data name="LearningStepChoose" xml:space="preserve"><value>选择示例</value></data>
-  <data name="LearningStepInputs" xml:space="preserve"><value>设置输入</value></data>
-  <data name="LearningStepStart" xml:space="preserve"><value>启动仿真</value></data>
-  <data name="LearningStepObserve" xml:space="preserve"><value>观察结果</value></data>
   <data name="StarterInverterTitle" xml:space="preserve"><value>反相器入门</value></data>
   <data name="StarterInverterDescription" xml:space="preserve"><value>观察非门如何把输入反相后送到输出。</value></data>
   <data name="StarterSteeringTitle" xml:space="preserve"><value>在两路信号中选择</value></data>
@@ -221,7 +168,6 @@
   <data name="Library" xml:space="preserve"><value>元件库</value></data>
   <data name="Components" xml:space="preserve"><value>元件</value></data>
   <data name="Inspector" xml:space="preserve"><value>检查选区</value></data>
-  <data name="InspectorDescription" xml:space="preserve"><value>对象属性、信号与选区操作</value></data>
   <data name="SearchComponents" xml:space="preserve"><value>搜索元件</value></data>
   <data name="SearchComponentsPlaceholder" xml:space="preserve"><value>门、时钟、寄存器…</value></data>
   <data name="NoMatchingComponents" xml:space="preserve"><value>没有匹配的元件。</value></data>
@@ -278,7 +224,6 @@
   <data name="ComponentCombiner" xml:space="preserve"><value>总线合并器</value></data>
   <data name="ComponentZeroExtend" xml:space="preserve"><value>零扩展</value></data>
   <data name="ComponentSignExtend" xml:space="preserve"><value>符号扩展</value></data>
-  <data name="LogicAnalyzerEyebrow" xml:space="preserve"><value>仿真工具</value></data>
   <data name="LogicAnalyzer" xml:space="preserve"><value>逻辑分析仪</value></data>
   <data name="LogicAnalyzerCollapsed" xml:space="preserve"><value>波形已收起，仿真会继续运行。</value></data>
   <data name="OpenLogicAnalyzer" xml:space="preserve"><value>展开波形</value></data>
@@ -403,7 +348,7 @@
   <data name="InspectorChoice_right" xml:space="preserve"><value>右移</value></data>
   <data name="ExampleOpened" xml:space="preserve"><value>{0}已就绪，可以开始仿真。</value></data>
   <data name="InputValues" xml:space="preserve"><value>下一次输入值</value></data>
-  <data name="InputValuesHint" xml:space="preserve"><value>按高位在前输入二进制值。应用输入会将所有值一起安排到下一逻辑时间；单步执行会推进到该事件。</value></data>
+  <data name="InputValuesHint" xml:space="preserve"><value>输入二进制值（高位在前）。应用后点“步进”查看结果。</value></data>
   <data name="InputValuesInvalid" xml:space="preserve"><value>请按输入位宽填写 0、1、X 或 Z。</value></data>
   <data name="ApplyInputs" xml:space="preserve"><value>应用输入</value></data>
   <data name="AuthorCircuitHint" xml:space="preserve"><value>放置元件并连接端口。</value></data>
@@ -455,4 +400,7 @@
   <data name="ObserveProbe" xml:space="preserve"><value>在波形中查看</value></data>
   <data name="ExpandInstruments" xml:space="preserve"><value>展开仪器区</value></data>
   <data name="CollapseInstruments" xml:space="preserve"><value>返回电路</value></data>
+  <data name="InstrumentHeight" xml:space="preserve">
+    <value>仪器区高度</value>
+  </data>
 </root>

@@ -446,7 +446,7 @@ internal sealed class SimulationRuntimeTests
         {
             await Assert.That(failed.Reason).IsEqualTo(SimulationFailureReason.SimulationInternalDefect);
             await Assert.That(failed.SessionVersion).IsEqualTo(ulong.MaxValue);
-            await Assert.That(next).IsTypeOf<NoScheduledStimulus>();
+            await Assert.That(next).IsTypeOf<NoScheduledEvents>();
             await Assert.That(opened.Handle.State.NextStimulusSequence).IsEqualTo(0UL);
             await Assert.That(opened.Handle.State.ScheduledAssignmentCount).IsEqualTo(0UL);
         }
@@ -531,7 +531,7 @@ internal sealed class SimulationRuntimeTests
             await Assert.That(snapshot.TraceCursor).IsEqualTo(opened.TraceCursor);
             await Assert.That(next.LogicalTime).IsEqualTo(20UL);
             await Assert.That(next.ObservedProbePatch[0].Value[0]).IsEqualTo(LogicValue.Zero);
-            await Assert.That(exhausted).IsTypeOf<NoScheduledStimulus>();
+            await Assert.That(exhausted).IsTypeOf<NoScheduledEvents>();
         }
     }
 
@@ -603,7 +603,7 @@ internal sealed class SimulationRuntimeTests
             await Assert.That(committed.LogicalTime).IsEqualTo(10UL);
             await Assert.That(committed.ObservedProbePatch[0].Value[0])
                 .IsEqualTo(LogicValue.Zero);
-            await Assert.That(noMoreAtTime).IsTypeOf<NoScheduledStimulus>();
+            await Assert.That(noMoreAtTime).IsTypeOf<NoScheduledEvents>();
         }
     }
 
@@ -647,7 +647,7 @@ internal sealed class SimulationRuntimeTests
     }
 
     [Test]
-    public async Task Execute_NoScheduledStimulus_ReturnsNoScheduledStimulus()
+    public async Task Execute_NoScheduledEvents_ReturnsNoScheduledEvents()
     {
         var context = SimulationTestContext.Create();
         var opened = OpenOutputProbe(context);
@@ -657,11 +657,11 @@ internal sealed class SimulationRuntimeTests
             new AdvanceToNextQuiescentBoundary(),
             CancellationToken.None);
 
-        var noStimulus = (await Assert.That(outcome).IsTypeOf<NoScheduledStimulus>())!;
+        var noEvents = (await Assert.That(outcome).IsTypeOf<NoScheduledEvents>())!;
         using (Assert.Multiple())
         {
-            await Assert.That(noStimulus.SessionVersion).IsEqualTo(1UL);
-            await Assert.That(noStimulus.LogicalTime).IsEqualTo(0UL);
+            await Assert.That(noEvents.SessionVersion).IsEqualTo(1UL);
+            await Assert.That(noEvents.LogicalTime).IsEqualTo(0UL);
         }
     }
 
@@ -840,7 +840,7 @@ internal sealed class SimulationRuntimeTests
             new AdvanceToNextQuiescentBoundary(),
             CancellationToken.None);
 
-        await Assert.That(exhausted).IsTypeOf<NoScheduledStimulus>();
+        await Assert.That(exhausted).IsTypeOf<NoScheduledEvents>();
     }
 
     [Test]
@@ -1012,7 +1012,7 @@ internal sealed class SimulationRuntimeTests
                 .IsEquivalentTo([(opened.ProbeIds[0], LogicValue.Zero)], CollectionOrdering.Matching);
             await Assert.That(SimulationRuntime.Execute(
                     opened.Handle, new AdvanceToNextQuiescentBoundary(), CancellationToken.None))
-                .IsTypeOf<NoScheduledStimulus>();
+                .IsTypeOf<NoScheduledEvents>();
         }
     }
 

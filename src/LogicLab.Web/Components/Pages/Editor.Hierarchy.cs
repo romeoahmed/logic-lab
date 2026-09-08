@@ -191,7 +191,7 @@ public partial class Editor
         Status = Text["HierarchyReturned", SelectedDefinition!.DisplayName];
     }
 
-    private bool TryRevealSource(CompilationSource source)
+    private async Task<bool> TryRevealSourceAsync(CompilationSource source)
     {
         if (Projection is not { } projection
             || source.HierarchyPath.EntryCircuitDefinitionId
@@ -241,6 +241,11 @@ public partial class Editor
         ProjectScene();
         SceneSelection = entity is null ? null : new SceneSelectionV1([entity], "replace");
         sourceRevealVersion++;
+        if (workbenchDock is not null)
+        {
+            await workbenchDock.CloseAsync();
+        }
+
         return true;
     }
 

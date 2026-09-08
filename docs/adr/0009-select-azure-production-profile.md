@@ -51,8 +51,10 @@ PostgreSQL migrations replace the SQLite migration sets rather than introducing 
 runtime provider switch. If production SQLite data is discovered, it requires a
 separate one-time transfer and verification plan.
 
-Container Apps single-revision readiness preserves ingress while a new revision
-starts, but scale-to-zero, when selected, and revision replacement do not preserve a
+Container Apps single-revision cutover depends on healthy revisions; it cannot
+preserve availability when migration makes the old image unready. The
+[production profile](../deployment/production-profile.md#identity-and-data) owns that
+schema boundary. Scale-to-zero, when selected, and revision replacement do not preserve a
 Blazor circuit or process-local Workspace. Upgrade, cold-start, and reconnect
 behavior therefore remain explicit item `43` evidence. Any cost-first database
 profile requires explicit acceptance of its recovery boundary.

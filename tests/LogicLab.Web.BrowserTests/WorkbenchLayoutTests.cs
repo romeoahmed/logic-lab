@@ -1,11 +1,12 @@
+using LogicLab.Web.Testing;
 using Microsoft.Playwright;
 using TUnit.Playwright;
 using static Microsoft.Playwright.Assertions;
 
 namespace LogicLab.Web.BrowserTests;
 
-[ClassDataSource<LogicLabBrowserApplication>]
-internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication application) : PageTest
+[ClassDataSource<LogicLabKestrelApplication>(Shared = SharedType.PerClass)]
+internal sealed class WorkbenchLayoutTests(LogicLabKestrelApplication application) : PageTest
 {
     public override BrowserNewContextOptions ContextOptions(TestContext testContext)
     {
@@ -16,9 +17,33 @@ internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication applicatio
 
     [Test]
     [Arguments(390, 844)]
+    [Arguments(1280, 720)]
+    public async Task ResponsiveWorkbench_Welcome_ShowsEveryStartingChoice(int width, int height)
+    {
+        await Page.SetViewportSizeAsync(width, height);
+        await Page.GotoAsync(application.EditorUri.AbsoluteUri);
+        await Expect(Page.Locator("[data-command='create']:not([disabled])"))
+            .ToBeInViewportAsync(new() { Ratio = 1 });
+        foreach (var command in new[]
+                 {
+                     "author", "author-steering", "author-carry-lookahead", "author-bit-serial",
+                 })
+        {
+            await Expect(Page.Locator($"[data-command='{command}']"))
+                .ToBeInViewportAsync(new() { Ratio = 1 });
+        }
+
+        await Assert.That(await Page.EvaluateAsync<double>(
+            "document.documentElement.scrollWidth - window.innerWidth")).IsLessThanOrEqualTo(0);
+    }
+
+    [Test]
+    [Arguments(320, 844)]
+    [Arguments(390, 844)]
     [Arguments(694, 838)]
     [Arguments(768, 1024)]
     [Arguments(1024, 768)]
+    [Arguments(1280, 720)]
     [Arguments(1280, 900)]
     public async Task ResponsiveWorkbench_ActiveProject_KeepsCanvasInstrumentsAndStatusInViewport(
         int width, int height)
@@ -33,9 +58,15 @@ internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication applicatio
         await Expect(Page.Locator("canvas[data-scene-canvas]")).ToBeInViewportAsync();
         await Expect(Page.Locator(".instrument-bay")).ToBeInViewportAsync();
         await Expect(Page.Locator(".status-strip")).ToBeInViewportAsync();
+        await Expect(Page.Locator("[data-command='undo']")).ToBeInViewportAsync(new() { Ratio = 1 });
+        await Expect(Page.Locator("[data-command='redo']")).ToBeInViewportAsync(new() { Ratio = 1 });
+        var register = Page.Locator(".primary-navigation a[href='/account/register']");
+        await register.ScrollIntoViewIfNeededAsync();
+        await Expect(register).ToBeInViewportAsync(new() { Ratio = 1 });
     }
 
     [Test]
+    [Arguments(320, 568, 100)]
     [Arguments(844, 390, 100)]
     [Arguments(640, 360, 100)]
     [Arguments(844, 390, 200)]
@@ -112,6 +143,7 @@ internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication applicatio
         async Task AssertCircuitAndControlsAsync()
         {
             await Expect(workbench.Canvas).ToBeInViewportAsync(new() { Ratio = 1 });
+            await Expect(workbench.WaveformCanvas).ToBeInViewportAsync(new() { Ratio = 1 });
             await Expect(workbench.Step).ToBeInViewportAsync(new() { Ratio = 1 });
             await Expect(workbench.Run).ToBeInViewportAsync(new() { Ratio = 1 });
             await Expect(workbench.LogicalTime).ToBeInViewportAsync(new() { Ratio = 1 });
@@ -136,17 +168,54 @@ internal sealed class WorkbenchLayoutTests(LogicLabBrowserApplication applicatio
     }
 
     [Test]
-    public async Task ProjectOptions_FluentPopover_OpensAndLightDismisses()
+    public async Task Instruments_LaptopSimulation_ExposesInputsAndKeyboardResizing()
     {
-        await OpenAsync(1024, 768);
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenExampleAsync(width: 1280, height: 720);
+        await StartSimulationAsync(workbench);
+        await Expect(workbench.ApplyInputs)
+            .ToBeInViewportAsync(new() { Ratio = 1 });
+        await Expect(workbench.WaveformCanvas).ToBeInViewportAsync(new() { Ratio = 1 });
+        var slider = Page.GetByRole(AriaRole.Slider, new() { Name = "Instrument height" });
+        double before = (await workbench.WaveformCanvas.BoundingBoxAsync())!.Height;
+
+        await slider.FocusAsync();
+        await Page.Keyboard.PressAsync("ArrowRight");
+
+        await Expect(slider).ToBeFocusedAsync();
+        await Page.WaitForFunctionAsync(
+            "before => document.querySelector('[data-waveform-canvas]').getBoundingClientRect().height > before",
+            before);
+        await Expect(workbench.Canvas).ToBeInViewportAsync(new() { Ratio = 1 });
+        await Expect(workbench.LogicalTime).ToBeInViewportAsync(new() { Ratio = 1 });
+    }
+
+    [Test]
+    [Arguments(320, 568)]
+    [Arguments(390, 844)]
+    [Arguments(844, 390)]
+    [Arguments(1024, 768)]
+    public async Task ProjectOptions_Viewport_KeepsActionsVisibleAndLightDismisses(int width, int height)
+    {
+        await OpenAsync(width, height);
         var trigger = Page.GetByTestId("project-options-trigger");
         var panel = Page.GetByTestId("project-options-panel");
 
         await Expect(panel).ToBeHiddenAsync();
         await trigger.ClickAsync();
         await Expect(panel).ToBeVisibleAsync();
+        await Expect(panel).ToBeInViewportAsync(new() { Ratio = 1 });
+        await Expect(Page.Locator("[data-command='import']")).ToBeInViewportAsync(new() { Ratio = 1 });
+        await Expect(Page.Locator("[data-command='export']")).ToBeInViewportAsync(new() { Ratio = 1 });
+
+        await Page.SetViewportSizeAsync(360, 640);
+        await Expect(panel).ToBeInViewportAsync(new() { Ratio = 1 });
 
         await Page.Keyboard.PressAsync("Escape");
+        await Expect(panel).ToBeHiddenAsync();
+        await trigger.ClickAsync();
+        await Expect(panel).ToBeInViewportAsync(new() { Ratio = 1 });
+        await Page.Locator("canvas[data-scene-canvas]").ClickAsync(new() { Position = new() { X = 5, Y = 5 } });
         await Expect(panel).ToBeHiddenAsync();
     }
 

@@ -8,7 +8,7 @@ Research records evidence, derivations, rejected alternatives, and dated qualifi
 | [.NET Memory and Unsafe Code](./dotnet-memory-and-unsafe.md)    | buffer ownership, pool leases, stack storage, and binary-layout hazards          |
 | [.NET Testing Platform](./testing-platform.md)                  | MTP, TUnit, FsCheck, bUnit, and Playwright evidence                              |
 | [Compiler Representations](./compiler-representations.md)       | compiler pipeline and purpose-specific representation evidence                   |
-| [Boolean Analysis proposal](../future/boolean-analysis.md)      | consolidated future design, evidence boundary, and primary sources               |
+| [Boolean Analysis proposal](../future/boolean-analysis.md)      | deferred scope and design reactivation boundary                                  |
 | [Blazor Web Platform](./blazor-web-platform.md)                 | hosting, render lifecycle, browser ownership, and Interactive Server constraints |
 | [Diagram Presentation](./diagram-presentation.md)               | IEEE symbol, declarative geometry, and presentation rationale                    |
 | [Module Performance](./module-performance.md)                   | dated measurements and BenchmarkDotNet decisions                                 |

@@ -62,6 +62,7 @@ export function validatePolicy(policy) {
     actualShape.length !== exactShape.size ||
     actualShape.some((field) => !exactShape.has(field)) ||
     fields.some((field) => !positiveSafeInteger(policy[field])) ||
+    policy.interopBatchBytes <= Number(interopEnvelopeBytes) ||
     BigInt(policy.zoomMillionthsMinimum) > BigInt(policy.zoomMillionthsMaximum)
   ) {
     throw new Error("invalid Browser Policy");
@@ -475,6 +476,8 @@ function validateHit(region, definitionId) {
     !["rect", "circle", "polygon"].includes(region.shape) ||
     !validRectAllowDegenerate(region.bounds) ||
     (region.targetSource && !validSource(region.targetSource, definitionId)) ||
+    (region.connectedNet &&
+      (!targetsTerminal || !validNetSource(region.connectedNet, definitionId))) ||
     targetsTerminal !== Boolean(validPoint(region.anchor)) ||
     targetsTerminal !== isPlanDirection(region.outwardDirection)
   ) {

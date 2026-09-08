@@ -286,8 +286,8 @@ public static partial class ProjectPackage
             return;
         }
 
-        // The strict deserializer owns nullability and scalar types. All V1 members
-        // are required, including value-type fields that deserialization can default.
+        // Strict deserialization owns nullability and scalar types. This walk preserves
+        // format-specific member and discriminator errors without parsing exception text.
         if (reader.TokenType != JsonTokenType.StartObject || typeInfo.Kind != JsonTypeInfoKind.Object)
         {
             reader.Skip();

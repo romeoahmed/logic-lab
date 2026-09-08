@@ -43,14 +43,8 @@
         @if (Projection is null)
         {
             <header class="workbench-heading">
-                <div class="workbench-identity">
-                    <p class="eyebrow">@WorkbenchEyebrow</p>
-                    <h1>@WorkbenchTitle</h1>
-                </div>
-                <div class="workbench-brief">
-                    <span>@Text["WorkbenchBrief"]</span>
-                    <p>@WorkbenchDescription</p>
-                </div>
+                <h1>@WorkbenchTitle</h1>
+                <p>@WorkbenchDescription</p>
             </header>
         }
 
@@ -92,20 +86,23 @@
                 }
             </div>
 
-            <div class="workbench-definition-region">
-                <DefinitionNavigator Document="Projection?.ProjectRevision.Document"
-                                     SelectedDefinitionId="SelectedDefinitionId"
-                                     Breadcrumbs="Breadcrumbs"
-                                     IsOccurrence="@(HierarchyNavigation.Count != 0)"
-                                     CanSetEntry="CanSetEntryDefinition"
-                                     CanEnterOccurrences="CanEnterDefinitionInstances"
-                                     OnSelect="SelectDefinition"
-                                     OnSetEntry="SetEntryDefinition"
-                                     OnEnter="EnterDefinitionInstance"
-                                     OnBack="LeaveDefinitionInstance" />
-            </div>
+            @if (Projection is not null)
+            {
+                <div class="workbench-definition-region">
+                    <DefinitionNavigator Document="Projection.ProjectRevision.Document"
+                                         SelectedDefinitionId="SelectedDefinitionId"
+                                         Breadcrumbs="Breadcrumbs"
+                                         IsOccurrence="@(HierarchyNavigation.Count != 0)"
+                                         CanSetEntry="CanSetEntryDefinition"
+                                         CanEnterOccurrences="CanEnterDefinitionInstances"
+                                         OnSelect="SelectDefinition"
+                                         OnSetEntry="SetEntryDefinition"
+                                         OnEnter="EnterDefinitionInstance"
+                                         OnBack="LeaveDefinitionInstance" />
+                </div>
+            }
 
-            <div class="workbench-body" data-instruments-expanded="@(instrumentsExpanded ? "true" : "false")">
+            <div class="workbench-body" style="--instrument-height: @(instrumentHeight)%" data-instruments-idle="@(Projection?.Simulation is null && instrumentTab == "waveform" ? "true" : "false")" data-instruments-expanded="@(instrumentsExpanded ? "true" : "false")">
                 @if (CanCreate)
                 {
                     <StarterGuide BusyCommand="@ActiveCommand" OnSelect="OpenExampleAsync" />
@@ -144,15 +141,7 @@
                             <aside aria-labelledby="inspector-title">
                                 <header class="inspector-heading">
                                     <h2 id="inspector-title">@Text["Inspector"]</h2>
-                                    <p>@Text["InspectorDescription"]</p>
                                 </header>
-                                <SelectionInspector Projection="Projection"
-                                                    DefinitionId="SelectedDefinitionId"
-                                                    Selection="SceneSelection"
-                                                    HierarchyPath="CurrentSceneHierarchyPath"
-                                                    CanEdit="@(CanMutateWorkspace && ActiveCommand is null)"
-                                                    OnObserveProbe="ObserveProbeAsync"
-                                                    OnEdit="HandleInspectorEditAsync" />
                                 @if (Projection.Simulation is { } simulation && InputHierarchyPath is { } inputPath)
                                 {
                                     <InputStimulusPanel @key="simulation.SessionId" Revision="Projection.ProjectRevision"
@@ -161,11 +150,25 @@
                                                         Disabled="@(!CanScheduleStimulus || ActiveCommand is not null)"
                                                         OnSchedule="ScheduleInputsAsync" />
                                 }
+                                <SelectionInspector Projection="Projection"
+                                                    DefinitionId="SelectedDefinitionId"
+                                                    Selection="SceneSelection"
+                                                    HierarchyPath="CurrentSceneHierarchyPath"
+                                                    CanEdit="@(CanMutateWorkspace && ActiveCommand is null)"
+                                                    OnObserveProbe="ObserveProbeAsync"
+                                                    OnEdit="HandleInspectorEditAsync" />
                             </aside>
                         </Inspector>
                     </WorkbenchDock>
                     <div class="instrument-bay">
                         <div class="instrument-size-control">
+                            @if (!instrumentsExpanded && (Projection.Simulation is not null || instrumentTab != "waveform"))
+                            {
+                                <input type="range" min="25" max="65" step="5"
+                                       aria-label="@Text["InstrumentHeight"]"
+                                       title="@Text["InstrumentHeight"]"
+                                       @bind="instrumentHeight" @bind:event="oninput" />
+                            }
                             <button type="button" data-instruments-toggle
                                     aria-expanded="@(instrumentsExpanded ? "true" : "false")"
                                     @onclick="@(() => instrumentsExpanded = !instrumentsExpanded)">
