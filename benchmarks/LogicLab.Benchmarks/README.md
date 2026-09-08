@@ -1,7 +1,7 @@
 # Module Benchmarks
 
 This BenchmarkDotNet project owns comparative CPU and managed-allocation evidence for
-Domain and Engine. It does not define latency targets or replace browser traces, load
+Domain, Engine, Presentation, and Project Format. It does not define latency targets or replace browser traces, load
 tests, runtime counters, or deployment profiling.
 
 ## Corpus
@@ -10,11 +10,13 @@ tests, runtime counters, or deployment profiling.
 | ----------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | `ProjectEditorMoveBenchmarks`       | one or all components in small and large definitions                  | public atomic edit cost across selection size                            |
 | `ProjectPackageReadBenchmarks`      | complete import of small and large component collections              | public read cost, including spool, ZIP, validation, and canonicalization |
+| `SchematicProjectionBenchmarks`     | small and large definitions containing multiline annotations          | public static projection cost with fixed matched text metrics            |
 | `CoreLibraryLookupBenchmarks`       | first, middle, last, and missing Contract IDs                         | linear oracle against the production immutable index                     |
 | `VectorLogicBenchmarks`             | packed AND, OR, XOR                                                   | packed kernels against matching scalar operations                        |
 | `VectorTopologyBenchmarks`          | concatenation and zero/sign extension at aligned and unaligned widths | packed kernels against normalized scalar projection                      |
 | `VectorConservativeMergeBenchmarks` | four-state vector merge                                               | packed kernel against scalar oracle                                      |
 | `VectorNetResolutionBenchmarks`     | multi-driver resolution                                               | scalar and projected-driver paths against packed resolution              |
+| `PriorityEncoderBenchmarks`         | known and all-unknown inputs at three input counts                    | one encoder operation across candidate-set sizes                         |
 | `CompilerBenchmarks`                | flat, hierarchical, feedback, sequential, and memory circuits         | one public Compiler operation across shape and scale                     |
 | `SimulationOpenBenchmarks`          | open and settle                                                       | one public Session workflow across shape and scale                       |
 | `SimulationSnapshotReadBenchmarks`  | read an open Session                                                  | read cost across probe topology and scale                                |

@@ -93,7 +93,12 @@ ReadAsync(WorkspaceQueryContext, WorkspaceQuery, CancellationToken)
 
 These are typed C# calls. `WorkspaceCommand` and `WorkspaceCommandOutcome` are closed abstract-record hierarchies; there is no string `kind` plus untyped payload dictionary.
 
-`DisposeAsync` atomically closes admission, marks the Workspace as stopping, cancels its background lanes, drains those lanes and all calls admitted before the fence, then retires resources. Repeated calls observe the same completion. After completion, no Workspace operation can enter a repository, store, or Module dependency owned by the enclosing dependency-injection lifetime.
+`DisposeAsync` atomically closes admission, marks the Workspace as stopping, cancels
+its background lanes, drains those lanes and all calls admitted before the fence,
+then retires resources. Cancellation callback failures are reported after draining
+and retirement. Repeated calls observe the same completion. After completion, no
+Workspace operation can enter a repository, store, or Module dependency owned by
+the enclosing dependency-injection lifetime.
 
 `OpenWorkspaceRequest` is exactly one of:
 
@@ -110,7 +115,20 @@ CopyWorkspace {
 }
 ```
 
-The deep Workspace implementation asks Project Editor for Project Genesis when required and resolves a durable current Project Revision when requested. Durable reopen, import, and examples compile before publication; an empty Sandbox or editing copy starts with `CompilationNotRequested`. Success returns `Opened { WorkspaceId, WorkspaceProjection }`; failure returns `OpenRejected { reason, diagnostics, RetryDisposition, policyEvidence? }` and allocates no visible Workspace or Durable Project. Browser-supplied Project Revision, owner, or persistent entity IDs are not open inputs. Every open variant carries the trusted caller so global and per-subject Workspace admission can reserve capacity atomically before genesis, loading, import compilation, or copy publication.
+Workspace asks Project Editor for Project Genesis when required and resolves the
+current durable Project Revision when requested. Durable reopen, import, and examples
+attempt Compilation before publication; an empty Sandbox or editing copy starts with
+`CompilationNotRequested`. Ordinary `compilation_invalid` results publish the authored
+Project with `CompilationRejected` and its diagnostics so the user can repair it.
+They publish no Artifact or Session. Format, admission, policy, cancellation, and
+infrastructure or internal failures still reject opening and release the reservation.
+
+Success returns `Opened { WorkspaceId, WorkspaceProjection }`; failure returns
+`OpenRejected { reason, diagnostics, RetryDisposition, policyEvidence? }` and allocates
+no visible Workspace or Durable Project. Browser-supplied Project Revision, owner, or
+persistent entity IDs are not open inputs. Every variant carries the trusted caller
+so global and per-subject admission reserves capacity before genesis, loading,
+bootstrap Compilation, or copy publication.
 
 `OpenExample` reads a complete embedded `.logiclab` project owned by Application after
 reserving Workspace capacity. It uses the same package validation, imported Genesis,
@@ -167,8 +185,8 @@ typed command payload
 | `SaveDurable`           | none                                                         | Durable Save       |
 | `ClaimSandbox`          | requested Durable Display Name                               | Claim              |
 | `CloseWorkspace`        | none                                                         | current attachment |
-| `RequestCompilation`    | entry Circuit Definition ID                                  | Compilation        |
-| `CreateSession`         | `SessionConfigurationV1` and target Compilation Artifact Key | Session Creation   |
+| `RequestCompilation`    | none                                                         | Compilation        |
+| `CreateSession`         | `SessionConfigurationV1`                                     | Session Creation   |
 | `RestartSession`        | `SessionConfigurationV1` and target Compilation Artifact Key | Session Mutation   |
 | `ScheduleStimulusBatch` | one complete future Stimulus Batch                           | Session Mutation   |
 | `StepSession`           | none                                                         | Session Mutation   |
@@ -177,7 +195,7 @@ typed command payload
 | `ReplaceProbes`         | complete ordered Probe binding requests                      | Session Mutation   |
 | `HotSwapSession`        | target Compilation Artifact Key                              | Session Mutation   |
 | `CloseSession`          | none                                                         | Session Mutation   |
-| `PrepareExport`         | Project Revision ID                                          | Authoring          |
+| `PrepareExport`         | none                                                         | Authoring          |
 
 Unknown variants fail before dispatch. Import is deliberately absent: it validates an external carrier and opens a separate Workspace. Selection, viewport, panels, waveform cursor, and Transient Preview are browser/Web state and are not Workspace commands.
 
@@ -409,7 +427,7 @@ AdvanceCommitted
   diagnostics[]
   Trace cursor
 
-NoScheduledStimulus { SessionVersion, LogicalTime, ProjectionVersion }
+NoScheduledEvents { SessionVersion, LogicalTime, ProjectionVersion }
 Paused { RunGeneration, SessionVersion, LogicalTime, reason }
 AdvanceFailed { unchanged SessionVersion, unchanged LogicalTime, reason, policyEvidence }
 ```
@@ -418,9 +436,9 @@ AdvanceFailed { unchanged SessionVersion, unchanged LogicalTime, reason, policyE
 patch, diagnostics, and Trace cursor belong to that committed boundary, including
 when an idempotent replay returns it after later Session mutations.
 
-Pause reason is exactly `UserRequested | NoScheduledStimulus | Detached`. `policyEvidence` is required only for `simulation_resource_limit` and absent for every other reason; it contains policy ID/revision, dimension, and observed work, never fleet capacity.
+Pause reason is exactly `UserRequested | NoScheduledEvents | Detached`. `policyEvidence` is required only for `simulation_resource_limit` and absent for every other reason; it contains policy ID/revision, dimension, and observed work, never fleet capacity.
 
-An empty event queue returns `NoScheduledStimulus` with the unchanged boundary and
+An empty event queue returns `NoScheduledEvents` with the unchanged boundary and
 Projection Version. Step remains available for a current, non-running Session;
 the browser does not infer pending clock or input events from its last command.
 

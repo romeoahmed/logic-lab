@@ -280,7 +280,7 @@ internal sealed partial class EditorWorkspaceRunTests
         using (Assert.Multiple())
         {
             await Assert.That(unauthorized.Code).IsEqualTo("workspace_not_found");
-            await Assert.That(ownerOutcome).IsTypeOf<LogicLab.Application.Workspaces.NoScheduledStimulus>();
+            await Assert.That(ownerOutcome).IsTypeOf<LogicLab.Application.Workspaces.NoScheduledEvents>();
         }
     }
 
@@ -1014,7 +1014,7 @@ internal sealed partial class EditorWorkspaceRunTests
                     beforeEdit.ProjectRevision.Document.EntryCircuitDefinitionId,
                     [new ComponentMove(
                         sink.Id,
-                        new ComponentPlacement(new GridPoint(12, 2)))])),
+                        new ComponentPlacement(new GridPoint(12, 2)))], [], [])),
             cancellationToken);
         var afterEdit = await Read(workspace, controlled, cancellationToken);
         await Compile(workspace, controlled, afterEdit, cancellationToken);
@@ -1082,7 +1082,7 @@ internal sealed partial class EditorWorkspaceRunTests
                 beforeEdit.ProjectRevision.Document.EntryCircuitDefinitionId,
                 [new ComponentMove(
                     sink.Id,
-                    new ComponentPlacement(new GridPoint(12, 2)))]),
+                    new ComponentPlacement(new GridPoint(12, 2)))], [], []),
             cancellationToken);
         var afterEdit = await Read(workspace, controlled, cancellationToken);
         await Compile(workspace, controlled, afterEdit, cancellationToken);

@@ -45,7 +45,7 @@ public sealed record AdvanceFailureProjection
 public enum RunPauseReason
 {
     UserRequested,
-    NoScheduledStimulus,
+    NoScheduledEvents,
     Detached,
 }
 

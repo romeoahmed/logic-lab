@@ -2,6 +2,7 @@ using System.Diagnostics;
 using LogicLab.Application.Examples;
 using LogicLab.Application.Work;
 using LogicLab.Domain.Authoring;
+using LogicLab.Engine.Compilation;
 using LogicLab.ProjectFormat;
 using Microsoft.Extensions.Logging;
 
@@ -9,7 +10,7 @@ namespace LogicLab.Application.Workspaces;
 
 internal sealed partial class EditorWorkspace
 {
-    private async Task<WorkspaceOpenOutcome> OpenCompiledWorkspaceAsync(
+    private async Task<WorkspaceOpenOutcome> OpenProjectAsync(
         OpenWorkspaceRequest request,
         CancellationToken cancellationToken)
     {
@@ -161,7 +162,9 @@ internal sealed partial class EditorWorkspace
             }
 
             var compilation = state.Compilation;
-            if (compilation is not CompilationPublishedProjection)
+            // A valid authored project remains editable when its circuit is not yet executable.
+            if (compilation is not (CompilationPublishedProjection or CompilationRejectedProjection
+                { RejectionCode: CompilationOutcomeReasons.Invalid }))
             {
                 return compilation is CompilationRejectedProjection rejected
                     ? RejectOpen(

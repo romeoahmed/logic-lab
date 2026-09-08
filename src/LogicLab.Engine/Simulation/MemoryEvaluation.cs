@@ -58,7 +58,8 @@ internal static class MemoryEvaluation
         var reachableAddressCount = ReachableAddressCount(address);
         var writeIsDefinite = writeEnable == LogicValue.One
             && reachableAddressCount == 1;
-        var writes = new List<MemoryCellWrite>(checked((int)reachableAddressCount));
+        var writes = new MemoryCellWrite[checked((int)reachableAddressCount)];
+        var writeIndex = 0;
         foreach (var index in ReachableAddresses(address))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -66,10 +67,10 @@ internal static class MemoryEvaluation
                 ? normalizedData
                 : VectorConservativeMerge.Merge(
                     [memory.ReadWord(index), normalizedData]);
-            writes.Add(new MemoryCellWrite(index, value));
+            writes[writeIndex++] = new MemoryCellWrite(index, value);
         }
 
-        return [.. writes];
+        return writes;
     }
 
     public static void ApplyWrites(

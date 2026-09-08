@@ -2,6 +2,8 @@ using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using TUnit.Assertions.Enums;
 
 namespace LogicLab.Infrastructure.Tests;
@@ -11,6 +13,42 @@ namespace LogicLab.Infrastructure.Tests;
 internal sealed class DurableProjectCatalogRepositoryTests(
     PostgreSqlTestDatabase database)
 {
+    [Test]
+    public async Task ListAuthorizedAsync_UpgradedEqualNames_UsesUtf8IdOrderAcrossPages()
+    {
+        await using var context = database.CreateContext();
+        var migrator = context.GetService<IMigrator>();
+        await migrator.MigrateAsync("20260901033349_InitialPostgreSql");
+        var repository = database.CreateRepository();
+        string[] expected = ["project-A", "project-a", "project_1", "\uE000", "\U00010000"];
+        for (var index = expected.Length - 1; index >= 0; index--)
+        {
+            await ClaimAsync(repository, expected[index], $"ordering-{index}", "ordering-subject",
+                "Same name", (char)('a' + index));
+        }
+
+        await migrator.MigrateAsync();
+        var observed = new List<string>();
+        DurableProjectCatalogRepositoryItem? last = null;
+        for (var index = 0; index <= expected.Length; index++)
+        {
+            var page = await repository.ListAuthorizedAsync(
+                new DurableProjectCatalogRepositoryRequest(
+                    new AuthenticatedSubjectId("ordering-subject"), 1,
+                    last?.DisplayNameSortKey, last?.DurableProjectId),
+                CancellationToken.None);
+            if (page.Count == 0)
+            {
+                break;
+            }
+
+            last = page.Single();
+            observed.Add(last.DurableProjectId.Value);
+        }
+
+        await Assert.That(observed).IsEquivalentTo(expected, CollectionOrdering.Matching);
+    }
+
     [Test]
     public async Task ListAuthorizedAsync_MixedOwnershipAndDuplicateNames_FiltersBeforeLimitInCanonicalOrder()
     {
@@ -23,7 +61,7 @@ internal sealed class DurableProjectCatalogRepositoryTests(
         var first = await repository.ListAuthorizedAsync(
             new DurableProjectCatalogRepositoryRequest(
                 new AuthenticatedSubjectId("subject-1"),
-                maximumItemCount: 2,
+                maximumItemCount: 1,
                 afterDisplayNameSortKey: null,
                 afterDurableProjectId: null),
             CancellationToken.None);
@@ -40,14 +78,14 @@ internal sealed class DurableProjectCatalogRepositoryTests(
         {
             await Assert.That(first.Select(item => item.DurableProjectId.Value))
                 .IsEquivalentTo(
-                    ["project-a", "project-b"],
+                    ["project-a"],
                     CollectionOrdering.Matching);
             await Assert.That(second.Select(item => item.DurableProjectId.Value))
-                .IsEquivalentTo(["project-c"], CollectionOrdering.Matching);
+                .IsEquivalentTo(["project-b", "project-c"], CollectionOrdering.Matching);
             await Assert.That(first.Concat(second)
                     .Any(item => item.DurableProjectId.Value == "unauthorized"))
                 .IsFalse();
-            await Assert.That(second[0].DisplayName.Value).IsEqualTo("中");
+            await Assert.That(second[1].DisplayName.Value).IsEqualTo("中");
         }
     }
 

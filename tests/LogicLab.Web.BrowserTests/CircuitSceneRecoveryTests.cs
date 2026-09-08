@@ -24,7 +24,7 @@ internal sealed class CircuitSceneRecoveryTests : PageTest
               const digest = [...hash].map(value => value.toString(16).padStart(2, '0')).join('');
               const handle = window.sceneHandle;
               handle.beginTransfer('cancel-during-digest', 'replacement', bytes.length, digest);
-              handle.appendTransfer('cancel-during-digest', 0, btoa(String.fromCharCode(...bytes)));
+              handle.appendTransfer('cancel-during-digest', 0, bytes);
               const pending = handle.commitTransfer('cancel-during-digest');
               if (destroy) handle.destroy();
               else handle.abortTransfer('cancel-during-digest');
@@ -114,9 +114,10 @@ internal sealed class CircuitSceneRecoveryTests : PageTest
     [Test]
     public async Task CanvasContextLost_NewGestureWaitsForRestoration()
     {
+        await Page.Clock.InstallAsync(new ClockInstallOptions { TimeDate = DateTime.UnixEpoch });
         var scene = await ReadySceneAsync();
         var point = await scene.WorldToPageAsync(50, 50);
-        await Page.Clock.InstallAsync(new ClockInstallOptions());
+        await Page.Clock.PauseAtAsync(DateTime.UnixEpoch.AddHours(1));
         await scene.Canvas.DispatchEventAsync("contextlost");
 
         await Page.Mouse.ClickAsync((float)point.X, (float)point.Y);

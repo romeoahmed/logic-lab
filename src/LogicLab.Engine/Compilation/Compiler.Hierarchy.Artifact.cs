@@ -233,18 +233,27 @@ public static partial class Compiler
                 group.Members[0].Net.Width,
                 [.. drivers],
                 [.. receivers]);
-            var bindings = group.Members.Select(member => new SourceMapEntry(
-                netOrdinal,
-                Source(
-                    member.Occurrence.Path,
-                    new NetSourceIdentity(
-                        member.Occurrence.Definition.Id,
-                        member.Net.Id)))).ToArray();
-            sources[netOrdinal] = bindings[0];
-            aliases.AddRange(bindings.Skip(1));
+            for (var memberIndex = 0; memberIndex < group.Members.Length; memberIndex++)
+            {
+                var member = group.Members[memberIndex];
+                var binding = new SourceMapEntry(
+                    netOrdinal,
+                    Source(
+                        member.Occurrence.Path,
+                        new NetSourceIdentity(
+                            member.Occurrence.Definition.Id,
+                            member.Net.Id)));
+                if (memberIndex == 0)
+                {
+                    sources[netOrdinal] = binding;
+                }
+                else
+                {
+                    aliases.Add(binding);
+                }
+            }
         }
 
         return (nets, sources, aliases.ToArray());
     }
-
 }

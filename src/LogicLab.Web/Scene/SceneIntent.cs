@@ -104,16 +104,24 @@ public sealed record MoveComponentsSceneIntentV1 : SceneIntentV1
         ulong projectionVersion,
         string circuitDefinitionId,
         IReadOnlyList<SceneComponentMoveV1> moves,
-        string snapModifier)
+        string snapModifier,
+        IReadOnlyList<SceneWireReplacementV1> routeReplacements,
+        IReadOnlyList<SceneNetWireAdditionV1> routeAdditions)
         : base(buildFingerprint, sceneVersion, projectionVersion, circuitDefinitionId)
     {
         Moves = SceneIntentCollections.Copy(moves);
         SnapModifier = snapModifier;
+        RouteReplacements = SceneIntentCollections.Copy(routeReplacements);
+        RouteAdditions = SceneIntentCollections.Copy(routeAdditions);
     }
 
     public IReadOnlyList<SceneComponentMoveV1> Moves { get; }
 
     public string SnapModifier { get; }
+
+    public IReadOnlyList<SceneWireReplacementV1> RouteReplacements { get; }
+
+    public IReadOnlyList<SceneNetWireAdditionV1> RouteAdditions { get; }
 }
 
 public sealed record MoveDefinitionPortsSceneIntentV1 : SceneIntentV1
@@ -125,16 +133,24 @@ public sealed record MoveDefinitionPortsSceneIntentV1 : SceneIntentV1
         ulong projectionVersion,
         string circuitDefinitionId,
         IReadOnlyList<SceneDefinitionPortMoveV1> moves,
-        string snapModifier)
+        string snapModifier,
+        IReadOnlyList<SceneWireReplacementV1> routeReplacements,
+        IReadOnlyList<SceneNetWireAdditionV1> routeAdditions)
         : base(buildFingerprint, sceneVersion, projectionVersion, circuitDefinitionId)
     {
         Moves = SceneIntentCollections.Copy(moves);
         SnapModifier = snapModifier;
+        RouteReplacements = SceneIntentCollections.Copy(routeReplacements);
+        RouteAdditions = SceneIntentCollections.Copy(routeAdditions);
     }
 
     public IReadOnlyList<SceneDefinitionPortMoveV1> Moves { get; }
 
     public string SnapModifier { get; }
+
+    public IReadOnlyList<SceneWireReplacementV1> RouteReplacements { get; }
+
+    public IReadOnlyList<SceneNetWireAdditionV1> RouteAdditions { get; }
 }
 
 public sealed record MoveAnnotationsSceneIntentV1 : SceneIntentV1
@@ -499,6 +515,10 @@ public sealed record SceneOrthogonalWireRouteV1 : SceneWireRouteV1
 
     public IReadOnlyList<SceneGridPointV1> Points { get; }
 }
+
+public sealed record SceneNetWireAdditionV1(
+    SceneSourceRefV1 Net,
+    SceneWireRouteV1 Route);
 
 public sealed record SceneWireReplacementV1(
     SceneSourceRefV1 WireGeometry,

@@ -23,7 +23,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     [Test]
     public async Task Get_Open_ReturnsMethodNotAllowedProblemDetails()
     {
-        using var client = factory.CreateHttpsClient();
+        using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
 
@@ -41,7 +41,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     [Test]
     public async Task Head_Open_ReturnsMethodNotAllowedProblemMetadata()
     {
-        using var client = factory.CreateHttpsClient();
+        using var client = factory.CreateClient();
         using var request = new HttpRequestMessage(
             HttpMethod.Head,
             new Uri("/projects/open", UriKind.Relative));
@@ -78,7 +78,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
             : [];
         using var host = CreateAuthenticatedHost(
             catalog: new RecordingCatalog(new DurableProjectPage(items, next: null)));
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
 
         using var response = await client.GetAsync(
             new Uri("/projects", UriKind.Relative));
@@ -104,7 +104,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 ],
                 next: null));
         using var host = CreateAuthenticatedHost(catalog: catalog);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
 
         using var response = await client.GetAsync(
             new Uri(
@@ -134,7 +134,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         var catalog = new RecordingCatalog(
             new DurableProjectPage([], next: null));
         using var host = CreateAuthenticatedHost(catalog: catalog);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         client.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
 
@@ -154,7 +154,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         var catalog = new RecordingCatalog(
             new DurableProjectPage([], next: null));
         using var host = CreateAuthenticatedHost(catalog: catalog);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         client.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
 
@@ -184,7 +184,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     {
         await using var workspace = new RejectingOpenWorkspace(code);
         using var host = CreateAuthenticatedHost(workspace: workspace);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
 
         using var response = await PostOpenAsync(client, "project-a");
 
@@ -204,7 +204,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
             "workspace_admission_rejected",
             evidence);
         using var host = CreateAuthenticatedHost(workspace: workspace);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
 
         using var response = await PostOpenAsync(client, "project-a");
         using var payload = await JsonDocument.ParseAsync(
@@ -245,7 +245,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     {
         await using var workspace = new RecordingOpenWorkspace();
         using var host = CreateAuthenticatedHost(workspace: workspace);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
@@ -270,7 +270,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     {
         await using var workspace = new RecordingOpenWorkspace();
         using var host = CreateAuthenticatedHost(workspace: workspace);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
@@ -300,7 +300,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     {
         await using var workspace = new RecordingOpenWorkspace();
         using var host = CreateAuthenticatedHost(workspace: workspace);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var antiforgeryContent = new FormUrlEncodedContent(
             [new("__RequestVerificationToken", form.RequestToken)]);
@@ -336,7 +336,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         var loader = new FailOnCallDurableProjectLoader();
         await using var workspace = new CountingOpenWorkspace(loader);
         using var host = CreateAuthenticatedHost(workspace: workspace);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
@@ -372,7 +372,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         HttpStatusCode expectedStatus)
     {
         using var host = CreateAuthenticatedHost(catalog: new RejectedCatalog(reason));
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         client.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("text/html"));
 
@@ -392,7 +392,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     {
         await using var workspace = new RecordingOpenWorkspace();
         using var host = CreateAuthenticatedHost(workspace: workspace);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
@@ -436,7 +436,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.RemoveAll<IEditorWorkspace>();
                 services.AddSingleton<IEditorWorkspace>(workspace);
             }));
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
             new Uri("/projects/open", UriKind.Relative))
@@ -461,7 +461,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     {
         await using var workspace = new RecordingOpenWorkspace();
         using var host = CreateAuthenticatedHost(workspace: workspace);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
@@ -492,7 +492,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         const int maximumBodyBytes = 4096;
         await using var workspace = new RecordingOpenWorkspace();
         using var host = CreateAuthenticatedHost(workspace: workspace);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
 
         using var accepted = await PostSizedOpenAsync(
@@ -527,7 +527,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.RemoveAll<IEditorWorkspace>();
                 services.AddSingleton<IEditorWorkspace>(workspace);
             }));
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, "/projects");
         for (var attempt = 0; attempt < permitLimit; attempt++)
         {
@@ -580,8 +580,8 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
         var loader = new NotFoundDurableProjectLoader();
         await using var workspace = new CountingOpenWorkspace(loader);
         using var host = CreateAuthenticatedHost(workspace: workspace);
-        using var clientA = host.CreateHttpsClient();
-        using var clientB = host.CreateHttpsClient();
+        using var clientA = host.CreateClient();
+        using var clientB = host.CreateClient();
         clientA.DefaultRequestHeaders.Add(
             TestAuthenticationHandler.SubjectHeaderName,
             subjectA);
@@ -645,7 +645,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.RemoveAll<IEditorWorkspace>();
                 services.AddSingleton<IEditorWorkspace>(workspace);
             }));
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
 
         using var response = await PostOpenFromAnonymousFormAsync(client);
 
@@ -673,7 +673,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
                 services.RemoveAll<IEditorWorkspace>();
                 services.AddSingleton<IEditorWorkspace>(workspace);
             }));
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
 
         for (var attempt = 0; attempt < attemptCount; attempt++)
         {
@@ -758,7 +758,7 @@ internal sealed class DurableProjectEndpointTests(LogicLabWebFactory factory)
     {
         await using var workspace = new RecordingOpenWorkspace();
         using var host = CreateAuthenticatedHost(workspace: workspace);
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
 
         using var response = await PostOpenAsync(client, durableProjectId);
 

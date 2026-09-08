@@ -36,11 +36,17 @@ internal static class AuthoringAdmission
             AddWireGeometryIntent addWire => TryAdmitRoute(addWire.Route, budget),
             SetWireGeometryIntent setWire => TryAdmitRoute(setWire.Route, budget),
             RemoveWireGeometryIntent => budget.TryConsume(1),
-            MoveComponentInstancesIntent move => budget.TryConsume(move.Moves.Count),
+            MoveComponentInstancesIntent move => budget.TryConsume(move.Moves.Count)
+                && TryAdmitReplacements(move.RouteReplacements, budget)
+                && budget.TryConsume(move.RouteAdditions.Count)
+                && TryAdmitRoutes(move.RouteAdditions.Select(addition => addition.Route), budget),
             RenameCircuitDefinitionIntent => budget.TryConsume(1),
             ChangePublicPortContractIntent changePorts =>
                 TryAdmitPublicPortChange(changePorts, budget),
-            MoveDefinitionPortsIntent movePorts => budget.TryConsume(movePorts.Moves.Count),
+            MoveDefinitionPortsIntent movePorts => budget.TryConsume(movePorts.Moves.Count)
+                && TryAdmitReplacements(movePorts.RouteReplacements, budget)
+                && budget.TryConsume(movePorts.RouteAdditions.Count)
+                && TryAdmitRoutes(movePorts.RouteAdditions.Select(addition => addition.Route), budget),
             RemoveCircuitDefinitionIntent => budget.TryConsume(1),
             RenameComponentInstanceIntent => budget.TryConsume(1),
             SetInstanceParametersIntent setParameters =>

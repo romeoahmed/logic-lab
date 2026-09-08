@@ -8,12 +8,9 @@
   <data name="EmptyDescription" xml:space="preserve"><value>Start in the Sandbox, then save the circuits you want to keep.</value></data>
   <data name="EmptyOpenWorkbench" xml:space="preserve"><value>Open the Sandbox Workbench</value></data>
   <data name="EmptyTitle" xml:space="preserve"><value>No saved projects yet</value></data>
-  <data name="Eyebrow" xml:space="preserve"><value>Saved revisions</value></data>
-  <data name="IndexTitle" xml:space="preserve"><value>Your project index</value></data>
   <data name="NextPage" xml:space="preserve"><value>Next page</value></data>
   <data name="OpenProject" xml:space="preserve"><value>Open project</value></data>
   <data name="PageTitle" xml:space="preserve"><value>Saved projects</value></data>
-  <data name="PrivateCatalog" xml:space="preserve"><value>Private to your account</value></data>
   <data name="ProjectCountOne" xml:space="preserve"><value>1 project</value></data>
   <data name="ProjectCountOther" xml:space="preserve"><value>{0} projects</value></data>
 </root>

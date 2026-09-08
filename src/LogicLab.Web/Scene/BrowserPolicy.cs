@@ -118,7 +118,7 @@ internal static class BrowserPolicyDimensionTokens
 internal sealed class BrowserPolicy
 {
     internal const ulong InteropEnvelopeBytes = 512;
-    internal const ulong MinimumInteropBatchBytes = InteropEnvelopeBytes + 4;
+    internal const ulong MinimumInteropBatchBytes = InteropEnvelopeBytes + 1;
     internal const ulong JavaScriptMaximumSafeInteger = 9_007_199_254_740_991;
 
     // Interactive Server defaults to a 32-KB incoming SignalR message, including the
@@ -126,22 +126,7 @@ internal sealed class BrowserPolicy
     // interop payload budget in either direction.
     // Source: https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#size-limits-on-javascript-interop-calls
     private const ulong InteractiveServerInteropPayloadBytes = 16_384;
-    private static readonly (BrowserLimitDimension Dimension, BrowserLimitComparison Comparison)[]
-        RequiredLimits =
-        [
-            (BrowserLimitDimension.SemanticIntentBytes, BrowserLimitComparison.AtMost),
-            (BrowserLimitDimension.SceneSnapshotRecordCount, BrowserLimitComparison.AtMost),
-            (BrowserLimitDimension.ScenePatchRecordCount, BrowserLimitComparison.AtMost),
-            (BrowserLimitDimension.InteropBatchBytes, BrowserLimitComparison.AtMost),
-            (BrowserLimitDimension.CandidateTransferBytes, BrowserLimitComparison.AtMost),
-            (BrowserLimitDimension.CanvasBitmapPixels, BrowserLimitComparison.AtMost),
-            (BrowserLimitDimension.EffectiveDensityMillionths, BrowserLimitComparison.AtMost),
-            (BrowserLimitDimension.ZoomMillionthsMinimum, BrowserLimitComparison.AtLeast),
-            (BrowserLimitDimension.ZoomMillionthsMaximum, BrowserLimitComparison.AtMost),
-            (BrowserLimitDimension.DisplayListBytes, BrowserLimitComparison.AtMost),
-            (BrowserLimitDimension.SpatialIndexBytes, BrowserLimitComparison.AtMost),
-            (BrowserLimitDimension.SceneCacheBytes, BrowserLimitComparison.AtMost),
-        ];
+    private static readonly BrowserLimitDimension[] Dimensions = Enum.GetValues<BrowserLimitDimension>();
 
     public BrowserPolicy(
         string policyId,
@@ -155,10 +140,12 @@ internal sealed class BrowserPolicy
         ValidateStableToken(policyRevision, nameof(policyRevision));
 
         var ownedLimits = limits.ToArray();
-        if (ownedLimits.Length != RequiredLimits.Length
+        if (ownedLimits.Length != Dimensions.Length
             || ownedLimits.Where((limit, index) =>
-                    limit.Dimension != RequiredLimits[index].Dimension
-                    || limit.Comparison != RequiredLimits[index].Comparison
+                    limit.Dimension != Dimensions[index]
+                    || limit.Comparison != (limit.Dimension == BrowserLimitDimension.ZoomMillionthsMinimum
+                        ? BrowserLimitComparison.AtLeast
+                        : BrowserLimitComparison.AtMost)
                     || limit.Value is 0 or > JavaScriptMaximumSafeInteger)
                 .Any())
         {
@@ -192,7 +179,7 @@ internal sealed class BrowserPolicy
             < MinimumInteropBatchBytes)
         {
             throw new ArgumentException(
-                "The interop batch budget must carry an envelope and one Base64 quantum.",
+                "The interop batch budget must carry an envelope and one byte.",
                 nameof(limits));
         }
 

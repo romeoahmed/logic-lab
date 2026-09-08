@@ -822,8 +822,7 @@ internal sealed partial class EditorWorkspace
                 save.Precondition.ExpectedDurableVersion.Value),
             PrepareExport prepare => SerializeCanonicalIdentity(
                 nameof(PrepareExport),
-                prepare.Precondition.ProjectRevisionId.Value,
-                prepare.ProjectRevisionId.Value),
+                prepare.Precondition.ProjectRevisionId.Value),
             CloseWorkspace => SerializeCanonicalIdentity(nameof(CloseWorkspace)),
             _ => SerializeCanonicalIdentity(
                 command.GetType().FullName ?? command.GetType().Name),

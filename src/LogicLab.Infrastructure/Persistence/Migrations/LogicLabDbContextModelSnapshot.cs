@@ -109,7 +109,8 @@ namespace LogicLab.Infrastructure.Persistence.Migrations
                     b.Property<string>("Id")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
-                        .HasColumnName("durable_project_id");
+                        .HasColumnName("durable_project_id")
+                        .UseCollation("C");
 
                     b.Property<string>("ClaimWorkspaceId")
                         .IsRequired()

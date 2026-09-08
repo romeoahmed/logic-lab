@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\..\src\LogicLab.Web\LogicLab.Web.csproj" />
+    <Compile Include="../LogicLab.Web.Testing/LogicLabKestrelApplication.cs"
+             Link="Fixtures/LogicLabKestrelApplication.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -9,6 +11,7 @@
 
   <ItemGroup>
     <PackageReference Include="bunit" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.Testing" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="TUnit" />
     <PackageReference Include="TUnit.AspNetCore" />

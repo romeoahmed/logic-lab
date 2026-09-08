@@ -10,6 +10,10 @@ namespace LogicLab.Presentation.TeachingMixed;
 
 public static class TeachingMixedGeometryPlanner
 {
+    /// <summary>
+    /// Resolves a registered component symbol into immutable geometry using matching text metrics.
+    /// Layout failure or cancellation returns a rejected outcome without a partial plan.
+    /// </summary>
     public static GeometryPlanOutcomeV1 Plan(
         ComponentSymbolRequestV1 request,
         ulong maximumPortCount,
@@ -135,9 +139,7 @@ public static class TeachingMixedGeometryPlanner
                         request.Facing));
                 var rectangularPorts = ports.Select(port => new RectangularSymbolPort(
                     port.Id,
-                    port.Id,
-                    port.Direction,
-                    port.Width)).ToArray();
+                    port.Direction)).ToArray();
                 draft = RectangularSymbolGeometryBuilder.Build(
                     layoutRequest,
                     rectangularPorts,
@@ -197,6 +199,10 @@ public static class TeachingMixedGeometryPlanner
         }
     }
 
+    /// <summary>
+    /// Plans a rectangular symbol for an authored Circuit Definition, preserving its public Port order.
+    /// User-defined symbols carry an explicit Teaching Extension conformance claim.
+    /// </summary>
     public static GeometryPlanOutcomeV1 Plan(
         CircuitDefinitionSymbolRequestV1 request,
         ulong maximumPortCount,
@@ -270,9 +276,7 @@ public static class TeachingMixedGeometryPlanner
                 conformance);
             var ports = request.Definition.Ports.Select(port => new RectangularSymbolPort(
                 port.Id.Value,
-                port.DisplayName,
-                port.Direction,
-                port.Width)).ToArray();
+                port.Direction)).ToArray();
             var draft = RectangularSymbolGeometryBuilder.Build(
                 layoutRequest,
                 ports,

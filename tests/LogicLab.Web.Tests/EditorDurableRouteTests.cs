@@ -461,7 +461,7 @@ internal sealed class EditorDurableRouteTests
     }
 
     [Test]
-    public async Task Editor_DurableRoute_ReportsObservedDurableVersion()
+    public async Task Editor_DurableRoute_ReportsSavedState()
     {
         await using var context = WebTestContext.CreateBunitContext(
             configureAttachmentNavigation: true);
@@ -482,7 +482,7 @@ internal sealed class EditorDurableRouteTests
         var saveStatus = await rendered.WaitForElementAsync(
             "[data-status='save'] dd");
 
-        await Assert.That(saveStatus.TextContent).Contains("version-1");
+        await Assert.That(saveStatus.TextContent).IsEqualTo("Saved");
     }
 
     [Test]

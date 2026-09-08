@@ -4,15 +4,15 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="ErrorDescription" xml:space="preserve"><value>你的工作没有被更改。请返回首页，或打开新沙盒继续。</value></data>
+  <data name="ErrorDescription" xml:space="preserve"><value>无法确认这次操作的结果。请返回上一页检查工作状态，或返回首页。</value></data>
   <data name="ErrorEyebrow" xml:space="preserve"><value>请求已中断</value></data>
   <data name="ErrorOpenSandbox" xml:space="preserve"><value>打开新沙盒</value></data>
   <data name="ErrorPageTitle" xml:space="preserve"><value>错误</value></data>
   <data name="ErrorRequestId" xml:space="preserve"><value>请求 ID</value></data>
   <data name="ErrorReturnHome" xml:space="preserve"><value>返回首页</value></data>
   <data name="ErrorTitle" xml:space="preserve"><value>无法完成请求</value></data>
-  <data name="HelpDescriptionClaim" xml:space="preserve"><value>登录后即可保存沙盒，并从项目列表重新打开。</value></data>
-  <data name="HelpDescriptionStart" xml:space="preserve"><value>创建沙盒，选择示例或自行绘制电路，再编译并运行仿真。</value></data>
+  <data name="HelpDescriptionClaim" xml:space="preserve"><value>在“项目选项”中选择“导出项目”，即可下载 .logiclab 文件。要保存到账户，请登录并选择“保存项目”，以后可从项目列表重新打开。修改后需要再次保存。</value></data>
+  <data name="HelpDescriptionStart" xml:space="preserve"><value>打开示例探索可运行的电路，或从空沙盒开始绘制自己的电路。</value></data>
   <data name="HelpEyebrow" xml:space="preserve"><value>Logic Lab 帮助</value></data>
   <data name="HelpOpenWorkbench" xml:space="preserve"><value>打开工作台</value></data>
   <data name="HelpPageTitle" xml:space="preserve"><value>帮助 · Logic Lab</value></data>
@@ -43,22 +43,26 @@
   <data name="HelpFirstCircuitTitle" xml:space="preserve"><value>完成第一个可运行电路。</value></data>
   <data name="HelpStepChooseTitle" xml:space="preserve"><value>打开“反相器入门”</value></data>
   <data name="HelpStepChooseDescription" xml:space="preserve"><value>在工作台起始页选择示例，即可打开包含一个输入端、一个非门和一个输出端的完整沙盒；电路已编译。</value></data>
-  <data name="HelpStepStartTitle" xml:space="preserve"><value>启动仿真</value></data>
-  <data name="HelpStepStartDescription" xml:space="preserve"><value>启动仿真会话，逻辑分析仪会显示输出。修改电路后，需要重新编译再创建新会话。</value></data>
+  <data name="HelpStepStartTitle" xml:space="preserve"><value>开始仿真</value></data>
+  <data name="HelpStepStartDescription" xml:space="preserve"><value>点击“开始仿真”，画布下方的逻辑分析仪就会显示输出。</value></data>
   <data name="HelpStepInputsTitle" xml:space="preserve"><value>应用输入</value></data>
-  <data name="HelpStepInputsDescription" xml:space="preserve"><value>在检查器的输入框中填入 1，点击“应用输入”，将变化安排到下一个逻辑时间。</value></data>
+  <data name="HelpStepInputsDescription" xml:space="preserve"><value>在检查器中填入 1，点击“应用输入”。窄屏下先打开“检查选区”以显示这些控件。变化将在下一个逻辑时间应用。</value></data>
   <data name="HelpStepRunTitle" xml:space="preserve"><value>步进并观察</value></data>
   <data name="HelpStepRunDescription" xml:space="preserve"><value>步进一次，反相器输出变为 0。再将输入改为 0、应用并步进，输出就会变为 1。</value></data>
   <data name="HelpExamplesEyebrow" xml:space="preserve"><value>选择合适的示例</value></data>
   <data name="HelpExamplesTitle" xml:space="preserve"><value>先从小电路开始，再逐步展开结构。</value></data>
   <data name="HelpInverterTitle" xml:space="preserve"><value>反相器入门</value></data>
-  <data name="HelpInverterDescription" xml:space="preserve"><value>通过一条清晰的信号路径体验应用输入、步进和读取输出。示例打开时已编译。</value></data>
+  <data name="HelpInverterDescription" xml:space="preserve"><value>沿着一条信号路径，了解输入端、非门和输出端如何协同工作。</value></data>
   <data name="HelpCombinationalExamplesTitle" xml:space="preserve"><value>组合逻辑结构</value></data>
   <data name="HelpCombinationalExamplesDescription" xml:space="preserve"><value>二选一复用器保持精简；四位超前进位加法器则展开生成项、传播项与并行进位项。</value></data>
   <data name="HelpBitSerialTitle" xml:space="preserve"><value>位串行加法</value></data>
   <data name="HelpBitSerialDescription" xml:space="preserve"><value>默认的 11 + 6 在四个时钟上升沿后得到结果 0001、进位 1（步进七次）。重新计算时，填入二进制 A、B，将 Load operands 设为 1，应用并步进到下一个上升沿；随后将 Load operands 设为 0，应用并再推进四个上升沿。每次步进都会翻转时钟。</value></data>
   <data name="HelpCanvasEyebrow" xml:space="preserve"><value>画布操作</value></data>
-  <data name="HelpCanvasTitle" xml:space="preserve"><value>选择、平移和缩放电路图。</value></data>
+  <data name="HelpCanvasTitle" xml:space="preserve"><value>绘制、检查和修改电路。</value></data>
+  <data name="HelpCanvasDraw" xml:space="preserve"><value>放置与连线</value></data>
+  <data name="HelpCanvasDrawDescription" xml:space="preserve"><value>在“元件”中选择组件，再点击画布放置。选择“连线”，在两个端口之间拖动即可连接。Esc 可取消正在进行的操作。</value></data>
+  <data name="HelpContinueSimulation" xml:space="preserve"><value>修改后继续仿真</value></data>
+  <data name="HelpContinueSimulationDescription" xml:space="preserve"><value>修改电路后先编译。已有仿真时，选择“应用更改”保留兼容状态，或选择“重新开始仿真”重置状态。编译出错时，可在“诊断”中定位问题。</value></data>
   <data name="HelpCanvasSelect" xml:space="preserve"><value>选择</value></data>
   <data name="HelpCanvasSelectDescription" xml:space="preserve"><value>点击元件、端口、导线或网络锚点即可选中，并显示可用操作。</value></data>
   <data name="HelpCanvasPan" xml:space="preserve"><value>平移</value></data>

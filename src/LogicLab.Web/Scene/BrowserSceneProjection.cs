@@ -65,6 +65,10 @@ internal static class BrowserSceneProjection
         var projection = ((SchematicProjectionSucceededV1)outcome).Projection;
         var definition = revision.Document.FindCircuitDefinition(circuitDefinitionId)
             ?? throw new InvalidOperationException("The projected Circuit Definition is missing.");
+        var terminalNets = definition.Nets.SelectMany(net => net.Terminals.Select(terminal =>
+            (Terminal: SceneSourceMap.From(definition.Id, terminal),
+                Net: SceneSourceMap.From(new NetSourceIdentity(definition.Id, net.Id)))))
+            .ToDictionary(binding => binding.Terminal, binding => binding.Net);
         var items = projection.Items
             .Select((item, order) => MapItem(
                 definition,
@@ -72,6 +76,12 @@ internal static class BrowserSceneProjection
                 order,
                 projection.Bounds,
                 projection.GridStepPlanUnits))
+            .Select(item => item with
+            {
+                HitRegions = [.. item.HitRegions.Select(region => region.TargetSource is { } terminal
+                    ? region with { ConnectedNet = terminalNets.GetValueOrDefault(terminal) }
+                    : region)],
+            })
             .ToArray();
         var overlays = MapOverlays(
             circuitDefinitionId,

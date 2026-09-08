@@ -14,8 +14,7 @@
 
 <PageTitle>@Text["RegisterPageTitle"]</PageTitle>
 
-<AccountShell Eyebrow="@Text["RegisterEyebrow"]"
-              Title="@Text["RegisterTitle"]"
+<AccountShell Title="@Text["RegisterTitle"]"
               Description="@Text["RegisterDescription"]">
     @if (errors is not null)
     {
@@ -34,17 +33,15 @@
               OnValidSubmit="RegisterAsync"
               OnInvalidSubmit="ClearPasswords">
         <DataAnnotationsValidator />
-        <ValidationSummary class="validation-summary" />
+        <ValidationSummary class="validation-summary" Model="Input" />
         <div class="form-field">
-            <FluentTextInput Id="register-email"
-                             Name="Input.Email"
-                             Label="@Text["Email"]"
-                             aria-describedby="register-email-validation"
-                             AutoComplete="username"
-                             MaxLength="@AccountInputLimits.MaximumEmailLength"
-                             Size="TextInputSize.Large"
-                             Width="100%"
-                             @bind-Value="Input.Email" />
+            <label for="register-email">@Text["Email"]</label>
+            <InputText id="register-email" type="email"
+                       name="Input.Email"
+                       aria-describedby="register-email-validation"
+                       autocomplete="username"
+                       maxlength="@AccountInputLimits.MaximumEmailLength"
+                       @bind-Value="Input.Email" />
             <div class="field-validation"
                  id="register-email-validation"
                  aria-live="polite">
@@ -52,16 +49,14 @@
             </div>
         </div>
         <div class="form-field">
-            <FluentTextInput Id="register-password"
-                             Name="Input.Password"
-                             Label="@Text["Password"]"
-                             aria-describedby="register-password-hint register-password-validation"
-                             TextInputType="TextInputType.Password"
-                             AutoComplete="new-password"
-                             MaxLength="@AccountInputLimits.MaximumPasswordLength"
-                             Size="TextInputSize.Large"
-                             Width="100%"
-                             @bind-Value="Input.Password" />
+            <label for="register-password">@Text["Password"]</label>
+            <InputText id="register-password"
+                       name="Input.Password"
+                       aria-describedby="register-password-hint register-password-validation"
+                       type="password"
+                       autocomplete="new-password"
+                       maxlength="@AccountInputLimits.MaximumPasswordLength"
+                       @bind-Value="Input.Password" />
             <p class="field-hint" id="register-password-hint">
                 @Text["RegisterPasswordHint"]
             </p>
@@ -72,25 +67,21 @@
             </div>
         </div>
         <div class="form-field">
-            <FluentTextInput Id="register-confirm-password"
-                             Name="Input.ConfirmPassword"
-                             Label="@Text["ConfirmPassword"]"
-                             aria-describedby="register-confirm-password-validation"
-                             TextInputType="TextInputType.Password"
-                             AutoComplete="new-password"
-                             MaxLength="@AccountInputLimits.MaximumPasswordLength"
-                             Size="TextInputSize.Large"
-                             Width="100%"
-                             @bind-Value="Input.ConfirmPassword" />
+            <label for="register-confirm-password">@Text["ConfirmPassword"]</label>
+            <InputText id="register-confirm-password"
+                       name="Input.ConfirmPassword"
+                       aria-describedby="register-confirm-password-validation"
+                       type="password"
+                       autocomplete="new-password"
+                       maxlength="@AccountInputLimits.MaximumPasswordLength"
+                       @bind-Value="Input.ConfirmPassword" />
             <div class="field-validation"
                  id="register-confirm-password-validation"
                  aria-live="polite">
                 <ValidationMessage For="@(() => Input.ConfirmPassword)" />
             </div>
         </div>
-        <FluentButton Type="ButtonType.Submit"
-                      Size="ButtonSize.Large"
-                      Appearance="ButtonAppearance.Primary">@Text["RegisterSubmit"]</FluentButton>
+        <button type="submit" class="account-submit">@Text["RegisterSubmit"]</button>
     </EditForm>
 
     <p class="account-switch">@Text["RegisterAlreadyRegistered"] <a href="/account/login">@Text["RegisterLogIn"]</a></p>

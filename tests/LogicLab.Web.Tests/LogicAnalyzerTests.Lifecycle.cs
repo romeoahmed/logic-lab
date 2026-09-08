@@ -172,7 +172,7 @@ internal sealed partial class LogicAnalyzerTests
                     break;
                 case "appendTransfer":
                     transfers[(string)args![0]!].AddRange(
-                        Convert.FromBase64String((string)args[2]!));
+                        (byte[])args[2]!);
                     break;
                 case "commitTransfer":
                     var reject = RejectCommit;

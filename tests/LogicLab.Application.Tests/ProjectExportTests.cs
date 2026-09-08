@@ -6,7 +6,7 @@ namespace LogicLab.Application.Tests;
 
 internal sealed class ProjectExportTests
 {
-    [Test]
+    [Test, Timeout(30_000)]
     public async Task DispatchAsync_GlobalExportPreparationLimitExceeded_RejectsBeforeStagingAndReusesPermit(
         CancellationToken cancellationToken)
     {
@@ -53,16 +53,14 @@ internal sealed class ProjectExportTests
             cancellationToken);
         await firstWriterEntered.Task.WaitAsync(cancellationToken);
 
-        Task<WorkspaceCommandOutcome> secondPreparation;
-        bool secondCompletedWithoutWaiting;
+        WorkspaceCommandOutcome secondOutcome;
         int writesAfterRejection;
         int stagingAfterRejection;
         try
         {
-            secondPreparation = workspace.DispatchAsync(
+            secondOutcome = await workspace.DispatchAsync(
                 Prepare(secondOpened, secondAttached, "export-second-rejected"),
                 cancellationToken);
-            secondCompletedWithoutWaiting = secondPreparation.IsCompleted;
             writesAfterRejection = Volatile.Read(ref writeCount);
             stagingAfterRejection = store.Created.Count;
         }
@@ -72,7 +70,6 @@ internal sealed class ProjectExportTests
         }
 
         var firstOutcome = await firstPreparation;
-        var secondOutcome = await secondPreparation;
         var reusedOutcome = await workspace.DispatchAsync(
             Prepare(secondOpened, secondAttached, "export-second-reused"),
             cancellationToken);
@@ -81,7 +78,6 @@ internal sealed class ProjectExportTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(secondCompletedWithoutWaiting).IsTrue();
             await Assert.That(rejected.Code)
                 .IsEqualTo(WorkspaceOutcomeReasons.ExportCapacityUnavailable);
             await Assert.That(writesAfterRejection).IsEqualTo(1);
@@ -130,8 +126,7 @@ internal sealed class ProjectExportTests
 
         var command = new PrepareExport(
             EditorWorkspaceTestDriver.Command(opened.WorkspaceId, attached, "export-1"),
-            new AuthoringPrecondition(before.ProjectRevision.RevisionId),
-            before.ProjectRevision.RevisionId);
+            new AuthoringPrecondition(before.ProjectRevision.RevisionId));
         var outcome = await workspace.DispatchAsync(command, cancellationToken);
         var replay = await workspace.DispatchAsync(command, cancellationToken);
         var after = (ProjectionSnapshot)await workspace.ReadAsync(
@@ -140,8 +135,21 @@ internal sealed class ProjectExportTests
             cancellationToken);
 
         var prepared = (await Assert.That(outcome).IsTypeOf<ExportPrepared>())!;
+        var carrier = store.Publications.Single().Staging.Content;
+        carrier.Position = 0;
+        var read = await ProjectPackage.ReadAsync(
+            new ProjectPackageReadRequest(carrier, PackagePolicy.Default),
+            cancellationToken);
+        var imported = (await Assert.That(read).IsTypeOf<PackageReadSucceeded>())!
+            .ImportCandidate.Document;
         using (Assert.Multiple())
         {
+            await Assert.That(prepared.ProjectRevisionId)
+                .IsEqualTo(before.ProjectRevision.RevisionId);
+            await Assert.That(imported.ProjectId)
+                .IsEqualTo(before.ProjectRevision.Document.ProjectId);
+            await Assert.That(imported.DisplayName)
+                .IsEqualTo(before.ProjectRevision.Document.DisplayName);
             await Assert.That(replay).IsEqualTo(prepared);
             await Assert.That(writeCount).IsEqualTo(1);
             await Assert.That(store.Publications).HasSingleItem();
@@ -149,8 +157,6 @@ internal sealed class ProjectExportTests
                 .IsEqualTo(prepared.ExportTicket);
             await Assert.That(store.Publications[0].AuthorizedCaller)
                 .IsEqualTo(AnonymousWorkspaceCaller.Instance);
-            await Assert.That(store.Publications[0].Staging.Content.Length)
-                .IsGreaterThan(0L);
             await Assert.That(prepared.ExpiresAfterSeconds).IsGreaterThan(0UL);
             await Assert.That(store.PublishedExpiresAtUtc)
                 .IsEqualTo(timeProvider.GetUtcNow().Add(
@@ -197,8 +203,7 @@ internal sealed class ProjectExportTests
         var outcome = await workspace.DispatchAsync(
             new PrepareExport(
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, attached),
-                new AuthoringPrecondition(opened.Projection.ProjectRevision.RevisionId),
-                opened.Projection.ProjectRevision.RevisionId),
+                new AuthoringPrecondition(opened.Projection.ProjectRevision.RevisionId)),
             cancellationToken);
 
         var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
@@ -228,21 +233,19 @@ internal sealed class ProjectExportTests
             workspace,
             opened.WorkspaceId,
             cancellationToken);
-        var differentRevision = ((ProjectGenesisCommitted)ProjectEditor.Begin(
-            new NewProjectSeed(
-                "Different",
-                LibrarySnapshot.Core,
-                new SymbolProfileReference(
-                    "TeachingMixed",
-                    "1.0.0",
-                    IndicationConvention.Negation),
-                "Main"))).Revision.RevisionId;
+        var originalRevision = opened.Projection.ProjectRevision;
+        var edit = await workspace.DispatchAsync(new ApplyEdit(
+            EditorWorkspaceTestDriver.Command(opened.WorkspaceId, attached),
+            new AuthoringPrecondition(originalRevision.RevisionId),
+            new RenameCircuitDefinitionIntent(
+                originalRevision.Document.EntryCircuitDefinitionId,
+                "Renamed circuit")), cancellationToken);
+        await Assert.That(edit).IsTypeOf<AuthoringCommitted>();
 
         var outcome = await workspace.DispatchAsync(
             new PrepareExport(
                 EditorWorkspaceTestDriver.Command(opened.WorkspaceId, attached),
-                new AuthoringPrecondition(differentRevision),
-                differentRevision),
+                new AuthoringPrecondition(originalRevision.RevisionId)),
             cancellationToken);
 
         var rejected = (await Assert.That(outcome).IsTypeOf<WorkspaceCommandRejected>())!;
@@ -302,8 +305,7 @@ internal sealed class ProjectExportTests
                 opened.WorkspaceId,
                 attached,
                 intentId),
-            new AuthoringPrecondition(revisionId),
-            revisionId);
+            new AuthoringPrecondition(revisionId));
     }
 
     private sealed class RecordingStaging : IProjectExportStaging

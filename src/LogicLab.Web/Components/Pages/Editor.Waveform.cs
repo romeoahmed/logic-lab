@@ -121,12 +121,12 @@ public sealed partial class Editor
         }
     }
 
-    private Task RevealProbeSourceAsync(CompilationSource source)
+    private async Task RevealProbeSourceAsync(CompilationSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (source.Identity is not NetSourceIdentity || !TryRevealSource(source))
+        if (source.Identity is not NetSourceIdentity || !await TryRevealSourceAsync(source))
         {
-            return Task.CompletedTask;
+            return;
         }
 
         Status = Text[
@@ -137,6 +137,5 @@ public sealed partial class Editor
                 new ProbePresentationLabels(
                     Text["ComponentInput"],
                     Text["ComponentOutput"]))];
-        return Task.CompletedTask;
     }
 }

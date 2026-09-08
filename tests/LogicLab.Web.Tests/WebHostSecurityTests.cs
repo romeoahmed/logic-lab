@@ -6,37 +6,12 @@ using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Net.Http.Headers;
-using TUnit.AspNetCore;
 
 namespace LogicLab.Web.Tests;
-
-internal sealed class LogicLabWebFactory : TestWebApplicationFactory<Program>
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.UseEnvironment(Environments.Staging);
-    }
-}
-
-internal static class LogicLabWebFactoryClient
-{
-    private static readonly Uri HttpsBaseAddress = new("https://localhost/");
-
-    public static HttpClient CreateHttpsClient(
-        this WebApplicationFactory<Program> factory)
-    {
-        var client = factory.Server.CreateClient();
-        client.BaseAddress = HttpsBaseAddress;
-        return client;
-    }
-}
 
 [ClassDataSource<LogicLabWebFactory>]
 internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
@@ -58,7 +33,7 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
     [Test]
     public async Task Get_AnonymousBootstrap_IssuesCallerCookieOnlyOnPrivateEditorResponse()
     {
-        using var client = factory.CreateHttpsClient();
+        using var client = factory.CreateClient();
 
         using var staticAsset = await client.GetAsync(
             new Uri("/app.css", UriKind.Relative));
@@ -104,9 +79,9 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
                     IStartupFilter,
                     AuthenticatedRequestStartupFilter>());
             }));
-        using var firstJar = host.CreateHttpsClient();
-        using var secondJar = host.CreateHttpsClient();
-        using var discardedCookieJar = host.CreateHttpsClient();
+        using var firstJar = host.CreateClient();
+        using var secondJar = host.CreateClient();
+        using var discardedCookieJar = host.CreateClient();
 
         using var first = await firstJar.GetAsync(new Uri("/editor", UriKind.Relative));
         var callerCookie = SetCookies(first).Single(IsAnonymousCallerCookie)
@@ -166,7 +141,7 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
         string path,
         HttpStatusCode expectedStatus)
     {
-        using var client = factory.CreateHttpsClient();
+        using var client = factory.CreateClient();
         using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
         var contentSecurityPolicy = Header(response, "Content-Security-Policy");
         var contentSecurityPolicyDirectives = CanonicalizeContentSecurityPolicy(
@@ -225,7 +200,7 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
     [Test]
     public async Task Get_ProjectsWithoutAuthentication_ChallengesToLocalLogin()
     {
-        using var client = factory.CreateHttpsClient();
+        using var client = factory.CreateClient();
 
         using var response = await client.GetAsync(
             new Uri("/projects", UriKind.Relative));
@@ -243,7 +218,7 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
     {
         var policy = AccountIngressPolicy.Default;
         using var host = factory.WithWebHostBuilder(_ => { });
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         var loginForm = await WebTestHttp.GetAntiforgeryFormAsync(
             client,
             "/account/login");
@@ -299,7 +274,7 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
     {
         const int maximumBodyBytes = AccountIngressPolicy.MaximumRequestBodyBytes;
         using var host = factory.WithWebHostBuilder(_ => { });
-        using var client = host.CreateHttpsClient();
+        using var client = host.CreateClient();
         var form = await WebTestHttp.GetAntiforgeryFormAsync(client, path);
 
         using var accepted = await PostSizedIdentityFormAsync(
@@ -325,7 +300,7 @@ internal sealed class WebHostSecurityTests(LogicLabWebFactory factory)
     [Test]
     public async Task AntiforgeryCookie_HttpsResponse_IncludesSecureAttribute()
     {
-        using var client = factory.CreateHttpsClient();
+        using var client = factory.CreateClient();
         using var response = await client.GetAsync(
             new Uri("https://localhost/account/login"));
         response.EnsureSuccessStatusCode();

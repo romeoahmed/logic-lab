@@ -6,6 +6,7 @@ using FsCheck.Fluent;
 using LogicLab.Web.Scene;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using TUnit.Assertions.Enums;
 using TUnit.FsCheck;
 
 namespace LogicLab.Web.Tests;
@@ -61,13 +62,13 @@ internal sealed class BrowserSceneAdapterTests
         var begin = handle.Calls.Single(call => call.Identifier == "beginTransfer");
         var reconstructed = handle.Calls
             .Where(call => call.Identifier == "appendTransfer")
-            .SelectMany(call => Convert.FromBase64String((string)call.Arguments[2]!))
+            .SelectMany(call => (byte[])call.Arguments[2]!)
             .ToArray();
 
         using (Assert.Multiple())
         {
             await Assert.That(reconstructed)
-                .IsEquivalentTo(expected);
+                .IsEquivalentTo(expected, CollectionOrdering.Matching);
             await Assert.That(begin.Arguments[1]).IsEqualTo("replacement");
         }
     }

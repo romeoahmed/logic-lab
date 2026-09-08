@@ -23,81 +23,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
 
     public async Task OpenAsync()
     {
-        var module = await File.ReadAllTextAsync(
-            Path.Combine(AppContext.BaseDirectory, "CircuitSceneHost.razor.js"));
-        var drawingModule = await File.ReadAllTextAsync(
-            Path.Combine(AppContext.BaseDirectory, "drawing.js"));
-        var geometryModule = await File.ReadAllTextAsync(
-            Path.Combine(AppContext.BaseDirectory, "geometry.js"));
-        var protocolModule = await File.ReadAllTextAsync(
-            Path.Combine(AppContext.BaseDirectory, "protocol.js"));
-        var symbolFontModule = await File.ReadAllTextAsync(
-            Path.Combine(AppContext.BaseDirectory, "symbol-font.js"));
-        var styles = await File.ReadAllTextAsync(
-            Path.Combine(AppContext.BaseDirectory, "CircuitSceneHost.razor.css"));
-        var fontPath = Path.Combine(
-            AppContext.BaseDirectory,
-            "NotoSansSC-Regular.woff2");
-        var html = TestDocument();
-
-        await page.RouteAsync($"{Origin}/**", route =>
-        {
-            var path = new Uri(route.Request.Url).AbsolutePath;
-            return path switch
-            {
-                "/Components/Editor/CircuitSceneHost.razor.js" => route.FulfillAsync(
-                    new RouteFulfillOptions
-                    {
-                        Status = 200,
-                        ContentType = "text/javascript",
-                        Body = module,
-                    }),
-                "/js/circuit-scene/drawing.js" => route.FulfillAsync(new RouteFulfillOptions
-                {
-                    Status = 200,
-                    ContentType = "text/javascript",
-                    Body = drawingModule,
-                }),
-                "/js/circuit-scene/geometry.js" => route.FulfillAsync(new RouteFulfillOptions
-                {
-                    Status = 200,
-                    ContentType = "text/javascript",
-                    Body = geometryModule,
-                }),
-                "/js/circuit-scene/protocol.js" => route.FulfillAsync(new RouteFulfillOptions
-                {
-                    Status = 200,
-                    ContentType = "text/javascript",
-                    Body = protocolModule,
-                }),
-                "/js/circuit-scene/symbol-font.js" => route.FulfillAsync(new RouteFulfillOptions
-                {
-                    Status = 200,
-                    ContentType = "text/javascript",
-                    Body = symbolFontModule,
-                }),
-                "/CircuitSceneHost.razor.css" => route.FulfillAsync(new RouteFulfillOptions
-                {
-                    Status = 200,
-                    ContentType = "text/css",
-                    Body = styles,
-                }),
-                "/fonts/NotoSansSC-Regular.woff2" => route.FulfillAsync(
-                    new RouteFulfillOptions
-                    {
-                        Status = 200,
-                        ContentType = "font/woff2",
-                        Path = fontPath,
-                    }),
-                _ => route.FulfillAsync(new RouteFulfillOptions
-                {
-                    Status = 200,
-                    ContentType = "text/html",
-                    Body = html,
-                }),
-            };
-        });
-        await page.GotoAsync($"{Origin}/");
+        await BrowserAdapterPage.OpenAsync(page, Origin, TestDocument());
         await page.EvaluateAsync("policy => window.scenePolicy = policy", BrowserPolicy());
     }
 
@@ -529,7 +455,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
               window.sceneHandle.beginTransfer(
                 'out-of-order', 'patch', request.byteLength, request.digest);
               try {
-                window.sceneHandle.appendTransfer('out-of-order', 1, request.base64);
+                window.sceneHandle.appendTransfer('out-of-order', 1, new Uint8Array(request.bytes));
                 return false;
               } catch {
                 return true;
@@ -540,7 +466,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
             {
                 byteLength = bytes.Length,
                 digest,
-                base64 = Convert.ToBase64String(bytes),
+                bytes = bytes.Select(value => (int)value).ToArray(),
             });
     }
 
@@ -548,7 +474,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
     {
         const int maximumBatchBytes = 16_384;
         const int interopEnvelopeBytes = 512;
-        var rawChunkSize = ((maximumBatchBytes - interopEnvelopeBytes) / 4) * 3;
+        var rawChunkSize = maximumBatchBytes - interopEnvelopeBytes;
         var request = new
         {
             transferId = $"test-{Guid.CreateVersion7():N}",
@@ -556,7 +482,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
             byteLength = bytes.Length,
             digest = Convert.ToHexStringLower(SHA256.HashData(bytes)),
             chunks = bytes.Chunk(rawChunkSize)
-                .Select(Convert.ToBase64String)
+                .Select(chunk => chunk.Select(value => (int)value).ToArray())
                 .ToArray(),
         };
         var committed = await page.EvaluateAsync<bool>(
@@ -565,7 +491,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
               window.sceneHandle.beginTransfer(
                 request.transferId, request.kind, request.byteLength, request.digest);
               request.chunks.forEach((chunk, ordinal) =>
-                window.sceneHandle.appendTransfer(request.transferId, ordinal, chunk));
+                window.sceneHandle.appendTransfer(request.transferId, ordinal, new Uint8Array(chunk)));
               return await window.sceneHandle.commitTransfer(request.transferId);
             }
             """,
@@ -603,7 +529,7 @@ internal sealed class CircuitSceneTestPage(IPage page)
         <html lang="en">
         <head>
           <meta charset="utf-8">
-          <link rel="stylesheet" href="/CircuitSceneHost.razor.css">
+          <link rel="stylesheet" href="/Components/Editor/CircuitSceneHost.razor.css">
           <style>
             :root {
               --ll-canvas: #fff;

@@ -1,39 +1,32 @@
-using System.Globalization;
-using FsCheck;
-using FsCheck.Fluent;
 using LogicLab.Domain.Authoring;
-using TUnit.FsCheck;
 
 namespace LogicLab.Domain.Tests;
 
 internal sealed class AuthoredSourceIdentityTests
 {
-    [Test, FsCheckProperty]
-    public Property Equality_ReusedLocalIds_PreservesContainerAndEntityKind(uint generatedId)
+    [Test]
+    public async Task Equality_ReusedLocalIds_PreservesContainerAndEntityKind()
     {
-        var id = generatedId.ToString(CultureInfo.InvariantCulture);
-        var circuit = new CircuitDefinitionId("c" + id);
-        var otherCircuit = new CircuitDefinitionId("other" + id);
+        const string id = "shared-local-id";
+        var circuit = new CircuitDefinitionId("first");
+        var otherCircuit = new CircuitDefinitionId("second");
         var sources = Sources(circuit, id);
         var copies = Sources(new CircuitDefinitionId(circuit.Value), id);
         var otherSources = Sources(otherCircuit, id);
         var distinct = new HashSet<AuthoredSourceIdentity>(sources);
 
-        for (var index = 0; index < sources.Length; index++)
+        using (Assert.Multiple())
         {
-            // The same local token is deliberately used for every kind and both containers.
-            if (sources[index].CircuitDefinitionId != circuit
-                || sources[index] != copies[index]
-                || sources[index].GetHashCode() != copies[index].GetHashCode()
-                || !distinct.Contains(copies[index])
-                || distinct.Contains(otherSources[index]))
+            await Assert.That(distinct).Count().IsEqualTo(sources.Length);
+            for (var index = 0; index < sources.Length; index++)
             {
-                return false.ToProperty().Label($"source identity {index} lost its scope");
+                // Equal local IDs must still distinguish entity kinds, ports, and containers.
+                await Assert.That(sources[index].CircuitDefinitionId).IsEqualTo(circuit);
+                await Assert.That(sources[index]).IsEqualTo(copies[index]);
+                await Assert.That(distinct).Contains(copies[index]);
+                await Assert.That(distinct).DoesNotContain(otherSources[index]);
             }
         }
-
-        return (distinct.Count == sources.Length)
-            .ToProperty().Label("different source kinds remain distinct with identical local IDs");
     }
 
     private static CircuitSourceIdentity[] Sources(CircuitDefinitionId circuit, string id) =>

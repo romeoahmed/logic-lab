@@ -10,7 +10,6 @@
   <data name="Build" xml:space="preserve"><value>Build</value></data>
   <data name="Circuit" xml:space="preserve"><value>Circuit</value></data>
   <data name="CircuitDefinitionInstance" xml:space="preserve"><value>Circuit Definition instance</value></data>
-  <data name="CircuitSceneEyebrow" xml:space="preserve"><value>Schematic</value></data>
   <data name="Compilation" xml:space="preserve"><value>Compilation</value></data>
   <data name="CompilationNotRequested" xml:space="preserve"><value>Not requested</value></data>
   <data name="CompilationPublished" xml:space="preserve"><value>Published</value></data>
@@ -24,7 +23,6 @@
   <data name="Connection" xml:space="preserve"><value>Connection</value></data>
   <data name="CreateSandbox" xml:space="preserve"><value>Create Sandbox</value></data>
   <data name="CreateSession" xml:space="preserve"><value>Start simulation</value></data>
-  <data name="DefinitionContext" xml:space="preserve"><value>Circuit navigation</value></data>
   <data name="DefinitionView" xml:space="preserve"><value>Definition view</value></data>
   <data name="DurableProjectName" xml:space="preserve"><value>Project name</value></data>
   <data name="ElaboratedOccurrence" xml:space="preserve"><value>Instance view</value></data>
@@ -32,29 +30,24 @@
   <data name="Entry" xml:space="preserve"><value>Entry</value></data>
   <data name="EntryCircuitDefinition" xml:space="preserve"><value>Entry Circuit Definition</value></data>
   <data name="ImportProject" xml:space="preserve"><value>Import project</value></data>
-  <data name="InputsHigh" xml:space="preserve"><value>Inputs = 1</value></data>
-  <data name="InstrumentBay" xml:space="preserve"><value>Signal monitor</value></data>
   <data name="KeepDurable" xml:space="preserve"><value>Save project</value></data>
-  <data name="LiveReadout" xml:space="preserve"><value>Live</value></data>
   <data name="LogicalTime" xml:space="preserve"><value>Logical time</value></data>
   <data name="NoActiveSession" xml:space="preserve"><value>Simulation has not started</value></data>
   <data name="NoDefinitions" xml:space="preserve"><value>No Circuit Definitions are open.</value></data>
   <data name="Output" xml:space="preserve"><value>Output</value></data>
-  <data name="SignalOrdinal" xml:space="preserve"><value>Signal {0}</value></data>
   <data name="PrepareExport" xml:space="preserve"><value>Export project</value></data>
   <data name="Probe" xml:space="preserve"><value>Probe</value></data>
-  <data name="ProbeEmptyHelp" xml:space="preserve"><value>Compile the circuit, then start the simulation.</value></data>
+  <data name="ProbeEmptyHelp" xml:space="preserve"><value>Start simulation to inspect signals.</value></data>
   <data name="Project" xml:space="preserve"><value>Project</value></data>
   <data name="Quiescence" xml:space="preserve"><value>Quiescence</value></data>
   <data name="Quiescent" xml:space="preserve"><value>Quiescent</value></data>
   <data name="Save" xml:space="preserve"><value>Save</value></data>
   <data name="SaveDurable" xml:space="preserve"><value>Save</value></data>
-  <data name="SaveDurableChanged" xml:space="preserve"><value>Unsaved changes · {0}</value></data>
-  <data name="SaveDurableClean" xml:space="preserve"><value>Saved · {0}</value></data>
-  <data name="SaveDurableConflict" xml:space="preserve"><value>Save conflict · {0}</value></data>
+  <data name="SaveDurableChanged" xml:space="preserve"><value>Unsaved changes</value></data>
+  <data name="SaveDurableClean" xml:space="preserve"><value>Saved</value></data>
+  <data name="SaveDurableConflict" xml:space="preserve"><value>Save conflict</value></data>
   <data name="SaveDurableUnavailable" xml:space="preserve"><value>Save status unavailable</value></data>
   <data name="SaveSandbox" xml:space="preserve"><value>Sandbox · memory only</value></data>
-  <data name="SceneCount" xml:space="preserve"><value>{0} components · {1} nets</value></data>
   <data name="SessionVersion" xml:space="preserve"><value>Session version</value></data>
   <data name="SetAsEntry" xml:space="preserve"><value>Set as entry</value></data>
   <data name="Simulation" xml:space="preserve"><value>Simulation</value></data>
@@ -71,11 +64,9 @@
   <data name="RunStatePaused" xml:space="preserve"><value>Paused</value></data>
   <data name="RunStateFailed" xml:space="preserve"><value>Failed</value></data>
   <data name="RunStateReady" xml:space="preserve"><value>Ready</value></data>
-  <data name="NoScheduledStimulus" xml:space="preserve"><value>No future events are scheduled.</value></data>
-  <data name="TabsHierarchyEntry" xml:space="preserve"><value>Definitions · hierarchy · entry</value></data>
+  <data name="NoScheduledEvents" xml:space="preserve"><value>No future events are scheduled.</value></data>
   <data name="TraceRange" xml:space="preserve"><value>Trace range</value></data>
   <data name="Unavailable" xml:space="preserve"><value>Unavailable</value></data>
-  <data name="WireOrthogonal" xml:space="preserve"><value>Orthogonal · {0}</value></data>
   <data name="ConflictDescription" xml:space="preserve"><value>Your local revision is still available. Choose how to recover it.</value></data>
   <data name="ConflictExportLocal" xml:space="preserve"><value>Export local</value></data>
   <data name="ConflictKeepCopy" xml:space="preserve"><value>Keep as copy</value></data>
@@ -86,13 +77,11 @@
   <data name="ReloadLogicLab" xml:space="preserve"><value>Reload Logic Lab</value></data>
   <data name="StartNewSandbox" xml:space="preserve"><value>Start a new Sandbox</value></data>
   <data name="ViewDurableProjects" xml:space="preserve"><value>View saved projects</value></data>
-  <data name="WorkbenchBrief" xml:space="preserve"><value>Workbench brief</value></data>
   <data name="WorkspaceUnavailable" xml:space="preserve"><value>Workspace unavailable</value></data>
   <data name="AttachmentRejected" xml:space="preserve"><value>Could not connect to the workspace: {0}.</value></data>
   <data name="AuthenticationChanged" xml:space="preserve"><value>Authentication changed. Reload the Workspace to continue.</value></data>
   <data name="AuthenticationMissingSubject" xml:space="preserve"><value>Authentication is missing a stable subject. Reload to continue.</value></data>
   <data name="AuthoringRejected" xml:space="preserve"><value>Could not create the example: {0}.</value></data>
-  <data name="CircuitAuthored" xml:space="preserve"><value>Circuit ready. Compile it to continue.</value></data>
   <data name="ClaimRejected" xml:space="preserve"><value>Could not save the sandbox: {0}.</value></data>
   <data name="ClaimSucceeded" xml:space="preserve"><value>Project “{0}” saved.</value></data>
   <data name="CompilationAccepted" xml:space="preserve"><value>Compilation {0} started.</value></data>
@@ -102,12 +91,8 @@
   <data name="CompilationStatusDetached" xml:space="preserve"><value>Compilation status is unavailable because the workspace disconnected.</value></data>
   <data name="CompilationStatusUnavailable" xml:space="preserve"><value>Compilation status unavailable: {0}.</value></data>
   <data name="CompilationWasSuperseded" xml:space="preserve"><value>Compilation {0} was replaced by a newer revision.</value></data>
-  <data name="DescriptionDurable" xml:space="preserve"><value>Inspect the saved revision, compile it, and continue in an authorized workspace.</value></data>
   <data name="DescriptionOpening" xml:space="preserve"><value>Securely reconnecting to the project…</value></data>
   <data name="DescriptionSandbox" xml:space="preserve"><value>Draw gate-level circuits, compile them, and run deterministic simulations.</value></data>
-  <data name="EyebrowDurable" xml:space="preserve"><value>Saved circuit</value></data>
-  <data name="EyebrowOpening" xml:space="preserve"><value>Opening circuit workspace</value></data>
-  <data name="EyebrowSandbox" xml:space="preserve"><value>Interactive circuit sandbox</value></data>
   <data name="ExportPrepared" xml:space="preserve"><value>Export prepared for {0} seconds.</value></data>
   <data name="ExportRejected" xml:space="preserve"><value>Export preparation rejected: {0}.</value></data>
   <data name="FailureAccessChangedDescription" xml:space="preserve"><value>Sign in with the project owner account and reopen it from Projects.</value></data>
@@ -129,7 +114,7 @@
   <data name="ProjectCreationRejected" xml:space="preserve"><value>Could not create the project: {0}.</value></data>
   <data name="SaveConflictStatus" xml:space="preserve"><value>Save conflict: the project changed elsewhere.</value></data>
   <data name="SaveRejected" xml:space="preserve"><value>Save rejected: {0}.</value></data>
-  <data name="SaveSucceeded" xml:space="preserve"><value>Project saved at version {0}.</value></data>
+  <data name="SaveSucceeded" xml:space="preserve"><value>Project saved.</value></data>
   <data name="SessionCreated" xml:space="preserve"><value>Simulation started at logical time 0.</value></data>
   <data name="SessionCreatedNoInputs" xml:space="preserve"><value>Simulation started at logical time 0. This circuit has no programmable inputs.</value></data>
   <data name="SessionRejected" xml:space="preserve"><value>Could not start the simulation: {0}.</value></data>
@@ -137,6 +122,7 @@
   <data name="StatusReady" xml:space="preserve"><value>Ready to create a Sandbox.</value></data>
   <data name="StatusReopenedDurable" xml:space="preserve"><value>Project reopened.</value></data>
   <data name="StatusReopenedSandbox" xml:space="preserve"><value>Sandbox reopened.</value></data>
+  <data name="StatusOpenedWithErrors" xml:space="preserve"><value>Project opened. Fix the circuit errors before starting simulation.</value></data>
   <data name="StatusSandboxCreated" xml:space="preserve"><value>Sandbox created. Place components to draw a circuit.</value></data>
   <data name="StepCommitted" xml:space="preserve"><value>Advanced to logical time {0}.</value></data>
   <data name="StepFailed" xml:space="preserve"><value>Step failed: {0}.</value></data>
@@ -152,44 +138,10 @@
   <data name="FailureSimulationCancelled" xml:space="preserve"><value>simulation cancelled</value></data>
   <data name="FailureSimulationInfrastructure" xml:space="preserve"><value>simulation infrastructure failure</value></data>
   <data name="FailureSimulationInternal" xml:space="preserve"><value>simulation internal defect</value></data>
-  <data name="CarryLookaheadExampleAuthored" xml:space="preserve"><value>Four-bit carry-lookahead adder created. Compile it, then change A, B, or carry in to inspect the parallel carry network.</value></data>
-  <data name="BitSerialExampleAuthored" xml:space="preserve"><value>Bit-serial adder created. Compile it, then step through four rising clock edges; use Load to capture changed operands.</value></data>
-  <data name="ExampleCarryIn" xml:space="preserve"><value>Carry in</value></data>
-  <data name="ExampleCarryOut" xml:space="preserve"><value>Carry out</value></data>
-  <data name="ExampleCarry1" xml:space="preserve"><value>Carry C1</value></data>
-  <data name="ExampleCarry2" xml:space="preserve"><value>Carry C2</value></data>
-  <data name="ExampleCarry3" xml:space="preserve"><value>Carry C3</value></data>
-  <data name="ExampleCarry4" xml:space="preserve"><value>Carry C4</value></data>
-  <data name="ExampleCarryTerm" xml:space="preserve"><value>Carry product term</value></data>
-  <data name="ExampleCarryVector" xml:space="preserve"><value>Carry vector C0–C3</value></data>
-  <data name="ExampleData0" xml:space="preserve"><value>Data 0</value></data>
-  <data name="ExampleData1" xml:space="preserve"><value>Data 1</value></data>
-  <data name="ExampleInputA" xml:space="preserve"><value>A = 1011</value></data>
-  <data name="ExampleInputB" xml:space="preserve"><value>B = 0110</value></data>
-  <data name="ExamplePropagate" xml:space="preserve"><value>Propagate P</value></data>
-  <data name="ExampleGenerate" xml:space="preserve"><value>Generate G</value></data>
-  <data name="ExamplePropagateBits" xml:space="preserve"><value>Propagate bits</value></data>
-  <data name="ExampleGenerateBits" xml:space="preserve"><value>Generate bits</value></data>
-  <data name="ExampleMultiplexer" xml:space="preserve"><value>2-to-1 multiplexer</value></data>
-  <data name="ExampleSelect" xml:space="preserve"><value>Select</value></data>
-  <data name="ExampleSelectedOutput" xml:space="preserve"><value>Selected output</value></data>
-  <data name="ExampleSum" xml:space="preserve"><value>Sum</value></data>
-  <data name="ExampleLoad" xml:space="preserve"><value>Load operands</value></data>
-  <data name="ExampleClock" xml:space="preserve"><value>Serial clock</value></data>
-  <data name="ExampleSerialZero" xml:space="preserve"><value>Serial zero</value></data>
-  <data name="ExampleParallelZero" xml:space="preserve"><value>Result clear value</value></data>
-  <data name="ExampleEnable" xml:space="preserve"><value>Shift enable</value></data>
-  <data name="ExampleOperandARegister" xml:space="preserve"><value>A shift register</value></data>
-  <data name="ExampleOperandBRegister" xml:space="preserve"><value>B shift register</value></data>
-  <data name="ExampleSerialAdder" xml:space="preserve"><value>One-bit full adder</value></data>
-  <data name="ExampleCarryRegister" xml:space="preserve"><value>Carry register</value></data>
-  <data name="ExampleResultRegister" xml:space="preserve"><value>Result shift register</value></data>
-  <data name="ExampleResult" xml:space="preserve"><value>Serial result</value></data>
   <data name="EditingDefinition" xml:space="preserve"><value>Editing Circuit Definition {0}.</value></data>
   <data name="EntryDefinitionChanged" xml:space="preserve"><value>{0} is now the entry Circuit Definition.</value></data>
   <data name="HierarchyObserving" xml:space="preserve"><value>Viewing instance {0}.</value></data>
   <data name="HierarchyReturned" xml:space="preserve"><value>Returned to {0}.</value></data>
-  <data name="SteeringExampleAuthored" xml:space="preserve"><value>2-to-1 multiplexer created. Compile it, then change Select to choose an input.</value></data>
   <data name="CanvasReady" xml:space="preserve"><value>Circuit canvas ready.</value></data>
   <data name="CanvasStarting" xml:space="preserve"><value>Preparing the circuit canvas.</value></data>
   <data name="CanvasUnavailable" xml:space="preserve"><value>The circuit canvas is unavailable. Retry the renderer.</value></data>
@@ -203,13 +155,8 @@
   <data name="WireTool" xml:space="preserve"><value>Wire</value></data>
   <data name="ChooseStarterHint" xml:space="preserve"><value>Choose a starting circuit below.</value></data>
   <data name="ProjectOptions" xml:space="preserve"><value>Project options</value></data>
-  <data name="StarterEyebrow" xml:space="preserve"><value>Start with a working circuit</value></data>
   <data name="StarterTitle" xml:space="preserve"><value>Choose an example</value></data>
   <data name="StarterDescription" xml:space="preserve"><value>Open a complete circuit, start simulation, then change its inputs and observe the signals.</value></data>
-  <data name="LearningStepChoose" xml:space="preserve"><value>Choose</value></data>
-  <data name="LearningStepInputs" xml:space="preserve"><value>Set inputs</value></data>
-  <data name="LearningStepStart" xml:space="preserve"><value>Start simulation</value></data>
-  <data name="LearningStepObserve" xml:space="preserve"><value>Observe</value></data>
   <data name="StarterInverterTitle" xml:space="preserve"><value>Inverter basics</value></data>
   <data name="StarterInverterDescription" xml:space="preserve"><value>See how a NOT gate inverts an input before it reaches the output.</value></data>
   <data name="StarterSteeringTitle" xml:space="preserve"><value>Choose between two signals</value></data>
@@ -221,7 +168,6 @@
   <data name="Library" xml:space="preserve"><value>Library</value></data>
   <data name="Components" xml:space="preserve"><value>Components</value></data>
   <data name="Inspector" xml:space="preserve"><value>Inspect selection</value></data>
-  <data name="InspectorDescription" xml:space="preserve"><value>Object properties, signals, and selection actions</value></data>
   <data name="SearchComponents" xml:space="preserve"><value>Search components</value></data>
   <data name="SearchComponentsPlaceholder" xml:space="preserve"><value>Gate, clock, register…</value></data>
   <data name="NoMatchingComponents" xml:space="preserve"><value>No matching components.</value></data>
@@ -278,7 +224,6 @@
   <data name="ComponentCombiner" xml:space="preserve"><value>Bus combiner</value></data>
   <data name="ComponentZeroExtend" xml:space="preserve"><value>Zero extend</value></data>
   <data name="ComponentSignExtend" xml:space="preserve"><value>Sign extend</value></data>
-  <data name="LogicAnalyzerEyebrow" xml:space="preserve"><value>Simulation instruments</value></data>
   <data name="LogicAnalyzer" xml:space="preserve"><value>Logic Analyzer</value></data>
   <data name="LogicAnalyzerCollapsed" xml:space="preserve"><value>Waveform hidden. Simulation is still running.</value></data>
   <data name="OpenLogicAnalyzer" xml:space="preserve"><value>Show waveform</value></data>
@@ -403,7 +348,7 @@
   <data name="InspectorChoice_right" xml:space="preserve"><value>Right</value></data>
   <data name="ExampleOpened" xml:space="preserve"><value>{0} is ready to simulate.</value></data>
   <data name="InputValues" xml:space="preserve"><value>Next input values</value></data>
-  <data name="InputValuesHint" xml:space="preserve"><value>Enter binary values (most significant bit first). Apply inputs schedules them together for the next logical time; Step advances to that event.</value></data>
+  <data name="InputValuesHint" xml:space="preserve"><value>Enter bits, most significant first. Apply inputs, then Step to see the result.</value></data>
   <data name="InputValuesInvalid" xml:space="preserve"><value>Use exactly the input width in 0, 1, X, or Z.</value></data>
   <data name="ApplyInputs" xml:space="preserve"><value>Apply inputs</value></data>
   <data name="AuthorCircuitHint" xml:space="preserve"><value>Place components and connect their ports.</value></data>
@@ -455,4 +400,7 @@
   <data name="ObserveProbe" xml:space="preserve"><value>Show in waveform</value></data>
   <data name="ExpandInstruments" xml:space="preserve"><value>Expand instruments</value></data>
   <data name="CollapseInstruments" xml:space="preserve"><value>Return to circuit</value></data>
+  <data name="InstrumentHeight" xml:space="preserve">
+    <value>Instrument height</value>
+  </data>
 </root>

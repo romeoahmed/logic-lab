@@ -180,7 +180,6 @@ internal sealed class SimulationTraceStore
         CancellationToken cancellationToken)
     {
         var earliest = EarliestAvailableSequence;
-        var requestedIds = request.ProbeIds.ToHashSet();
         var sequenceWasEvicted = request.AfterSequence is { } afterSequence
             && afterSequence < earliest - 1;
         if (sequenceWasEvicted)
@@ -192,7 +191,6 @@ internal sealed class SimulationTraceStore
         {
             TraceTransitionsRepresentation => ReadTransitions(
                 request,
-                requestedIds,
                 earliest,
                 cancellationToken),
             TraceVisualSummaryRepresentation summary => ReadSummary(
@@ -207,10 +205,10 @@ internal sealed class SimulationTraceStore
 
     private SimulationReadOutcome ReadTransitions(
         SimulationTraceWindowRequest request,
-        HashSet<ProbeId> requestedIds,
         ulong earliest,
         CancellationToken cancellationToken)
     {
+        var requestedIds = request.ProbeIds.ToHashSet();
         var transitions = new List<TraceTransition>();
         var baselines = request.AfterSequence is null
             ? request.ProbeIds.ToDictionary<ProbeId, ProbeId, TraceTransition?>(
@@ -236,6 +234,7 @@ internal sealed class SimulationTraceStore
             }
         }
 
+        IEnumerable<TraceTransition> orderedTransitions = transitions;
         if (baselines is not null)
         {
             if (baselines.Values.Any(static baseline => baseline is null))
@@ -243,14 +242,15 @@ internal sealed class SimulationTraceStore
                 return Unavailable(earliest);
             }
 
-            transitions.AddRange(baselines.Values.OfType<TraceTransition>());
-            transitions = [.. transitions
-                .DistinctBy(transition => transition.Sequence)
-                .OrderBy(transition => transition.Sequence)];
+            // Transitions at the range start are already present in sequence order.
+            orderedTransitions = baselines.Values.OfType<TraceTransition>()
+                .Where(transition => (UInt128)transition.LogicalTime < request.Range.StartInclusive)
+                .OrderBy(transition => transition.Sequence)
+                .Concat(transitions);
         }
 
         return new TraceTransitionsAvailable(
-            [.. transitions],
+            [.. orderedTransitions],
             request.Range,
             earliest,
             LatestSequence);

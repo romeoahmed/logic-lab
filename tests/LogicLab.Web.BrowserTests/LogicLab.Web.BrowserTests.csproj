@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\..\src\LogicLab.Web\LogicLab.Web.csproj" />
+    <Compile Include="../LogicLab.Web.Testing/LogicLabKestrelApplication.cs"
+             Link="Fixtures/LogicLabKestrelApplication.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -9,29 +11,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\..\src\LogicLab.Web\Components\Editor\CircuitSceneHost.razor.css"
-             Link="CircuitSceneHost.razor.css"
+    <Content Include="../../src/LogicLab.Web/Components/**/*.razor.js;../../src/LogicLab.Web/Components/**/*.razor.css"
+             Link="BrowserAssets/Components/%(RecursiveDir)%(Filename)%(Extension)"
              CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\..\src\LogicLab.Web\Components\Editor\CircuitSceneHost.razor.js"
-             Link="CircuitSceneHost.razor.js"
-             CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\..\src\LogicLab.Web\Components\Editor\LogicAnalyzer.razor.js"
-             Link="LogicAnalyzer.razor.js"
-             CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\..\src\LogicLab.Web\wwwroot\js\circuit-scene\drawing.js"
-             Link="drawing.js"
-             CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\..\src\LogicLab.Web\wwwroot\js\circuit-scene\geometry.js"
-             Link="geometry.js"
-             CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\..\src\LogicLab.Web\wwwroot\js\circuit-scene\protocol.js"
-             Link="protocol.js"
-             CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\..\src\LogicLab.Web\wwwroot\js\circuit-scene\symbol-font.js"
-             Link="symbol-font.js"
-             CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\..\src\LogicLab.Web\wwwroot\fonts\NotoSansSC-Regular.woff2"
-             Link="NotoSansSC-Regular.woff2"
+    <Content Include="../../src/LogicLab.Web/wwwroot/**/*.js;../../src/LogicLab.Web/wwwroot/**/*.woff2"
+             Link="BrowserAssets/%(RecursiveDir)%(Filename)%(Extension)"
              CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

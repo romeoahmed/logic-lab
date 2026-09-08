@@ -1,5 +1,6 @@
 using LogicLab.Application.Workspaces;
 using LogicLab.Infrastructure.Transfers;
+using Microsoft.Extensions.Time.Testing;
 using TUnit.Assertions.Enums;
 
 namespace LogicLab.Infrastructure.Tests;
@@ -17,7 +18,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     public async Task RedeemAsync_AuthorizedTicket_TransfersBytesExactlyOnce(
         CancellationToken cancellationToken)
     {
-        using var timeProvider = new ManualTimeProvider(ReferenceTime);
+        var timeProvider = new FakeTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
             ProjectExportStoragePolicy.Default,
@@ -74,7 +75,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     public async Task RedeemAsync_UnauthorizedCaller_DoesNotConsumeOwnersTicket(
         CancellationToken cancellationToken)
     {
-        using var timeProvider = new ManualTimeProvider(ReferenceTime);
+        var timeProvider = new FakeTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
             ProjectExportStoragePolicy.Default,
@@ -124,7 +125,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
         int secondCarrierBytes,
         CancellationToken cancellationToken)
     {
-        using var timeProvider = new ManualTimeProvider(ReferenceTime);
+        var timeProvider = new FakeTimeProvider(ReferenceTime);
         var policy = new ProjectExportStoragePolicy(
             maximumPublishedExports,
             maximumPublishedCarrierBytes);
@@ -183,7 +184,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     public async Task PublishAsync_ActualStagingLengthExceedsCapacity_RejectsWithoutTakingStaging(
         CancellationToken cancellationToken)
     {
-        using var timeProvider = new ManualTimeProvider(ReferenceTime);
+        var timeProvider = new FakeTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
             new ProjectExportStoragePolicy(
@@ -216,10 +217,13 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     }
 
     [Test]
+    [Arguments(1)]
+    [Arguments(2)]
     public async Task PublishAsync_CancelledAtReplacementCommit_PreservesPreviousTicket(
+        int cancelOnClockRead,
         CancellationToken cancellationToken)
     {
-        using var timeProvider = new ManualTimeProvider(ReferenceTime);
+        var timeProvider = new InterceptingTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
             ProjectExportStoragePolicy.Default,
@@ -246,7 +250,14 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
             replacementCarrier,
             cancellationToken);
         using var replacementCancellation = new CancellationTokenSource();
-        timeProvider.AfterGetUtcNow = replacementCancellation.Cancel;
+        var clockReadCount = 0;
+        timeProvider.AfterGetUtcNow = () =>
+        {
+            if (++clockReadCount == cancelOnClockRead)
+            {
+                replacementCancellation.Cancel();
+            }
+        };
 
         await Assert.That(async () => await store.PublishAsync(
                 Publication(
@@ -277,7 +288,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     public async Task PublishAsync_CancelledAfterExpiredRemoval_ReleasesRetiredStaging(
         CancellationToken cancellationToken)
     {
-        using var timeProvider = new ManualTimeProvider(ReferenceTime);
+        var timeProvider = new InterceptingTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
             ProjectExportStoragePolicy.Default,
@@ -295,7 +306,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
                 expiredStaging,
                 1),
             cancellationToken);
-        timeProvider.AdvanceWithoutFiringTimer(TimeSpan.FromSeconds(1));
+        timeProvider.AdjustTime(ReferenceTime.AddSeconds(1));
         var candidateStaging = await StageAsync(
             store,
             "candidate"u8.ToArray(),
@@ -338,7 +349,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
             return;
         }
 
-        using var timeProvider = new ManualTimeProvider(ReferenceTime);
+        var timeProvider = new FakeTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
             ProjectExportStoragePolicy.Default,
@@ -362,7 +373,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     public async Task RedeemAsync_ConcurrentAuthorizedCalls_HasExactlyOneWinner(
         CancellationToken cancellationToken)
     {
-        using var timeProvider = new ManualTimeProvider(ReferenceTime);
+        var timeProvider = new FakeTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
             ProjectExportStoragePolicy.Default,
@@ -400,7 +411,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     public async Task RedeemAsync_CancelledWhileWaitingForStoreGate_DoesNotConsumeTicket(
         CancellationToken cancellationToken)
     {
-        using var timeProvider = new ManualTimeProvider(ReferenceTime);
+        var timeProvider = new InterceptingTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
             ProjectExportStoragePolicy.Default,
@@ -462,7 +473,7 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
     public async Task Expiry_WithoutAnotherStoreRequest_DeletesStaging(
         CancellationToken cancellationToken)
     {
-        using var timeProvider = new ManualTimeProvider(ReferenceTime);
+        var timeProvider = new FakeTimeProvider(ReferenceTime);
         await using var store = new TemporaryProjectExportStore(
             timeProvider,
             ProjectExportStoragePolicy.Default,
@@ -532,104 +543,17 @@ internal sealed class TemporaryProjectExportStoreTests : IAsyncDisposable
         char digit) =>
         new(new AnonymousBrowserId(new string(digit, 64)));
 
-    private sealed class ManualTimeProvider(DateTimeOffset utcNow) :
-        TimeProvider,
-        IDisposable
+    // Intercepts the clock read at the commit boundary to exercise cancellation races.
+    private sealed class InterceptingTimeProvider(DateTimeOffset utcNow) :
+        FakeTimeProvider(utcNow)
     {
-        private DateTimeOffset utcNow = utcNow;
-
-        private ManualTimer? timer;
-
         public Action? AfterGetUtcNow { get; set; }
 
         public override DateTimeOffset GetUtcNow()
         {
-            var current = utcNow;
+            var current = base.GetUtcNow();
             AfterGetUtcNow?.Invoke();
             return current;
-        }
-
-        public override ITimer CreateTimer(
-            TimerCallback callback,
-            object? state,
-            TimeSpan dueTime,
-            TimeSpan period)
-        {
-            timer = new ManualTimer(this, callback, state, dueTime, period);
-            return timer;
-        }
-
-        public void Advance(TimeSpan duration)
-        {
-            AdvanceWithoutFiringTimer(duration);
-            timer?.FireIfDue();
-        }
-
-        public void AdvanceWithoutFiringTimer(TimeSpan duration) =>
-            utcNow += duration;
-
-        public void Dispose() => timer?.Dispose();
-
-        private sealed class ManualTimer : ITimer
-        {
-            private readonly ManualTimeProvider owner;
-            private readonly TimerCallback callback;
-            private readonly object? state;
-            private DateTimeOffset? dueAtUtc;
-            private TimeSpan period;
-            private bool isDisposed;
-
-            public ManualTimer(
-                ManualTimeProvider owner,
-                TimerCallback callback,
-                object? state,
-                TimeSpan dueTime,
-                TimeSpan period)
-            {
-                this.owner = owner;
-                this.callback = callback;
-                this.state = state;
-                Change(dueTime, period);
-            }
-
-            public bool Change(TimeSpan dueTime, TimeSpan period)
-            {
-                if (isDisposed)
-                {
-                    return false;
-                }
-
-                dueAtUtc = dueTime == Timeout.InfiniteTimeSpan
-                    ? null
-                    : owner.GetUtcNow() + dueTime;
-                this.period = period;
-                return true;
-            }
-
-            public void FireIfDue()
-            {
-                if (isDisposed || dueAtUtc is null || dueAtUtc > owner.GetUtcNow())
-                {
-                    return;
-                }
-
-                dueAtUtc = period == Timeout.InfiniteTimeSpan
-                    ? null
-                    : owner.GetUtcNow() + period;
-                callback(state);
-            }
-
-            public void Dispose()
-            {
-                isDisposed = true;
-                dueAtUtc = null;
-            }
-
-            public ValueTask DisposeAsync()
-            {
-                Dispose();
-                return ValueTask.CompletedTask;
-            }
         }
     }
 }

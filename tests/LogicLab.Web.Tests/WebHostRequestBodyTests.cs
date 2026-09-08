@@ -1,20 +1,12 @@
 using System.Net;
 using System.Text.Json;
-using Microsoft.Playwright;
-using TUnit.Playwright;
+using LogicLab.Web.Testing;
 
-namespace LogicLab.Web.BrowserTests;
+namespace LogicLab.Web.Tests;
 
-[ClassDataSource<LogicLabBrowserApplication>]
-internal sealed class WebHostRequestBodyTests(LogicLabBrowserApplication application) : PageTest
+[ClassDataSource<LogicLabKestrelApplication>(Shared = SharedType.PerClass)]
+internal sealed class WebHostRequestBodyTests(LogicLabKestrelApplication application)
 {
-    public override BrowserNewContextOptions ContextOptions(TestContext testContext)
-    {
-        var options = base.ContextOptions(testContext);
-        options.IgnoreHTTPSErrors = true;
-        return options;
-    }
-
     [Test]
     [Arguments("/account/login", "login", 4096, false)]
     [Arguments("/account/login", "login", 4096, true)]
@@ -29,13 +21,9 @@ internal sealed class WebHostRequestBodyTests(LogicLabBrowserApplication applica
         bool tokenInHeader)
     {
         using var client = application.CreateHttpsClient();
-        var formUri = new Uri(client.BaseAddress!, formName is null ? "/" : path);
-        await Page.GotoAsync(formUri.AbsoluteUri);
-        var token = await Page.Locator("input[name='__RequestVerificationToken']")
-            .First.InputValueAsync();
-        var cookies = await Context.CookiesAsync();
-        client.DefaultRequestHeaders.Add("Cookie", string.Join("; ",
-            cookies.Select(cookie => $"{cookie.Name}={cookie.Value}")));
+        var form = await WebTestHttp.GetAntiforgeryFormAsync(client, formName is null ? "/" : path);
+        var token = form.RequestToken;
+        client.DefaultRequestHeaders.Add("Cookie", form.Cookie);
 
         // Kestrel also counts chunk framing against its ingress byte limit.
         using var accepted = await PostAsync(maximumBytes / 2);
@@ -60,7 +48,6 @@ internal sealed class WebHostRequestBodyTests(LogicLabBrowserApplication applica
             var values = new List<KeyValuePair<string, string>>
             {
                 new("__RequestVerificationToken", token),
-                new("padding", string.Empty),
             };
             if (formName is null)
             {
@@ -75,14 +62,11 @@ internal sealed class WebHostRequestBodyTests(LogicLabBrowserApplication applica
                 values.Add(new("Input.ConfirmPassword", "different"));
             }
 
-            using var unpadded = new FormUrlEncodedContent(values);
-            var envelopeLength = (await unpadded.ReadAsByteArrayAsync()).Length;
-            values[1] = new("padding", new string('x', length - envelopeLength));
             using var request = new HttpRequestMessage(
                 HttpMethod.Post,
                 new Uri(path, UriKind.Relative))
             {
-                Content = new FormUrlEncodedContent(values),
+                Content = WebTestHttp.CreateSizedFormContent(length, [.. values]),
                 Version = HttpVersion.Version11,
                 VersionPolicy = HttpVersionPolicy.RequestVersionExact,
             };

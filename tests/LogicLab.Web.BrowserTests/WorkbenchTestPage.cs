@@ -101,7 +101,8 @@ internal sealed class WorkbenchTestPage(IPage page, Uri editorUri)
         await OpenInspectorAsync();
         var inputs = page.Locator("[data-input-stimulus]").GetByRole(AriaRole.Textbox);
         await Expect(inputs.First).ToBeVisibleAsync();
-        for (var index = 0; index < await inputs.CountAsync(); index++)
+        var inputCount = await inputs.CountAsync();
+        for (var index = 0; index < inputCount; index++)
         {
             var input = inputs.Nth(index);
             var width = int.Parse((await input.GetAttributeAsync("maxlength"))!, System.Globalization.CultureInfo.InvariantCulture);
@@ -124,11 +125,10 @@ internal sealed class WorkbenchTestPage(IPage page, Uri editorUri)
     {
         await page.SetViewportSizeAsync(width, height);
         var response = await page.GotoAsync(editorUri.ToString());
-        await Assert.That(response!.Ok).IsTrue();
+        await Assert.That(response!.Status).IsEqualTo(200);
         await Command(command).ClickAsync();
         await Expect(StartSimulation).ToBeEnabledAsync();
-        await Expect(Renderer).ToHaveAttributeAsync("data-scene-renderer", "ready");
-        await Expect(Canvas).ToBeVisibleAsync();
+        await WaitForCanvasAsync();
     }
 
     public async Task OpenSandboxAsync(int width = 1_280, int height = 900)
@@ -137,12 +137,20 @@ internal sealed class WorkbenchTestPage(IPage page, Uri editorUri)
         var response = await page.GotoAsync(editorUri.ToString());
 
         await Assert.That(response).IsNotNull();
-        await Assert.That(response!.Ok).IsTrue();
+        await Assert.That(response!.Status).IsEqualTo(200);
 
         var createSandbox = Command("create");
         await Expect(createSandbox).ToBeVisibleAsync();
         await createSandbox.ClickAsync();
+        await WaitForCanvasAsync();
+    }
+
+    private async Task WaitForCanvasAsync()
+    {
+        // Initialization uses Playwright's operation budget; a failed renderer still fails the assertion.
+        await page.Locator("[data-scene-renderer]:not([data-scene-renderer='starting'])").WaitForAsync();
         await Expect(Renderer).ToHaveAttributeAsync("data-scene-renderer", "ready");
         await Expect(Canvas).ToBeVisibleAsync();
     }
+
 }

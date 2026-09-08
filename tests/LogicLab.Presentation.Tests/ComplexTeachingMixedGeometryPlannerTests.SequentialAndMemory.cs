@@ -100,9 +100,9 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
     [Test]
     [MethodDataSource(
         typeof(SequentialAndMemoryPresentationTestData),
-        nameof(SequentialAndMemoryPresentationTestData.Item25RecipeExpectations))]
-    public async Task Plan_ScalarItem25Recipe_PublishesRegisteredNotationAndEvidence(
-        Item25RecipeExpectation expectation)
+        nameof(SequentialAndMemoryPresentationTestData.NotationExpectations))]
+    public async Task Plan_ScalarSequentialOrMemorySymbol_PublishesRegisteredNotationAndEvidence(
+        SymbolNotationExpectation expectation)
     {
         var plan = Plan(Request(expectation.ContractId));
         var reference = plan.Conformance.StandardReferences.Single();

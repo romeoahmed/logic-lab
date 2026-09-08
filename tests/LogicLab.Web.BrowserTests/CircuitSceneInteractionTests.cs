@@ -9,6 +9,83 @@ namespace LogicLab.Web.BrowserTests;
 internal sealed class CircuitSceneInteractionTests : PageTest
 {
     [Test]
+    public async Task MoveTerminal_ConnectedRoutes_PreserveBranchesAndIgnoreUnrelatedNets()
+    {
+        var scene = new CircuitSceneTestPage(Page);
+        await scene.OpenAsync();
+        var failures = await Page.EvaluateAsync<string[]>("""
+            async () => {
+              const { movedTerminalRoutes } = await import('/js/circuit-scene/geometry.js');
+              const p = (x, y) => ({ x, y });
+              const source = (entityKind, entityId) => ({ entityKind, entityId, circuitDefinitionId: 'd' });
+              const net = source('net', 'n');
+              const terminal = (id, point, outwardDirection, connectedNet = net) => ({
+                origin: p(0, 0), source: source('componentInstance', id),
+                hitRegions: [{ anchor: point, outwardDirection, connectedNet,
+                  targetSource: { ...source('instancePort', id), portId: 'p' } }],
+              });
+              const wire = (id, points, connectedNet = net) => ({
+                source: source('wireGeometry', id), hitRegions: [], origin: p(0, 0),
+                interaction: { interactionKind: 'wire', net: connectedNet, route: { kind: 'orthogonal', points } },
+              });
+              const moved = terminal('a', p(0, 0), 'east');
+              const fixed = terminal('b', p(8, 0), 'west');
+              const original = wire('w', [p(0, 0), p(8, 0)]);
+              const failures = [];
+              for (const scenario of ['simple', 'shared-terminal', 'shared-wire', 'interior', 'unrelated', 'junction', 'branch-trunk']) {
+                const items = [moved, fixed, original];
+                if (scenario === 'branch-trunk') {
+                  items[1] = terminal('b', p(12, 0), 'west');
+                  items[2] = wire('w', [p(0, 0), p(4, 0), p(4, 4), p(8, 4), p(8, 0), p(12, 0)]);
+                  items.push(wire('branch-a', [p(4, 0), p(4, -3)]),
+                    wire('branch-b', [p(8, 0), p(8, -3)]));
+                }
+                if (scenario === 'shared-terminal') items.push(terminal('c', p(0, 0), 'south'));
+                if (scenario === 'shared-wire') items.push(wire('branch', [p(4, 0), p(4, 4)]));
+                if (scenario === 'interior') items[2] = wire('w', [p(-4, 0), p(8, 0)]);
+                if (scenario === 'unrelated') items.push(wire('other', [p(0, 0), p(0, 8)], source('net', 'other')));
+                if (scenario === 'junction') items.push({ origin: p(0, 0), hitRegions: [],
+                  interaction: { interactionKind: 'junction', net } });
+                const snapshot = { gridStepPlanUnits: 1, snapStepGridUnits: 1, items };
+                const before = JSON.stringify(snapshot);
+                const result = movedTerminalRoutes(snapshot, moved, p(0, 0), p(0, 3));
+                const simple = ['simple', 'unrelated', 'shared-wire', 'branch-trunk'].includes(scenario);
+                const route = simple ? result?.routeReplacements[0]?.route : result?.routeAdditions[0]?.route;
+                if (!result || result.routeReplacements.length !== (simple ? 1 : 0)
+                    || result.routeAdditions.length !== (simple ? 0 : 1)
+                    || JSON.stringify(snapshot) !== before || !route
+                    || route.points[0].x !== 0 || route.points[0].y !== 3
+                    || route.points.at(-1).x !== (scenario === 'branch-trunk' ? 12 : simple ? 8 : 0) || route.points.at(-1).y !== 0
+                    || route.points[1].x <= 0 || route.points[1].y !== 3
+                    || route.points.slice(1).some((point, index) =>
+                      (point.x === route.points[index].x) === (point.y === route.points[index].y))) {
+                  failures.push(scenario);
+                }
+                if (scenario === 'branch-trunk' && route) {
+                  const trunk = route.points.findIndex(point => point.x === 4 && point.y === 0);
+                  if (JSON.stringify(route.points.slice(trunk, trunk + 4)) !==
+                      JSON.stringify([p(4, 0), p(4, 4), p(8, 4), p(8, 0)])) failures.push('branch-trunk/changed');
+                }
+                if (simple && scenario !== 'branch-trunk' && result) {
+                  // Apply the returned edit, then move back: old bends must not become stubs.
+                  moved.hitRegions[0].anchor = p(0, 3);
+                  items[2] = wire('w', route.points);
+                  const returned = movedTerminalRoutes(snapshot, moved, p(0, 3), p(0, 0));
+                  const restored = returned?.routeReplacements[0]?.route.points;
+                  if (returned?.routeAdditions.length !== 0 || restored?.length !== 2
+                      || restored[0].x !== 0 || restored[0].y !== 0
+                      || restored[1].x !== 8 || restored[1].y !== 0) failures.push(`${scenario}/return`);
+                  moved.hitRegions[0].anchor = p(0, 0);
+                }
+              }
+              return failures;
+            }
+            """);
+
+        await Assert.That(failures).IsEmpty();
+    }
+
+    [Test]
     public async Task TerminalRoutes_AllFacingPairs_PreserveAnchorsAndOutwardSegments()
     {
         var scene = new CircuitSceneTestPage(Page);
@@ -298,7 +375,7 @@ internal sealed class CircuitSceneInteractionTests : PageTest
                 new SceneGridPointV1(20, 5),
                 new SceneGridPointV1(20, 7),
                 new SceneGridPointV1(24, 7),
-            ]);
+            ], CollectionOrdering.Matching);
         }
     }
 

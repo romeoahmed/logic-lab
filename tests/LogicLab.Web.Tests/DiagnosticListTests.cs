@@ -70,7 +70,7 @@ internal sealed class DiagnosticListTests
 
             var nextRevision = WebTestCircuit.Commit(ProjectEditor.Apply(revision,
                 new MoveComponentInstancesIntent(revision.Document.EntryCircuitDefinitionId,
-                    [new(WebTestCircuit.Find(revision, "source.input").Id, new(new GridPoint(0, 20)))])));
+                    [new(WebTestCircuit.Find(revision, "source.input").Id, new(new GridPoint(0, 20)))], [], [])));
             var nextProjection = projection with
             {
                 ProjectRevision = nextRevision,

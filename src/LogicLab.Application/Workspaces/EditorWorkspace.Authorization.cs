@@ -119,7 +119,8 @@ internal sealed partial class EditorWorkspace
         WorkspaceState state)
     {
         List<WorkCoordinator.ScheduledSessionWork> scheduledWork = [];
-        foreach (var (clientIntentId, pending) in state.PendingIntents.ToArray())
+        // Dictionary.Remove preserves enumeration; the continuity gate excludes additions.
+        foreach (var (clientIntentId, pending) in state.PendingIntents)
         {
             if (GetDurableAccessRejectionUnderLock(
                     state,

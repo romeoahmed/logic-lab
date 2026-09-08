@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text;
 using LogicLab.Domain.Authoring;
 
@@ -123,26 +124,17 @@ public sealed record DurableDisplayName
 
     private static bool HasValidScalars(string value)
     {
-        for (var index = 0; index < value.Length; index++)
+        var remaining = value.AsSpan();
+        while (!remaining.IsEmpty)
         {
-            var character = value[index];
-            if (character <= '\u001f' || char.IsLowSurrogate(character))
+            if (Rune.DecodeFromUtf16(remaining, out var rune, out var consumed)
+                    != OperationStatus.Done
+                || rune.Value <= '\u001f')
             {
                 return false;
             }
 
-            if (!char.IsHighSurrogate(character))
-            {
-                continue;
-            }
-
-            if (index + 1 >= value.Length
-                || !char.IsLowSurrogate(value[index + 1]))
-            {
-                return false;
-            }
-
-            index++;
+            remaining = remaining[consumed..];
         }
 
         return true;

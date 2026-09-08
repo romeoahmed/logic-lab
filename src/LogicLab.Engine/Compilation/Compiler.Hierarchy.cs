@@ -101,7 +101,8 @@ public static partial class Compiler
                 request.ProjectRevision.Document,
                 pendingInstances
                     .Where(instance => SimulationEvaluatorKindFacts.IsMemory(instance.Kind))
-                    .Select(instance => instance.Instance)),
+                    .Select(instance => instance.Instance),
+                cancellationToken),
             observations);
         if (memoryRejection is not null)
         {

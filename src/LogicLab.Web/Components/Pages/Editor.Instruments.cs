@@ -5,6 +5,7 @@ namespace LogicLab.Web.Components.Pages;
 public sealed partial class Editor
 {
     private bool instrumentsExpanded;
+    private int instrumentHeight = 45;
     private string instrumentTab = "waveform";
     private ulong sourceRevealVersion;
     private LogicAnalyzer? logicAnalyzer;
@@ -21,14 +22,12 @@ public sealed partial class Editor
         await logicAnalyzer.RevealProbeAsync(probeId);
     }
 
-    private Task RevealDiagnosticAsync(DiagnosticList.RevealRequest request)
+    private async Task RevealDiagnosticAsync(DiagnosticList.RevealRequest request)
     {
         if (Projection?.ProjectRevision.RevisionId == request.RevisionId
-            && TryRevealSource(request.Source))
+            && await TryRevealSourceAsync(request.Source))
         {
             Status = Text["DiagnosticSourceSelected"];
         }
-
-        return Task.CompletedTask;
     }
 }

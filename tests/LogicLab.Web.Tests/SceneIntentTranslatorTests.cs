@@ -6,6 +6,43 @@ namespace LogicLab.Web.Tests;
 internal sealed class SceneIntentTranslatorTests
 {
     [Test]
+    public async Task TranslateEdit_MoveWithRoutes_CommitsPlacementReplacementAndBranchTogether()
+    {
+        var revision = WebTestCircuit.CreateCompleteCircuit();
+        var definition = revision.Document.EntryCircuitDefinition;
+        var wire = definition.WireGeometries[0];
+        var terminal = definition.FindNet(wire.NetId)!.Terminals.OfType<InstanceTerminalReference>().First();
+        var replacement = new SceneOrthogonalWireRouteV1([new(0, 0), new(0, 3)]);
+        var addition = new SceneOrthogonalWireRouteV1([new(0, 3), new(4, 3)]);
+        var intent = new MoveComponentsSceneIntentV1(
+            "build-a", 1, 1, definition.Id.Value,
+            [new SceneComponentMoveV1(
+                SceneSourceMap.From(new ComponentInstanceSourceIdentity(definition.Id, terminal.ComponentInstanceId)),
+                new SceneComponentPlacementV1(new(4, 3), 0, false))], "none",
+            [new SceneWireReplacementV1(SceneSourceMap.From(new WireGeometrySourceIdentity(definition.Id, wire.Id)),
+                replacement)],
+            [new SceneNetWireAdditionV1(SceneSourceMap.From(new NetSourceIdentity(definition.Id, wire.NetId)),
+                addition)]);
+        var translator = new SceneIntentTranslator(revision.Document, definition);
+        var committed = await Assert.That(ProjectEditor.Apply(revision, translator.TranslateEdit(intent)))
+            .IsTypeOf<EditCommitted>();
+        var after = committed!.Revision.Document.EntryCircuitDefinition;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(after.FindComponentInstance(terminal.ComponentInstanceId)!.Placement.Origin)
+                .IsEqualTo(new GridPoint(4, 3));
+            await Assert.That(((OrthogonalWireRoute)after.FindWireGeometry(wire.Id)!.Route).Points)
+                .IsEquivalentTo(new GridPoint[] { new(0, 0), new(0, 3) });
+            var added = after.WireGeometries.Single(candidate => definition.FindWireGeometry(candidate.Id) is null);
+            await Assert.That(added.NetId).IsEqualTo(wire.NetId);
+            await Assert.That(((OrthogonalWireRoute)added.Route).Points)
+                .IsEquivalentTo(new GridPoint[] { new(0, 3), new(4, 3) });
+            await Assert.That(after.Nets).IsEquivalentTo(definition.Nets);
+        }
+    }
+
+    [Test]
     [Arguments(false, false)]
     [Arguments(true, false)]
     [Arguments(false, true)]

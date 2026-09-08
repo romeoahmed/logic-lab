@@ -5,39 +5,6 @@ namespace LogicLab.Application.Tests;
 internal sealed class WorkspaceContractTests
 {
     [Test]
-    public async Task EditorWorkspaceFactory_NullDurableRepository_ThrowsArgumentNullException()
-    {
-        await Assert.That(() => EditorWorkspaceFactory.Create(
-                WorkspaceBuild.TestFingerprint,
-                durableProjectRepository: null!,
-                durableProjectLoader: TestEditorWorkspaceFactory.UnexpectedLoader,
-                projectExportStore: TestEditorWorkspaceFactory.UnexpectedExportStore))
-            .ThrowsExactly<ArgumentNullException>();
-    }
-
-    [Test]
-    public async Task EditorWorkspaceFactory_NullDurableProjectLoader_ThrowsArgumentNullException()
-    {
-        await Assert.That(() => EditorWorkspaceFactory.Create(
-                WorkspaceBuild.TestFingerprint,
-                durableProjectRepository: TestEditorWorkspaceFactory.UnexpectedRepository,
-                durableProjectLoader: null!,
-                projectExportStore: TestEditorWorkspaceFactory.UnexpectedExportStore))
-            .ThrowsExactly<ArgumentNullException>();
-    }
-
-    [Test]
-    public async Task EditorWorkspaceFactory_NullProjectExportStore_ThrowsArgumentNullException()
-    {
-        await Assert.That(() => EditorWorkspaceFactory.Create(
-                WorkspaceBuild.TestFingerprint,
-                durableProjectRepository: TestEditorWorkspaceFactory.UnexpectedRepository,
-                durableProjectLoader: TestEditorWorkspaceFactory.UnexpectedLoader,
-                projectExportStore: null!))
-            .ThrowsExactly<ArgumentNullException>();
-    }
-
-    [Test]
     [Arguments(0, 1, 1)]
     [Arguments(1, 0, 1)]
     [Arguments(1, 1, 0)]
@@ -139,10 +106,22 @@ internal sealed class WorkspaceContractTests
     [Arguments("Cafe\u0301")]
     [Arguments("control\u0001")]
     [Arguments("\uD800")]
+    [Arguments("\uDC00")]
+    [Arguments("\uD800A")]
     public async Task DurableDisplayName_InvalidUnicode_Throws(string value)
     {
         await Assert.That(() => new DurableDisplayName(value))
             .ThrowsExactly<ArgumentException>();
+    }
+
+    [Test]
+    [Arguments("Logic 🧪")]
+    [Arguments("Replacement \uFFFD")]
+    public async Task DurableDisplayName_ValidUnicode_PreservesText(string value)
+    {
+        var name = new DurableDisplayName(value);
+
+        await Assert.That(name.Value).IsEqualTo(value);
     }
 
     [Test]
@@ -227,5 +206,4 @@ internal sealed class WorkspaceContractTests
             durableDisplayNameLimits: DurableDisplayNameLimits.Default,
             durableProjectCatalogLimits: DurableProjectCatalogLimits.Default);
     }
-
 }

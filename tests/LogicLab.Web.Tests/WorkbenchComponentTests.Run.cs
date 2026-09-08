@@ -69,7 +69,7 @@ internal sealed partial class WorkbenchComponentTests
         {
             await Assert.That(after.Simulation!.LogicalTime).IsEqualTo(scheduleInput ? 1UL : 0UL);
             await Assert.That(((RunPausedProjection)after.Simulation.Run).PauseReason)
-                .IsEqualTo(RunPauseReason.NoScheduledStimulus);
+                .IsEqualTo(RunPauseReason.NoScheduledEvents);
             await Assert.That(rendered.Find(".status-message").TextContent)
                 .IsEqualTo("No future events are scheduled.");
             await Assert.That(IsDisabled(rendered, "step")).IsFalse();

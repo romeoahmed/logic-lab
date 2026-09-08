@@ -182,6 +182,10 @@ must fail on an empty match. Poll only real asynchronous observation seams, with
 bounded diagnostic timeout; test dependencies are for intentional artifact handoffs.
 
 Fixtures own cleanup and propagate cancellation into long-running setup and I/O.
+Tests that require real HTTPS share a Kestrel host per test class; each browser
+test keeps its own BrowserContext. The shared fixture gives independent anonymous callers
+enough bootstrap permits for concurrent scenarios; host security tests verify ingress
+limits separately. Chunked request-body limits are HTTP tests against real Kestrel.
 Use user-facing or stable contract locators in browser tests, and keep bUnit tests
 in ordinary `.cs` files. The JIT/MTP suite remains authoritative;
 do not drop FsCheck properties to claim an all-AOT suite. The focused

@@ -3,10 +3,15 @@ using LogicLab.Domain.Components;
 
 namespace LogicLab.Engine.Compilation;
 
+/// <summary>Compiles one immutable Project Revision into a source-linked Simulation artifact.</summary>
 public static partial class Compiler
 {
     public const string SemanticVersion = "logiclab.compiler.unified-v3";
 
+    /// <summary>
+    /// Performs synchronous, policy-bounded Compilation. Cooperative cancellation returns a
+    /// rejected outcome; only a successful outcome contains an artifact.
+    /// </summary>
     public static CompilationOutcome Compile(
         CompilationRequest request,
         CancellationToken cancellationToken)
@@ -155,6 +160,16 @@ public static partial class Compiler
         CancellationToken cancellationToken)
     {
         var document = request.ProjectRevision.Document;
+        var definitionRejection = Observe(
+            request,
+            ProjectScaleDimension.DefinitionCount,
+            (ulong)document.CircuitDefinitions.Count,
+            observations);
+        if (definitionRejection is not null)
+        {
+            return definitionRejection;
+        }
+
         ulong entityCount = 0;
         foreach (var definition in document.CircuitDefinitions)
         {
@@ -168,31 +183,12 @@ public static partial class Compiler
                 + (ulong)definition.WireGeometries.Count);
         }
 
-        var dimensions = new[]
-        {
-            new ObservedProjectScaleDimension(
-                ProjectScaleDimension.DefinitionCount,
-                checked((ulong)document.CircuitDefinitions.Count)),
-            new ObservedProjectScaleDimension(
-                ProjectScaleDimension.EntityCount,
-                entityCount),
-        };
-
-        foreach (var dimension in dimensions)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var rejection = Observe(
-                request,
-                dimension.Dimension,
-                dimension.Observed,
-                observations);
-            if (rejection is not null)
-            {
-                return rejection;
-            }
-        }
-
-        return null;
+        cancellationToken.ThrowIfCancellationRequested();
+        return Observe(
+            request,
+            ProjectScaleDimension.EntityCount,
+            entityCount,
+            observations);
     }
 
     private static CompilationRejected? Observe(
@@ -327,5 +323,4 @@ public static partial class Compiler
                 .Select(row => new ObservedProjectScaleDimension(row.Key, row.Value))],
             breach);
     }
-
 }

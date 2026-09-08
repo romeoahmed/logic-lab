@@ -2,6 +2,7 @@ using LogicLab.Domain;
 
 namespace LogicLab.Engine;
 
+/// <summary>An immutable, positive-width four-state vector. Index zero is the least significant bit.</summary>
 public sealed class LogicVector
 {
     internal const int BitsPerWord = 64;
@@ -10,6 +11,7 @@ public sealed class LogicVector
     private readonly ulong[] lowBits;
     private readonly ulong[] highBits;
 
+    /// <summary>Copies values in increasing bit-index order; later changes to the input are independent.</summary>
     public LogicVector(IReadOnlyList<LogicValue> values)
     {
         ArgumentNullException.ThrowIfNull(values);

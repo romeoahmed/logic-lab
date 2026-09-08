@@ -25,7 +25,7 @@ public sealed partial class Editor
             () => ApplySceneIntentAsync(intent));
     }
 
-    private async Task ApplySceneIntentAsync(SceneIntentV1 intent)
+    private Task ApplySceneIntentAsync(SceneIntentV1 intent)
     {
         try
         {
@@ -35,11 +35,11 @@ public sealed partial class Editor
                 definition);
             if (intent is ToggleProbeSceneIntentV1 toggleProbe)
             {
-                await ToggleProbeAsync(translator.TranslateProbe(toggleProbe.Net));
-                return;
+                return ToggleProbeAsync(translator.TranslateProbe(toggleProbe.Net));
             }
 
-            _ = await Apply(translator.TranslateEdit(intent));
+            // Return execution to the caller so command failures are not caught as bad input.
+            return Apply(translator.TranslateEdit(intent));
         }
         catch (Exception exception) when (exception is ArgumentException
             or FormatException
@@ -48,7 +48,7 @@ public sealed partial class Editor
         {
             // Browser input is untrusted. CircuitSceneHost already invalidated its
             // publication key, so an invalid known intent receives a full snapshot.
-            return;
+            return Task.CompletedTask;
         }
     }
 

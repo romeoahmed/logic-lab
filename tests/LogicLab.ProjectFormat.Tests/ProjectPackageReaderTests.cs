@@ -805,6 +805,36 @@ internal sealed class ProjectPackageReaderTests
     }
 
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ReadAsync_DeclaredMemoryEntryAbsent_RejectsEntryAgreement(bool replaceWithOtherPath)
+    {
+        var revision = AddSingleCellMemory(BeginProject("Missing entry", "Main"), "Program");
+        await using var carrier = await WriteAsync(revision);
+        var entries = ReadEntries(carrier.Stream);
+        var memoryPath = entries.Keys.Single(path => path.StartsWith("memory/", StringComparison.Ordinal));
+        var memoryBytes = entries[memoryPath];
+        entries.Remove(memoryPath);
+        if (replaceWithOtherPath)
+        {
+            entries.Add("memory/undeclared.bin", memoryBytes);
+        }
+
+        await using var tampered = WriteEntries(entries);
+
+        var outcome = await ReadAsync(tampered);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected.Reason).IsEqualTo("package_invalid");
+            await Assert.That(rejected.Diagnostics.Single().Code).IsEqualTo("package_illegal_entry");
+            await Assert.That(rejected.Diagnostics.Single().Arguments)
+                .Contains(new PackageDiagnosticArgument("rule", "undeclaredPart"));
+        }
+    }
+
+    [Test]
     public async Task ReadAsync_ManifestMemoryWithoutProjectReference_RejectsAgreement()
     {
         var revision = BeginProject("Memory agreement", "Main");

@@ -174,7 +174,7 @@ internal sealed class DurableProjectRepository :
                 cancellationToken).ConfigureAwait(false);
         }
 
-        var project = await context.DurableProjects.SingleOrDefaultAsync(
+        var project = await context.DurableProjects.AsNoTracking().SingleOrDefaultAsync(
             candidate => candidate.ClaimWorkspaceId
                 == request.ReceiptKey.WorkspaceId.Value,
             cancellationToken).ConfigureAwait(false);
@@ -280,9 +280,8 @@ internal sealed class DurableProjectRepository :
                        display_name_sort_key AS "DisplayNameSortKey"
                 FROM durable_projects
                 WHERE subject_id = {request.SubjectId.Value}
-                  AND (display_name_sort_key > {afterSortKey}
-                    OR (display_name_sort_key = {afterSortKey}
-                      AND durable_project_id > {request.AfterDurableProjectId!.Value}))
+                  AND (display_name_sort_key, durable_project_id)
+                    > ({afterSortKey}, {request.AfterDurableProjectId!.Value})
                 ORDER BY display_name_sort_key, durable_project_id
                 LIMIT {request.MaximumItemCount}
                 """);
@@ -305,34 +304,30 @@ internal sealed class DurableProjectRepository :
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(
             cancellationToken).ConfigureAwait(false);
-        var stored = await (
-            from project in context.DurableProjects.AsNoTracking()
-            where project.Id == request.DurableProjectId.Value
-                && project.SubjectId == request.SubjectId.Value
-            join revision in context.ProjectRevisions.AsNoTracking()
-                on new
+        var stored = await context.DurableProjects
+            .Where(project => project.Id == request.DurableProjectId.Value
+                && project.SubjectId == request.SubjectId.Value)
+            .LeftJoin(
+                context.ProjectRevisions,
+                project => new
                 {
                     DurableProjectId = project.Id,
                     ProjectRevisionId = project.CurrentProjectRevisionId,
-                }
-                equals new
+                },
+                revision => new
                 {
                     revision.DurableProjectId,
                     revision.ProjectRevisionId,
-                }
-                into revisions
-            from revision in revisions.DefaultIfEmpty()
-            select new
-            {
-                project.Id,
-                project.DisplayName,
-                project.DurableVersion,
-                project.CurrentProjectRevisionId,
-                ProjectRevisionId = revision == null
-                    ? null
-                    : revision.ProjectRevisionId,
-                Payload = revision == null ? null : revision.Payload,
-            }).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+                },
+                (project, revision) => new
+                {
+                    project.Id,
+                    project.DisplayName,
+                    project.DurableVersion,
+                    project.CurrentProjectRevisionId,
+                    Payload = revision == null ? null : revision.Payload,
+                })
+            .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
         if (stored is null)
         {
             return new DurableProjectOpenNotFound();
@@ -342,15 +337,6 @@ internal sealed class DurableProjectRepository :
         {
             throw new InvalidOperationException(
                 "A Durable Project current pointer must reference an immutable revision.");
-        }
-
-        if (!string.Equals(
-                stored.CurrentProjectRevisionId,
-                stored.ProjectRevisionId,
-                StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                "A Durable Project current pointer must match its revision row.");
         }
 
         var projectRevision = ProjectRevisionPayloadSerializer.Deserialize(stored.Payload);
@@ -642,7 +628,7 @@ internal sealed class DurableProjectRepository :
     {
         var attachmentGeneration = key.AttachmentGeneration.ToString(
             CultureInfo.InvariantCulture);
-        return await context.DurableCommandReceipts.SingleOrDefaultAsync(
+        return await context.DurableCommandReceipts.AsNoTracking().SingleOrDefaultAsync(
             receipt => receipt.WorkspaceId == key.WorkspaceId.Value
                 && receipt.AttachmentGeneration == attachmentGeneration
                 && receipt.ClientIntentId == key.ClientIntentId.Value,

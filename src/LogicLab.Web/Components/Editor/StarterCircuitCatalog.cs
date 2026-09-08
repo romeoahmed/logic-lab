@@ -37,7 +37,6 @@ internal static class StarterCircuitCatalog
     public static ExampleProjectPlan GetPlan(ExampleProject example) =>
         Examples.FirstOrDefault(candidate => candidate.Example == example)
         ?? throw new ArgumentOutOfRangeException(nameof(example), example, null);
-
 }
 
 internal sealed record ExampleProjectPlan(

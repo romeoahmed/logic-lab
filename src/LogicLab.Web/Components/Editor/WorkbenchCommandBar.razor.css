@@ -6,10 +6,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.65rem 0.85rem;
+  padding: 0.35rem 0.75rem;
   background: var(--ll-panel);
 }
 
+.project-command-actions,
 .history-actions,
 .workflow-actions,
 .project-actions {
@@ -69,6 +70,16 @@
   padding: 0.55rem;
 }
 
+/* FluentPopover currently reverses horizontal collision checks. Its exported
+   dialog part lets this trailing toolbar menu stay inside the viewport. */
+::deep .project-options-popover::part(dialog) {
+  left: auto !important;
+  right: 0.75rem !important;
+  max-block-size: 60dvh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
 @media (max-width: 580px) {
   .command-bar {
     display: grid;
@@ -82,7 +93,7 @@
     grid-row: 2;
   }
 
-  .command-bar ::deep .project-options-trigger {
+  .project-command-actions {
     grid-column: 2;
     grid-row: 1;
   }

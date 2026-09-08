@@ -26,6 +26,11 @@ The route catalog is closed at implementation start:
 
 Identity may add framework-owned endpoints beneath `/account`; generated routes are captured by an integration snapshot before release. An endpoint outside this table requires an explicit owning contract. Import remains a bounded Blazor file stream into Project Format and opens a new Workspace; it is not a JSON endpoint or an edit to the current Workspace.
 
+Account forms use Blazor's built-in inputs with native labels and submit buttons.
+They submit and report validation errors without JavaScript. Remember-me starts
+unchecked, binds as a boolean, and survives invalid submissions; rejected forms
+clear password values before rendering.
+
 ASP.NET Core supports mixing Static SSR and interactive render modes, and Interactive Server communicates through a server circuit. Interactive modes prerender by default. [Microsoft render-mode guidance](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/render-modes?view=aspnetcore-10.0) is the platform basis for this composition.
 
 ## 2. Render and attachment lifecycle

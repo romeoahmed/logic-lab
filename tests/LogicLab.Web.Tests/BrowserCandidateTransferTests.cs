@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text;
 using FsCheck;
 using FsCheck.Fluent;
 using LogicLab.Web.Scene;
@@ -13,10 +12,11 @@ internal sealed class BrowserCandidateTransferTests
 {
     [Test, FsCheckProperty(MaxTest = 50)]
     public async Task<Property> SendAsync_GeneratedPayload_PreservesTheTransferContract(
-        NonEmptyArray<byte> generatedPayload)
+        NonEmptyArray<byte> generatedPayload,
+        PositiveInt generatedChunkSize)
     {
         var payload = generatedPayload.Get;
-        var policy = TransferPolicy();
+        var policy = TransferPolicy(chunkBytes: (ulong)(generatedChunkSize.Get % 128 + 1));
         var handle = new RecordingTransferHandle();
 
         await BrowserCandidateTransfer.SendAsync(
@@ -32,7 +32,7 @@ internal sealed class BrowserCandidateTransferTests
             .Where(call => call.Identifier == "appendTransfer")
             .ToArray();
         var reconstructed = chunks
-            .SelectMany(call => Convert.FromBase64String((string)call.Arguments[2]!))
+            .SelectMany(call => (byte[])call.Arguments[2]!)
             .ToArray();
         var transferId = (string)begin.Arguments[0]!;
 
@@ -45,13 +45,12 @@ internal sealed class BrowserCandidateTransferTests
                 .SequenceEqual(Enumerable.Range(0, chunks.Length))
                 .Label("append ordinals are contiguous in invocation order"))
             .And(chunks.All(call =>
-                    checked((ulong)Encoding.UTF8.GetByteCount(
-                            (string)call.Arguments[2]!))
+                    checked((ulong)((byte[])call.Arguments[2]!).Length)
                         + BrowserPolicy.InteropEnvelopeBytes
                         <= policy.Limit(BrowserLimitDimension.InteropBatchBytes))
                 .Label("every chunk fits the interop budget"))
             .And(reconstructed.SequenceEqual(payload)
-                .Label("ordered Base64 chunks reconstruct the candidate exactly"))
+                .Label("ordered binary chunks reconstruct the candidate exactly"))
             .And(handle.Calls.Select(call => call.Identifier).SequenceEqual(
                     Enumerable.Repeat("appendTransfer", chunks.Length)
                         .Prepend("beginTransfer")
@@ -144,14 +143,15 @@ internal sealed class BrowserCandidateTransferTests
     }
 
     private static BrowserPolicy TransferPolicy(
-        ulong? candidateTransferBytes = null) => new(
+        ulong? candidateTransferBytes = null,
+        ulong chunkBytes = 1) => new(
         "logiclab-browser",
         "transfer-test",
         [.. BrowserPolicy.Default.Limits.Select(limit => limit.Dimension switch
         {
             BrowserLimitDimension.InteropBatchBytes => limit with
             {
-                Value = BrowserPolicy.MinimumInteropBatchBytes,
+                Value = BrowserPolicy.InteropEnvelopeBytes + chunkBytes,
             },
             BrowserLimitDimension.CandidateTransferBytes
                 when candidateTransferBytes is { } candidateLimit => limit with

@@ -440,12 +440,19 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             item.ReleaseOwnership();
         }
 
-        await stopping.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAll([.. compilationWorkers, .. sessionWorkers])
-            .ConfigureAwait(false);
-        compilationQueueSignal.Dispose();
-        sessionQueueSignal.Dispose();
-        stopping.Dispose();
+        try
+        {
+            // Cancellation callbacks can fault; the workers must still leave their
+            // dependency lifetime before disposal reports that failure.
+            await Task.WhenAll([stopping.CancelAsync(), .. compilationWorkers, .. sessionWorkers])
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            compilationQueueSignal.Dispose();
+            sessionQueueSignal.Dispose();
+            stopping.Dispose();
+        }
     }
 
     private void EnqueueCompilationUnderLock(CompilationWorkItem item)

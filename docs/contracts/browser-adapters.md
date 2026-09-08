@@ -71,14 +71,19 @@ DiagnosticMarker { AuthoredSourceRefV1, DiagnosticCode, severity, diagnosticOrdi
 
 The Probe point must equal the current Schematic Projection's available `NetTopology.probeAnchor`. Its appearance ordinal and `solid | dash | dot | dashDot` pattern are derived from Probe identity and must match the tuple used by the Probe Spine and waveform row. When a valid bound Net has no visible geometry, the scene emits no Probe anchor and the row reports only `sceneNavigation = Unavailable(noVisibleGeometry)`; its binding, values, and Trace remain resolved. Transient Preview, hover, route handles, menus, and pointer samples remain browser-local and are not overlay variants. Every collection has stable scoped-source order; an ordinal is present only where it resolves an otherwise equal diagnostic or presentation order. A patch is valid only when its build fingerprint, Circuit Definition ID, UI culture, base direction, and `base SceneVersion` match the browser's current available snapshot and its complete projection values validate. Switching definitions and recovery from unavailable state always use a complete snapshot. Otherwise the browser discards the complete patch and requests a snapshot; it never applies a prefix. Canvas consumption and coordinate conversion follow [Browser Runtime](../specs/browser-runtime.md).
 
+Terminal hit regions carry their authored `ConnectedNet` reference, or null for an
+unconnected Terminal. This is derived from Net membership; overlapping coordinates
+never establish connectivity. Drag routing uses this reference with the projected
+Port anchor and outward direction.
+
 `SceneIntentV1` is this closed JavaScript-to-Web union:
 
 | Kind                  | Required payload                                                                                                            | Web action                                                                     |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `SelectSources`       | ordered `AuthoredSourceRefV1` values and selection mode                                                                     | update Web selection only                                                      |
 | `PlaceComponent`      | target Circuit Definition ID, exact target, complete parameter authoring values, and final placement                        | one `PlaceComponentInstance` or `PlaceComponentWithNewMemoryImage` Edit Intent |
-| `MoveComponents`      | nonempty scoped Component Instance references and final placements                                                          | one `MoveComponentInstances` Edit Intent                                       |
-| `MoveDefinitionPorts` | nonempty scoped definition-Port references and final placements                                                             | one `MoveDefinitionPorts` Edit Intent                                          |
+| `MoveComponents`      | nonempty scoped Component Instance references, final placements, and route additions/replacements                           | one `MoveComponentInstances` Edit Intent                                       |
+| `MoveDefinitionPorts` | nonempty scoped definition-Port references, final placements, and route additions/replacements                              | one `MoveDefinitionPorts` Edit Intent                                          |
 | `MoveAnnotations`     | nonempty scoped Annotation references and final positions                                                                   | one `MoveAnnotations` Edit Intent                                              |
 | `CommitWire`          | scoped `AuthoredTerminalRefV1` endpoints, scoped destination Net if any, explicit Junction requests, and final route values | one `ConnectTerminals` Edit Intent                                             |
 | `AddJunction`         | scoped Net reference, final point, and complete route additions/replacements/removals                                       | one `AddJunction` Edit Intent                                                  |
@@ -97,6 +102,13 @@ drag joins two existing Nets.
 A `PlaceComponent` parameter value is either one complete persisted parameter value or `newMemoryImage { displayName, width, depth, words }`, whose `words` value is complete. The latter is valid only once, for a library memory-image parameter, and translates to the atomic convenience intent above; Web never first publishes an unbound Memory Image.
 
 Web rejects a stale version, missing source, invalid coordinate, unknown modifier, or intent that cannot translate to exactly one typed Workspace command. It discards the Transient Preview and refreshes the Scene Snapshot; it never guesses a replacement source, splits one gesture into independently committed edits, or forwards the browser record as a Domain patch. An unknown kind or build mismatch requires a hard reload.
+
+Moving a Component Instance or definition Port supplies its final placement and
+explicit route changes in one edit. The browser uses `connectedNet` membership and
+published anchors to find attached geometry. Independent endpoints are rerouted up
+to the next attachment, retaining the trunk between branches and discarding obsolete
+bends. A shared anchor stays in place and receives a new branch to the moved Terminal.
+Unrelated Nets and Unrouted geometry remain unchanged.
 
 ## 2. Waveform interface
 

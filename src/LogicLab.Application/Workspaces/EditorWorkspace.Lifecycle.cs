@@ -51,20 +51,26 @@ internal sealed partial class EditorWorkspace
             }
 
             var laneDrain = workCoordinator.DisposeAsync().AsTask();
-            await Task.WhenAll(operationDrain, laneDrain).ConfigureAwait(false);
-
-            WorkspaceState[] retired;
-            lock (gate)
+            try
             {
-                retired = [.. workspaces.Values];
-                workspaces.Clear();
-                foreach (var state in retired)
+                await Task.WhenAll(operationDrain, laneDrain).ConfigureAwait(false);
+            }
+            finally
+            {
+                WorkspaceState[] retired;
+                lock (gate)
                 {
-                    state.IsRetired = true;
+                    retired = [.. workspaces.Values];
+                    workspaces.Clear();
+                    foreach (var state in retired)
+                    {
+                        state.IsRetired = true;
+                    }
                 }
+
+                RetireAll(retired);
             }
 
-            RetireAll(retired);
             completion.TrySetResult();
         }
         catch (OperationCanceledException exception)

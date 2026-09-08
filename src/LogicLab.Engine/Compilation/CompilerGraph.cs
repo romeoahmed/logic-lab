@@ -36,6 +36,7 @@ internal static class CompilerGraph
         var reverse = Reverse(adjacency, cancellationToken);
         var assigned = new bool[adjacency.Length];
         var memberSets = new List<int[]>();
+        var stack = new Stack<int>();
 
         for (var orderIndex = finishOrder.Count - 1; orderIndex >= 0; orderIndex--)
         {
@@ -47,7 +48,6 @@ internal static class CompilerGraph
             }
 
             var members = new List<int>();
-            var stack = new Stack<int>();
             stack.Push(start);
             assigned[start] = true;
             while (stack.Count != 0)
@@ -161,6 +161,7 @@ internal static class CompilerGraph
     {
         var visited = new bool[adjacency.Length];
         var finishOrder = new List<int>(adjacency.Length);
+        var stack = new Stack<(int Node, int NextChild)>();
         for (var start = 0; start < adjacency.Length; start++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -169,7 +170,6 @@ internal static class CompilerGraph
                 continue;
             }
 
-            var stack = new Stack<(int Node, int NextChild)>();
             stack.Push((start, 0));
             visited[start] = true;
             while (stack.Count != 0)

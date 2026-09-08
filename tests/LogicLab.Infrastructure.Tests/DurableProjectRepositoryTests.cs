@@ -244,6 +244,34 @@ internal sealed class DurableProjectRepositoryTests(
         }
     }
 
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task LoadAsync_MissingOrMismatchedRevision_RejectsCorruptStorage(
+        bool missingRevision,
+        CancellationToken cancellationToken)
+    {
+        var repository = database.CreateRepository();
+        var claim = ClaimRequest(CreateRevision(), fingerprintCharacter: 'a');
+        _ = await repository.ClaimAsync(claim, cancellationToken);
+        await using var context = database.CreateContext();
+        if (missingRevision)
+        {
+            await context.ProjectRevisions.ExecuteDeleteAsync(cancellationToken);
+        }
+        else
+        {
+            var stored = await context.ProjectRevisions.SingleAsync(cancellationToken);
+            stored.Payload = ProjectRevisionPayloadSerializer.Serialize(CreateRevision());
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        await Assert.That(async () => await repository.LoadAsync(
+                new DurableProjectOpenRequest(claim.DurableProjectId, claim.SubjectId),
+                cancellationToken))
+            .ThrowsExactly<InvalidOperationException>();
+    }
+
     [Test, Timeout(30_000)]
     [Arguments(false)]
     [Arguments(true)]

@@ -8,31 +8,15 @@
 <section class="projects-shell" aria-labelledby="projects-title">
     <header class="projects-heading">
         <div>
-            <FluentBadge Appearance="BadgeAppearance.Tint"
-                         Color="BadgeColor.Brand"
-                         Shape="BadgeShape.Rounded"
-                         Size="BadgeSize.Small"
-                         Content="@Text["PrivateCatalog"]" />
             <h1 id="projects-title">@Text["PageTitle"]</h1>
+            <p>@Text["Description"]</p>
         </div>
-        <p>@Text["Description"]</p>
+        <span class="project-count">@VisibleProjectCount</span>
     </header>
 
     <FluentCard class="catalog-card"
                 Appearance="CardAppearance.Outline"
                 Width="100%">
-        <div class="catalog-card-heading">
-            <div>
-                <p class="projects-eyebrow">@Text["Eyebrow"]</p>
-                <h2>@Text["IndexTitle"]</h2>
-            </div>
-            <FluentBadge Appearance="BadgeAppearance.Outline"
-                         Color="BadgeColor.Brand"
-                         Shape="BadgeShape.Rounded"
-                         Size="BadgeSize.Small"
-                         Content="@VisibleProjectCount" />
-        </div>
-        <FluentDivider Appearance="DividerAppearance.Subtle" />
         @if (Page.Items.Count == 0)
         {
             <div class="catalog-empty" data-catalog-empty role="status">

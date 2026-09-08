@@ -1,11 +1,12 @@
+using LogicLab.Web.Testing;
 using Microsoft.Playwright;
 using TUnit.Playwright;
 using static Microsoft.Playwright.Assertions;
 
 namespace LogicLab.Web.BrowserTests;
 
-[ClassDataSource<LogicLabBrowserApplication>]
-internal sealed class WorkbenchLocalizationTests(LogicLabBrowserApplication application) : PageTest
+[ClassDataSource<LogicLabKestrelApplication>(Shared = SharedType.PerClass)]
+internal sealed class WorkbenchLocalizationTests(LogicLabKestrelApplication application) : PageTest
 {
     public override BrowserNewContextOptions ContextOptions(TestContext testContext)
     {

@@ -108,8 +108,13 @@ are disconnected in the same transaction.
 | `RenameComponentInstance`          | Sets display name or null, preserving target, Ports, and state.                                                                                     |
 | `SetInstanceParameters`            | Replaces complete parameters only when resolved Port and state schemas stay identical.                                                              |
 | `ChangeInstanceContract`           | Exact target, complete parameters, Terminal migration, and Symbol Variant replace the contract, connections, and initial state together.            |
-| `MoveComponentInstances`           | Nonempty instance IDs and final placements change presentation only.                                                                                |
+| `MoveComponentInstances`           | Nonempty instance IDs, final placements, and explicit route additions/replacements change presentation atomically.                                  |
 | `RemoveComponentInstances`         | Removes the specified nonempty instance set and its Terminal memberships; a Net is removed only if no Terminal, Junction, or Wire Geometry remains. |
+
+Component and definition-Port moves may add or replace Wire Geometry on Nets containing a
+moved Terminal. Additions name the Net; Project Editor allocates their Wire Geometry IDs. Placements and routes validate and commit together; duplicate,
+missing, unrelated, or invalid routes reject the entire edit. Moves preserve Net
+membership and Junction identity. Empty addition and replacement lists leave routes unchanged.
 
 Parameter bindings follow [Component Contract Catalog V1](./component-contract-catalog-v1.md).
 Contract migrations map every old Port to a distinct compatible new Port or an

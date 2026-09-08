@@ -27,9 +27,14 @@ internal sealed partial class SimulationFeedbackTests
     }
 
     [Test]
-    public async Task Open_SelfInvertingFeedback_CommitsUnknownWithIndeterminateEvidence()
+    [Arguments(1u)]
+    [Arguments(63u)]
+    [Arguments(64u)]
+    [Arguments(65u)]
+    [Arguments(129u)]
+    public async Task Open_SelfInvertingFeedback_CommitsUnknownWithIndeterminateEvidence(uint width)
     {
-        var circuit = CreateSelfInvertingFeedback();
+        var circuit = CreateSelfInvertingFeedback(width);
 
         var (opened, snapshot) = Open(circuit);
 
@@ -46,7 +51,7 @@ internal sealed partial class SimulationFeedbackTests
                 .IsEquivalentTo(["unknownCoordinates"]);
             await Assert.That(((SimulationUnsignedDecimalValue)
                     feedback.Arguments.Single().Value).Value)
-                .IsEqualTo(2UL);
+                .IsEqualTo(2UL * width);
         }
     }
 
@@ -451,11 +456,11 @@ internal sealed partial class SimulationFeedbackTests
         return Compile(revision);
     }
 
-    private static FeedbackCircuit CreateSelfInvertingFeedback()
+    private static FeedbackCircuit CreateSelfInvertingFeedback(uint width = 1)
     {
         var revision = CompilerTestCircuit.BeginProject();
-        (revision, var logicNot) = Place(revision, "logic.not", WidthParameters());
-        (revision, var sink) = Place(revision, "sink.output", SinkParameters());
+        (revision, var logicNot) = Place(revision, "logic.not", WidthParameters(width));
+        (revision, var sink) = Place(revision, "sink.output", SinkParameters(width));
         revision = Connect(revision, (logicNot, "Q"), (logicNot, "A"), (sink, "D"));
         return Compile(revision);
     }
@@ -632,8 +637,8 @@ internal sealed partial class SimulationFeedbackTests
         };
     }
 
-    private static ComponentParameterBinding[] WidthParameters() =>
-        [new("width", new Unsigned32ParameterValue(1))];
+    private static ComponentParameterBinding[] WidthParameters(uint width = 1) =>
+        [new("width", new Unsigned32ParameterValue(width))];
 
     private static ComponentParameterBinding[] GateParameters() =>
     [
@@ -641,9 +646,9 @@ internal sealed partial class SimulationFeedbackTests
         new("fanIn", new Unsigned32ParameterValue(2)),
     ];
 
-    private static ComponentParameterBinding[] SinkParameters() =>
+    private static ComponentParameterBinding[] SinkParameters(uint width = 1) =>
     [
-        new("width", new Unsigned32ParameterValue(1)),
+        new("width", new Unsigned32ParameterValue(width)),
         new("radix", new ChoiceParameterValue("binary")),
     ];
 

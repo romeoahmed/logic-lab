@@ -54,8 +54,8 @@ internal sealed class SequentialRuntimeTests
             await Assert.That(committed.LogicalTime).IsEqualTo(ulong.MaxValue);
             await Assert.That(committed.ObservedProbePatch.Single().Value[0])
                 .IsEqualTo(LogicValue.One);
-            var noStimulus = (await Assert.That(exhausted).IsTypeOf<NoScheduledStimulus>())!;
-            await Assert.That(noStimulus.LogicalTime)
+            var noEvents = (await Assert.That(exhausted).IsTypeOf<NoScheduledEvents>())!;
+            await Assert.That(noEvents.LogicalTime)
                 .IsEqualTo(ulong.MaxValue);
             await Assert.That(trace.Transitions.Single().LogicalTime)
                 .IsEqualTo(ulong.MaxValue);

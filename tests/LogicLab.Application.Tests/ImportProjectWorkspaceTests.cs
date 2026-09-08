@@ -2,6 +2,7 @@ using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
+using LogicLab.Engine.Compilation;
 using LogicLab.ProjectFormat;
 
 namespace LogicLab.Application.Tests;
@@ -36,7 +37,8 @@ internal sealed class ImportProjectWorkspaceTests
     }
 
     [Test]
-    public async Task OpenAsync_ImportCompilationRejected_PublishesNothingAndLeavesOriginUnchanged()
+    public async Task OpenAsync_IncompleteImport_OpensForRepairAndLeavesOriginUnchanged(
+        CancellationToken cancellationToken)
     {
         var candidate = await RoundTripCandidateAsync(CreateIncompleteRevision());
         await using var workspace = TestEditorWorkspaceFactory.Create(
@@ -47,7 +49,8 @@ internal sealed class ImportProjectWorkspaceTests
             CancellationToken.None);
         var attached = await EditorWorkspaceTestDriver.AttachAsync(
             workspace,
-            origin.WorkspaceId);
+            origin.WorkspaceId,
+            cancellationToken);
         var before = await ReadAsync(workspace, origin, attached);
 
         var outcome = await workspace.OpenAsync(
@@ -55,24 +58,59 @@ internal sealed class ImportProjectWorkspaceTests
             CancellationToken.None);
         var after = await ReadAsync(workspace, origin, attached);
 
-        var rejected = (await Assert.That(outcome)
-            .IsTypeOf<WorkspaceOpenRejected>())!;
+        var imported = (await Assert.That(outcome).IsTypeOf<WorkspaceOpened>())!;
+        var compilation = (await Assert.That(imported.Projection.Compilation)
+            .IsTypeOf<CompilationRejectedProjection>())!;
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Code).IsEqualTo("compilation_invalid");
-            await Assert.That(rejected.DiagnosticCodes).IsNotEmpty();
+            await Assert.That(compilation.RejectionCode).IsEqualTo("compilation_invalid");
+            await Assert.That(compilation.Diagnostics).IsNotEmpty();
             await Assert.That(after.ProjectRevision).IsEqualTo(before.ProjectRevision);
             await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
             await Assert.That(after.Compilation).IsEqualTo(before.Compilation);
         }
+
+        var importedAttachment = await EditorWorkspaceTestDriver.AttachAsync(
+            workspace, imported.WorkspaceId, cancellationToken);
+        var revision = imported.Projection.ProjectRevision;
+        var definition = revision.Document.EntryCircuitDefinition;
+        var edit = await workspace.DispatchAsync(new ApplyEdit(
+            EditorWorkspaceTestDriver.Command(imported.WorkspaceId, importedAttachment),
+            new AuthoringPrecondition(revision.RevisionId),
+            new RemoveComponentInstancesIntent(
+                definition.Id, [definition.ComponentInstances.Single().Id])), cancellationToken);
+        await Assert.That(edit).IsTypeOf<AuthoringCommitted>();
+        var repaired = await ReadAsync(workspace, imported, importedAttachment);
+        var request = await workspace.DispatchAsync(new RequestCompilation(
+            EditorWorkspaceTestDriver.Command(imported.WorkspaceId, importedAttachment),
+            EditorWorkspaceTestDriver.Compilation(repaired)), cancellationToken);
+        await Assert.That(request).IsTypeOf<CompilationAccepted>();
+        var compiled = await EditorWorkspaceTestDriver.WaitForCompilationAsync(
+            workspace, imported.WorkspaceId, importedAttachment, cancellationToken);
+        await Assert.That(compiled.Compilation).IsTypeOf<CompilationPublishedProjection>();
     }
 
     [Test]
-    public async Task OpenAsync_RejectedImport_ReleasesReservedWorkspaceCapacity()
+    public async Task OpenAsync_ImportCompilationPolicyExhausted_ReleasesReservedWorkspaceCapacity()
     {
-        var candidate = await RoundTripCandidateAsync(CreateIncompleteRevision());
-        await using var workspace = TestEditorWorkspaceFactory.Create(
-            WorkspaceBuild.TestFingerprint,
+        var revision = ((EditCommitted)ProjectEditor.Apply(
+            BeginProject("Oversized compilation"),
+            new CreateCircuitDefinitionIntent("Second", []))).Revision;
+        var candidate = await RoundTripCandidateAsync(revision);
+        var operations = WorkspaceModuleOperations.Production with
+        {
+            Compile = (request, token) => Compiler.Compile(new CompilationRequest(
+                request.ProjectRevision,
+                request.EntryCircuitDefinitionId,
+                request.LibrarySnapshot,
+                new ProjectScalePolicy("import-compilation-tests", "1",
+                    [.. request.Policy.Limits.Select(limit =>
+                        limit.Dimension == ProjectScaleDimension.DefinitionCount
+                            ? limit with { Maximum = 1 }
+                            : limit)])), token),
+        };
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(
+            operations,
             workspacePolicy: WorkspacePolicyWithLimit(1));
 
         var rejected = await workspace.OpenAsync(
@@ -84,7 +122,9 @@ internal sealed class ImportProjectWorkspaceTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(rejected).IsTypeOf<WorkspaceOpenRejected>();
+            var rejection = (await Assert.That(rejected).IsTypeOf<WorkspaceOpenRejected>())!;
+            await Assert.That(rejection.Code).IsEqualTo("compilation_policy_exhausted");
+            await Assert.That(rejection.PolicyEvidence).IsNotNull();
             await Assert.That(replacement).IsTypeOf<WorkspaceOpened>();
         }
     }

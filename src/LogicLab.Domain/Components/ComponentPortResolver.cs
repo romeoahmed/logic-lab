@@ -77,7 +77,7 @@ internal static class ComponentPortResolver
             AppendPorts(resolved, port, parameters, cancellationToken);
         }
 
-        return Array.AsReadOnly(resolved.ToArray());
+        return resolved.AsReadOnly();
     }
 
     public static bool TryResolvePort(

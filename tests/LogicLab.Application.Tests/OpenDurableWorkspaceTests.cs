@@ -3,6 +3,8 @@ using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 
 namespace LogicLab.Application.Tests;
 
@@ -91,7 +93,7 @@ internal sealed class OpenDurableWorkspaceTests
     }
 
     [Test]
-    public async Task OpenAsync_OpenDurableCompilationRejected_PublishesNothingAndReleasesAdmission()
+    public async Task OpenAsync_IncompleteDurableProject_OpensWithCompilationDiagnostics()
     {
         var loader = new RecordingLoader(new DurableProjectOpenFound(
             ProjectId,
@@ -106,17 +108,21 @@ internal sealed class OpenDurableWorkspaceTests
         var outcome = await workspace.OpenAsync(
             new OpenDurable(ProjectId, Owner),
             CancellationToken.None);
-        var sandbox = await workspace.OpenAsync(
-            new CreateSandbox("Sandbox", "Main", AnonymousWorkspaceCaller.Instance),
-            CancellationToken.None);
-        var rejected = (await Assert.That(outcome)
-            .IsTypeOf<WorkspaceOpenRejected>())!;
+        var opened = (await Assert.That(outcome).IsTypeOf<WorkspaceOpened>())!;
+        var compilation = (await Assert.That(opened.Projection.Compilation)
+            .IsTypeOf<CompilationRejectedProjection>())!;
+        var durability = (await Assert.That(opened.Projection.Durability)
+            .IsTypeOf<DurableWorkspaceDurabilityProjection>())!;
 
         using (Assert.Multiple())
         {
-            await Assert.That(rejected.Code).IsEqualTo("compilation_invalid");
-            await Assert.That(rejected.DiagnosticCodes).IsNotEmpty();
-            await Assert.That(sandbox).IsTypeOf<WorkspaceOpened>();
+            await Assert.That(compilation.RejectionCode).IsEqualTo("compilation_invalid");
+            await Assert.That(compilation.Diagnostics).IsNotEmpty();
+            await Assert.That(opened.Projection.ProjectionVersion).IsEqualTo(1UL);
+            await Assert.That(opened.Projection.Simulation).IsNull();
+            await Assert.That(durability.SaveStatus).IsEqualTo(DurableSaveStatus.Clean);
+            await Assert.That(durability.SavedProjectRevisionId)
+                .IsEqualTo(opened.Projection.ProjectRevision.RevisionId);
         }
     }
 
@@ -231,7 +237,8 @@ internal sealed class OpenDurableWorkspaceTests
         using var activity = new Activity("open-durable-test");
         activity.SetIdFormat(ActivityIdFormat.W3C);
         activity.Start();
-        using var loggerFactory = new RecordingLoggerFactory();
+        using var logs = new FakeLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(logs));
         using var cancellation = new CancellationTokenSource();
         var loader = new RecordingLoader(LoaderFailure.Defect, cancellation);
         await using var workspace = TestEditorWorkspaceFactory.Create(
@@ -245,16 +252,17 @@ internal sealed class OpenDurableWorkspaceTests
 
         var rejected = (await Assert.That(outcome)
             .IsTypeOf<WorkspaceOpenRejected>())!;
-        var log = loggerFactory.Entries.Single(entry => entry.EventId.Id == 1006);
+        var log = logs.Collector.GetSnapshot().Single(entry => entry.Id.Id == 1006);
         using (Assert.Multiple())
         {
             await Assert.That(rejected.Code).IsEqualTo("workspace_internal_defect");
             await Assert.That(log.Level).IsEqualTo(Microsoft.Extensions.Logging.LogLevel.Error);
             await Assert.That(log.Exception).IsNull();
-            await Assert.That(log.Properties["Correlation"])
+            await Assert.That(log.Message).DoesNotContain("invalid payload");
+            await Assert.That(log.GetStructuredStateValue("Correlation"))
                 .IsEqualTo(activity.TraceId.ToHexString());
-            await Assert.That(log.Properties["Stage"]).IsEqualTo("load");
-            await Assert.That(log.Properties["OutcomeCode"])
+            await Assert.That(log.GetStructuredStateValue("Stage")).IsEqualTo("load");
+            await Assert.That(log.GetStructuredStateValue("OutcomeCode"))
                 .IsEqualTo(rejected.Code);
         }
     }

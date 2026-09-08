@@ -43,9 +43,7 @@ public sealed partial class Editor
                 durability.ObservedDurableVersion)));
         Status = outcome switch
         {
-            DurableProjectSaved saved => Text[
-                "SaveSucceeded",
-                saved.DurableVersion.Value],
+            DurableProjectSaved => Text["SaveSucceeded"],
             DurableProjectSaveConflict => Text["SaveConflictStatus"],
             WorkspaceCommandRejected rejected => Text["SaveRejected", rejected.Code],
             _ => throw new UnreachableException(),
@@ -107,8 +105,7 @@ public sealed partial class Editor
         var revisionId = revision.RevisionId;
         var outcome = await Execute(context => new PrepareExport(
             context,
-            new AuthoringPrecondition(revisionId),
-            revisionId));
+            new AuthoringPrecondition(revisionId)));
         if (outcome is not ExportPrepared prepared)
         {
             PreparedExportUrl = null;
@@ -135,37 +132,46 @@ public sealed partial class Editor
         PreparedExportUrl = null;
         try
         {
-            await using var source = change.File.OpenReadStream(
-                projectImportWorkflow.MaximumCarrierBytes,
-                componentCancellationToken);
-            var outcome = await projectImportWorkflow.ImportAsync(
-                source,
-                RequireCurrentCaller(),
-                componentCancellationToken);
-            if (outcome is WorkspaceOpenRejected rejected)
+            Stream source;
+            try
             {
-                Status = Text["ImportRejected", rejected.Code];
+                source = change.File.OpenReadStream(
+                    projectImportWorkflow.MaximumCarrierBytes,
+                    componentCancellationToken);
+            }
+            catch (IOException)
+            {
+                Status = Text["ImportRejected", "package_limit_exceeded"];
                 return;
             }
 
-            var imported = (WorkspaceOpened)outcome;
-            Status = Text["ImportOpening"];
-            Navigation.NavigateTo(
-                CreateWorkspaceLocator(imported.WorkspaceId),
-                new NavigationOptions
+            await using (source)
+            {
+                var outcome = await projectImportWorkflow.ImportAsync(
+                    source,
+                    RequireCurrentCaller(),
+                    componentCancellationToken);
+                if (outcome is WorkspaceOpenRejected rejected)
                 {
-                    ForceLoad = true,
-                    ReplaceHistoryEntry = true,
-                });
+                    Status = Text["ImportRejected", rejected.Code];
+                    return;
+                }
+
+                var imported = (WorkspaceOpened)outcome;
+                Status = Text["ImportOpening"];
+                Navigation.NavigateTo(
+                    CreateWorkspaceLocator(imported.WorkspaceId),
+                    new NavigationOptions
+                    {
+                        ForceLoad = true,
+                        ReplaceHistoryEntry = true,
+                    });
+            }
         }
         catch (OperationCanceledException)
             when (componentLifetime.IsCancellationRequested)
         {
             Status = Text["ImportCancelled"];
-        }
-        catch (IOException)
-        {
-            Status = Text["ImportRejected", "package_limit_exceeded"];
         }
         finally
         {

@@ -65,7 +65,7 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
     [Arguments("logic.adder", "∑", ConformanceClaimV1.TeachingExtension)]
     [Arguments("logic.subtractor", "P-Q", ConformanceClaimV1.TeachingExtension)]
     [Arguments("logic.shift", "[SHL]", ConformanceClaimV1.TeachingExtension)]
-    public async Task Plan_Item24LibraryContract_EmitsParameterizedRectangleAndExactPorts(
+    public async Task Plan_RectangularLibrarySymbol_EmitsFunctionAndOrderedPorts(
         string contractId,
         string expectedFunction,
         ConformanceClaimV1 expectedClaim)
@@ -120,7 +120,7 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
     [Arguments("logic.unsigned_compare", "3.3-31|3.3-32|3.3-33|5.7-1|5.7-11")]
     [Arguments("logic.adder", "3.3-25|3.3-26|5.7-1|5.7-5")]
     [Arguments("logic.subtractor", "3.3-25|3.3-26|5.7-1|5.7-6")]
-    public async Task Plan_Item24LibraryContract_EmitsRegisteredConformanceEvidence(
+    public async Task Plan_RectangularLibrarySymbol_EmitsRegisteredConformanceEvidence(
         string contractId,
         string expectedClauses)
     {
@@ -427,9 +427,10 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
                 && operation.Path.Commands is
                     [MoveToV1, LineToV1, LineToV1, ClosePathV1]);
         var qualifierLeft = ((MoveToV1)qualifier.Path.Commands[0]).Point.X;
-        var strokeMargin = GeometryPlanValidator.ConservativeStrokeMargin(
-            qualifier.Width,
-            qualifier.LineJoin);
+        var halfStrokeWidth = (qualifier.Width + 1) / 2;
+        var strokeMargin = qualifier.LineJoin.Kind == LineJoinKindV1.Miter
+            ? halfStrokeWidth * qualifier.LineJoin.MiterLimitRatio
+            : halfStrokeWidth;
 
         await Assert.That(label.Bounds.Right)
             .IsLessThan(checked(qualifierLeft - strokeMargin));

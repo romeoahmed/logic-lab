@@ -155,46 +155,49 @@ internal static class CombinationalEvaluation
                 nameof(inputs));
         }
 
-        var normalized = new LogicValue[inputs.Count];
-        for (var index = 0; index < normalized.Length; index++)
-        {
-            normalized[index] = ScalarLogic.NormalizeInput(inputs[index]);
-        }
-
-        var possibleResults = new List<(uint Index, LogicValue Valid)>();
+        var anyIndexBits = 0U;
+        var commonIndexBits = uint.MaxValue;
+        var hasPossibleAssertion = false;
         var candidate = lowestIndex ? 0 : inputs.Count - 1;
         var step = lowestIndex ? 1 : -1;
         var higherCanAllBeZero = true;
         for (; candidate >= 0 && candidate < inputs.Count; candidate += step)
         {
-            var candidateCanBeOne = normalized[candidate] is LogicValue.One or LogicValue.X;
+            var value = ScalarLogic.NormalizeInput(inputs[candidate]);
+            var candidateCanBeOne = value is LogicValue.One or LogicValue.X;
             if (candidateCanBeOne && higherCanAllBeZero)
             {
-                possibleResults.Add((checked((uint)candidate), LogicValue.One));
+                anyIndexBits |= checked((uint)candidate);
+                commonIndexBits &= checked((uint)candidate);
+                hasPossibleAssertion = true;
             }
 
-            higherCanAllBeZero &= normalized[candidate] is LogicValue.Zero or LogicValue.X;
+            higherCanAllBeZero &= value is LogicValue.Zero or LogicValue.X;
         }
 
         if (higherCanAllBeZero)
         {
-            possibleResults.Add((0, LogicValue.Zero));
+            commonIndexBits = 0;
         }
 
         var width = Math.Max(1, System.Numerics.BitOperations.Log2(
             checked((uint)inputs.Count - 1)) + 1);
-        var indices = new LogicVector[possibleResults.Count];
-        var validValues = new LogicValue[possibleResults.Count];
-        for (var index = 0; index < possibleResults.Count; index++)
+        var indexBits = new LogicValue[width];
+        // A bit is known only when every reachable index agrees, including zero
+        // when no input need be asserted. No per-candidate vectors are needed.
+        for (var bit = 0; bit < indexBits.Length; bit++)
         {
-            var result = possibleResults[index];
-            indices[index] = UnsignedVector(result.Index, width);
-            validValues[index] = result.Valid;
+            var mask = 1U << bit;
+            indexBits[bit] = (anyIndexBits & mask) == 0
+                ? LogicValue.Zero
+                : (commonIndexBits & mask) != 0 ? LogicValue.One : LogicValue.X;
         }
 
         return new PriorityEncoderResult(
-            VectorConservativeMerge.Merge(indices),
-            ConservativeMerge.Merge(validValues));
+            new LogicVector(indexBits),
+            hasPossibleAssertion
+                ? higherCanAllBeZero ? LogicValue.X : LogicValue.One
+                : LogicValue.Zero);
     }
 
     private static bool IsCompatibleIndex(LogicVector selector, uint index)
@@ -233,19 +236,6 @@ internal static class CombinationalEvaluation
         }
 
         return checked(1 << selectorWidth);
-    }
-
-    private static LogicVector UnsignedVector(uint value, int width)
-    {
-        var values = new LogicValue[width];
-        for (var bit = 0; bit < values.Length; bit++)
-        {
-            values[bit] = ((value >> bit) & 1U) == 0
-                ? LogicValue.Zero
-                : LogicValue.One;
-        }
-
-        return new LogicVector(values);
     }
 
     private static bool ContainsNull(IReadOnlyList<LogicVector> values)

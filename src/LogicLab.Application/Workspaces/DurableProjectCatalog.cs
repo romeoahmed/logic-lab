@@ -261,7 +261,7 @@ internal sealed partial class DurableProjectCatalog(
     IProjectCatalogCursorProtector cursorProtector,
     ILogger<DurableProjectCatalog> logger) : IDurableProjectCatalog
 {
-    private const string OrderingContractVersion = "1";
+    private const string OrderingContractVersion = "2";
 
     public async Task<DurableProjectListOutcome> ListAsync(
         AuthenticatedSubjectId subjectId,
@@ -334,11 +334,13 @@ internal sealed partial class DurableProjectCatalog(
                 }
             }
 
-            return new DurableProjectPage(
+            var page = new DurableProjectPage(
                 [.. emitted.Select(item => new DurableProjectSummaryV1(
                     item.DurableProjectId,
                     item.DisplayName))],
                 next);
+            cancellationToken.ThrowIfCancellationRequested();
+            return page;
         }
         catch (OperationCanceledException exception)
             when (ExceptionClassifier.IsCooperativeCancellation(
@@ -396,9 +398,12 @@ internal sealed partial class DurableProjectCatalog(
         ProjectCatalogCursorState? after)
     {
         ReadOnlyCollection<byte>? priorSortKey = after?.LastDisplayNameSortKey;
-        DurableProjectId? priorProjectId = after?.LastDurableProjectId;
+        byte[]? priorProjectId = after is null
+            ? null
+            : Encoding.UTF8.GetBytes(after.LastDurableProjectId.Value);
         foreach (var current in items)
         {
+            var currentProjectId = Encoding.UTF8.GetBytes(current.DurableProjectId.Value);
             if (!current.DisplayNameSortKey.SequenceEqual(
                     Encoding.UTF8.GetBytes(current.DisplayName.Value)))
             {
@@ -412,16 +417,14 @@ internal sealed partial class DurableProjectCatalog(
                     current.DisplayNameSortKey);
                 if (keyComparison > 0
                     || keyComparison == 0
-                        && string.CompareOrdinal(
-                            priorProjectId!.Value,
-                            current.DurableProjectId.Value) >= 0)
+                        && priorProjectId.AsSpan().SequenceCompareTo(currentProjectId) >= 0)
                 {
                     return false;
                 }
             }
 
             priorSortKey = current.DisplayNameSortKey;
-            priorProjectId = current.DurableProjectId;
+            priorProjectId = currentProjectId;
         }
 
         return true;

@@ -5,7 +5,7 @@ using static LogicLab.Domain.Tests.ProjectEditorTestContext;
 
 namespace LogicLab.Domain.Tests;
 
-internal sealed class ProjectEditorCatalogTests
+internal sealed class ProjectEditorStructureTests
 {
     [Test]
     public async Task Apply_RenameDefinitionAndInstance_PreservesIdentities()
@@ -59,6 +59,11 @@ internal sealed class ProjectEditorCatalogTests
         ];
         revision = Commit(ProjectEditor.Apply(revision, new ConnectTerminalsIntent(terminals)));
         var originalNet = revision.Document.EntryCircuitDefinition.Nets.Single();
+        revision = Commit(ProjectEditor.Apply(revision, new AddWireGeometryIntent(
+            definition.Id, originalNet.Id,
+            new OrthogonalWireRoute([new GridPoint(0, 0), new GridPoint(4, 0)]))));
+        var originalGeometry = revision.Document.EntryCircuitDefinition.WireGeometries.Single();
+        var route = new OrthogonalWireRoute([new GridPoint(-4, 7), new GridPoint(12, 7)]);
         DefinitionPortMove[] moves =
         [
             new(
@@ -71,7 +76,8 @@ internal sealed class ProjectEditorCatalogTests
 
         var outcome = ProjectEditor.Apply(
             revision,
-            new MoveDefinitionPortsIntent(definition.Id, moves));
+            new MoveDefinitionPortsIntent(definition.Id, moves,
+                [new WireGeometryReplacement(originalGeometry.Id, route)], []));
 
         var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
         var ports = committed.Revision.Document.EntryCircuitDefinition.Ports;
@@ -88,7 +94,10 @@ internal sealed class ProjectEditorCatalogTests
             await Assert.That(net.Terminals).IsEquivalentTo(terminals, CollectionOrdering.Matching);
             await Assert.That(committed.ChangedSources).IsEquivalentTo(
                 definition.Ports.Select(port => (AuthoredSourceIdentity)
-                    new DefinitionPortSourceIdentity(definition.Id, port.Id)));
+                    new DefinitionPortSourceIdentity(definition.Id, port.Id))
+                    .Append(new WireGeometrySourceIdentity(definition.Id, originalGeometry.Id)));
+            await Assert.That(committed.Revision.Document.EntryCircuitDefinition
+                .FindWireGeometry(originalGeometry.Id)!.Route).IsEqualTo(route);
             await Assert.That(committed.RemovedSources).IsEmpty();
         }
     }
@@ -263,7 +272,7 @@ internal sealed class ProjectEditorCatalogTests
     private static ProjectRevision BeginProject()
     {
         return ((ProjectGenesisCommitted)ProjectEditor.Begin(new NewProjectSeed(
-            "Catalog fixture",
+            "Structure fixture",
             LibrarySnapshot.Core,
             TeachingMixedProfile(),
             "Main"))).Revision;

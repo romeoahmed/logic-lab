@@ -90,7 +90,7 @@ SimulationCommandOutcome =
       SessionVersion, LogicalTime, observed Probe patch,
       Diagnostics[], Trace cursor
     }
-  | NoScheduledStimulus { SessionVersion, LogicalTime }
+  | NoScheduledEvents { SessionVersion, LogicalTime }
   | AdvanceFailed {
       unchanged SessionVersion, unchanged LogicalTime,
       reason, Diagnostics[], policyEvidence?
@@ -285,7 +285,7 @@ One advance uses a discardable working layer:
 
 ```text
 previous Quiescent Boundary
-  -> apply the next Stimulus Batch at delta zero
+  -> apply the next time bucket of stimuli and Clock Source transitions at delta zero
   -> settle combinational regions
   -> form one causal Trigger Batch
   -> sample every triggered Sequential Component from one pre-commit snapshot

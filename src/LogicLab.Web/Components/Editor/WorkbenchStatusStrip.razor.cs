@@ -22,16 +22,15 @@ public sealed partial class WorkbenchStatusStrip
         DurableWorkspaceDurabilityProjection
         {
             SaveStatus: DurableSaveStatus.Clean,
-        } durable => Text["SaveDurableClean", durable.ObservedDurableVersion.Value],
+        } => Text["SaveDurableClean"],
         DurableWorkspaceDurabilityProjection
         {
             SaveStatus: DurableSaveStatus.Changed,
-        } durable => Text["SaveDurableChanged", durable.ObservedDurableVersion.Value],
+        } => Text["SaveDurableChanged"],
         DurableWorkspaceDurabilityProjection
         {
             SaveStatus: DurableSaveStatus.Conflict,
-            ConflictActualDurableVersion: { } actualVersion,
-        } => Text["SaveDurableConflict", actualVersion.Value],
+        } => Text["SaveDurableConflict"],
         DurableWorkspaceDurabilityProjection => Text["SaveDurableUnavailable"],
         _ => Text["Unavailable"],
     };

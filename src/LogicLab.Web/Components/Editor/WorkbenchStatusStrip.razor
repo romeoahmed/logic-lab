@@ -2,40 +2,43 @@
 
 <div class="status-strip"
      data-connection-state="@(IsConnected ? "connected" : "connecting")">
-    <dl class="status-facts">
-        <div data-status="connection">
-            <dt>@Text["Connection"]</dt>
-            <dd>
-                <FluentBadge Appearance="BadgeAppearance.Tint"
-                             Color="@ConnectionBadgeColor"
-                             Size="BadgeSize.Small"
-                             Content="@Connection" />
-            </dd>
-        </div>
-        <div data-status="logical-time">
-            <dt>@Text["LogicalTime"]</dt>
-            <dd>@LogicalTime</dd>
-        </div>
-        <div data-status="quiescence">
-            <dt>@Text["Quiescence"]</dt>
-            <dd>@Quiescence</dd>
-        </div>
-        <div data-status="simulation">
-            <dt>@Text["Simulation"]</dt>
-            <dd>@Simulation</dd>
-        </div>
-        <div data-status="trace">
-            <dt>@Text["TraceRange"]</dt>
-            <dd>@TraceRange</dd>
-        </div>
-        <div data-status="compilation">
-            <dt>@Text["Compilation"]</dt>
-            <dd>@Compilation</dd>
-        </div>
-        <div data-status="save">
-            <dt>@Text["Save"]</dt>
-            <dd>@Save</dd>
-        </div>
-    </dl>
+    @if (Projection is not null)
+    {
+        <dl class="status-facts">
+            <div data-status="connection">
+                <dt>@Text["Connection"]</dt>
+                <dd>
+                    <FluentBadge Appearance="BadgeAppearance.Tint"
+                                 Color="@ConnectionBadgeColor"
+                                 Size="BadgeSize.Small"
+                                 Content="@Connection" />
+                </dd>
+            </div>
+            <div data-status="logical-time">
+                <dt>@Text["LogicalTime"]</dt>
+                <dd>@LogicalTime</dd>
+            </div>
+            <div data-status="quiescence">
+                <dt>@Text["Quiescence"]</dt>
+                <dd>@Quiescence</dd>
+            </div>
+            <div data-status="simulation">
+                <dt>@Text["Simulation"]</dt>
+                <dd>@Simulation</dd>
+            </div>
+            <div data-status="trace">
+                <dt>@Text["TraceRange"]</dt>
+                <dd>@TraceRange</dd>
+            </div>
+            <div data-status="compilation">
+                <dt>@Text["Compilation"]</dt>
+                <dd>@Compilation</dd>
+            </div>
+            <div data-status="save">
+                <dt>@Text["Save"]</dt>
+                <dd>@Save</dd>
+            </div>
+        </dl>
+    }
     <p class="status-message" role="status" aria-live="polite">@Message</p>
 </div>

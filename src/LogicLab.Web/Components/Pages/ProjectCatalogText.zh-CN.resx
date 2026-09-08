@@ -8,12 +8,9 @@
   <data name="EmptyDescription" xml:space="preserve"><value>先在沙盒中试验，再保存想要保留的电路。</value></data>
   <data name="EmptyOpenWorkbench" xml:space="preserve"><value>打开沙盒工作台</value></data>
   <data name="EmptyTitle" xml:space="preserve"><value>还没有已保存项目</value></data>
-  <data name="Eyebrow" xml:space="preserve"><value>已保存的修订</value></data>
-  <data name="IndexTitle" xml:space="preserve"><value>你的项目索引</value></data>
   <data name="NextPage" xml:space="preserve"><value>下一页</value></data>
   <data name="OpenProject" xml:space="preserve"><value>打开项目</value></data>
   <data name="PageTitle" xml:space="preserve"><value>已保存项目</value></data>
-  <data name="PrivateCatalog" xml:space="preserve"><value>仅自己可见</value></data>
   <data name="ProjectCountOne" xml:space="preserve"><value>1 个项目</value></data>
   <data name="ProjectCountOther" xml:space="preserve"><value>{0} 个项目</value></data>
 </root>

@@ -1,14 +1,15 @@
+using System.Text.RegularExpressions;
 using TUnit.FsCheck;
 
 namespace LogicLab.ProjectFormat.Tests;
 
-internal sealed class PackagePolicyTests
+internal sealed partial class PackagePolicyTests
 {
     [Test, FsCheckProperty(MaxTest = 200)]
     public bool PackagePolicy_StableTokens_FollowDiagnosticsLexicalForm(string? candidate)
     {
         var limits = PackagePolicy.Default.Limits;
-        var expected = IsStableToken(candidate);
+        var expected = candidate is not null && StableTokenPattern().IsMatch(candidate);
 
         return Accepts(() => new PackagePolicy(candidate!, "1", limits)) == expected
             && Accepts(() => new PackagePolicy("valid", candidate!, limits)) == expected;
@@ -33,6 +34,38 @@ internal sealed class PackagePolicyTests
         }
     }
 
+    [Test]
+    [Arguments("-token")]
+    [Arguments("token\n")]
+    [Arguments("tøken")]
+    public async Task PackagePolicy_InvalidToken_IsRejected(string candidate)
+    {
+        var limits = PackagePolicy.Default.Limits;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(() => new PackagePolicy(candidate, "1", limits))
+                .ThrowsExactly<ArgumentException>();
+            await Assert.That(() => new PackagePolicy("valid", candidate, limits))
+                .ThrowsExactly<ArgumentException>();
+        }
+    }
+
+    [Test]
+    public async Task PackagePolicy_TokenExceedsMaximumLength_IsRejected()
+    {
+        var candidate = new string('A', 97);
+        var limits = PackagePolicy.Default.Limits;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(() => new PackagePolicy(candidate, "1", limits))
+                .ThrowsExactly<ArgumentException>();
+            await Assert.That(() => new PackagePolicy("valid", candidate, limits))
+                .ThrowsExactly<ArgumentException>();
+        }
+    }
+
     private static bool Accepts<T>(Func<T> create)
     {
         try
@@ -46,10 +79,7 @@ internal sealed class PackagePolicyTests
         }
     }
 
-    private static bool IsStableToken(string? value) =>
-        value is { Length: >= 1 and <= 96 }
-        && char.IsAsciiLetterOrDigit(value[0])
-        && value.All(static character =>
-            char.IsAsciiLetterOrDigit(character)
-            || character is '.' or '_' or '-');
+    // Diagnostics V1 defines this grammar; keep the oracle independent of the character scanner.
+    [GeneratedRegex(@"\A[A-Za-z0-9][A-Za-z0-9._-]{0,95}\z", RegexOptions.CultureInvariant)]
+    private static partial Regex StableTokenPattern();
 }

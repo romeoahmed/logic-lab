@@ -258,7 +258,7 @@ internal sealed partial class CircuitSceneHostTests
                     candidates.Add((string)args![0]!, []);
                     break;
                 case "appendTransfer":
-                    candidates[(string)args![0]!].AddRange(Convert.FromBase64String((string)args[2]!));
+                    candidates[(string)args![0]!].AddRange((byte[])args[2]!);
                     break;
                 case "commitTransfer":
                     var failure = CommitFailure;

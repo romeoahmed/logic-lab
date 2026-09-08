@@ -157,6 +157,122 @@ improvement. Reproduce the current path with `--job Short --filter
 '*ProjectPackageReadBenchmarks*'`; the shared test corpus also covers all nested
 member shapes, legal permutations, escaped names, and late discriminators.
 
+### Settlement queue maintenance, 2026-09-08
+
+Settlement now uses the BCL `PriorityQueue<int, int>` with the existing evaluator
+ordering and ordinal tie-breaker. It replaces the private binary-heap operations;
+the separate pending-state array still prevents duplicate admission. Policy accounting
+includes both the queue element and priority slots.
+
+The existing `SimulationOpenBenchmarks` case `feedback-not-v1-r32` compares public
+Session open, settlement, and close against an isolated baseline containing the old
+heap. Release ShortRun used the same M5/macOS 26.6.2/.NET 10.0.11 Arm64 environment
+and one-launch, three-warmup, three-measurement settings as the comparisons above.
+
+| Implementation |     Mean | Standard deviation | Managed allocation |
+| -------------- | -------: | -----------------: | -----------------: |
+| private heap   | 44.55 μs |           0.026 μs |          146.43 KB |
+| BCL queue      | 43.47 μs |           0.107 μs |          146.55 KB |
+
+Timing confidence intervals overlap. Retain the standard implementation for reduced
+maintenance, with the measured allocation cost of about 0.12 KB per Session open;
+this is not evidence of a general Simulation speedup. Reproduce with
+`--job Short --filter '*SimulationOpenBenchmarks*feedback*'`.
+
+### Schematic projection bounds, 2026-09-08
+
+`SchematicProjectionBenchmarks` measures the public projection of 16 or 1024
+two-line annotations. Authoring runs in setup, and a fixed matching text measurer
+isolates Presentation work from browser shaping. The baseline collected every
+operation and hit-region rectangle, then scanned the list for four extrema.
+The retained implementation enumerates those bounds once without an intermediate list.
+
+| Annotations | Baseline mean | Retained mean | Baseline allocation | Retained allocation |
+| ----------: | ------------: | ------------: | ------------------: | ------------------: |
+|          16 |      4.785 μs |      3.897 μs |            22.04 KB |            18.04 KB |
+|        1024 |    305.966 μs |    246.251 μs |          1290.28 KB |          1034.10 KB |
+
+Both Release ShortRuns used Apple M5, macOS 26.6.2, SDK 10.0.400, .NET 10.0.11
+Arm64, and BenchmarkDotNet 0.15.8, with one launch, three warmups, and three
+measurements. Candidate standard deviations were 0.0291 and 0.7294 μs. The isolated
+baseline used the same source and corpus except for the bounds implementation.
+These local results support reducing projection allocation; they do not measure
+symbol-heavy circuits, browser text shaping, Canvas rendering, or frame latency.
+Reproduce with `--job Short --filter '*SchematicProjectionBenchmarks*'`.
+
+### Trace baseline merge, 2026-09-08
+
+Transition reads now prepend only baselines before the requested range. Transitions
+at the range start are already present, so the reader no longer deduplicates and
+sorts the complete retained window or copies it through a second list. Summary
+reads also avoid constructing an unused Probe-ID set.
+
+The existing `SimulationTraceReadBenchmarks.ReadTransitions` corpus compares the
+old and retained implementations with identical sources apart from this change.
+Both Release ShortRuns used Apple M5, macOS 26.6.2, SDK 10.0.400, .NET 10.0.11
+Arm64, BenchmarkDotNet 0.15.8, one launch, three warmups, and three measurements.
+
+| Transition count | Baseline mean | Retained mean | Baseline allocation | Retained allocation |
+| ---------------: | ------------: | ------------: | ------------------: | ------------------: |
+|               16 |      1.100 μs |      0.801 μs |             2.97 KB |             1.69 KB |
+|              256 |     13.407 μs |      8.774 μs |            33.93 KB |            11.16 KB |
+|             4096 |    247.315 μs |    136.554 μs |           588.50 KB |           161.25 KB |
+
+At 4096, standard deviations were 5.913 μs and 0.245 μs respectively. This local
+comparison measures a complete transition window without a continuation cursor;
+it does not measure visual summaries, evicted histories, or browser frame latency.
+Tests cover ordered per-Probe baselines both at and before the requested start,
+and missing baselines after eviction. Reproduce with
+`--job Short --filter '*SimulationTraceReadBenchmarks.ReadTransitions*'`.
+
+### Priority encoder candidate merge, 2026-09-08
+
+The encoder now accumulates the common and differing bits of reachable indices,
+including index zero when no assertion is required. It no longer builds a list of
+candidate tuples, one Logic Vector per candidate, or a separate validity array.
+Exhaustive binary-world comparisons cover two through five inputs in both priority
+directions; larger boundary cases cover known, unasserted, `X`, and `Z` inputs.
+
+`PriorityEncoderBenchmarks` compares identical input arrays against an isolated
+copy of the preceding implementation. Known inputs assert only the final input;
+uncertain inputs are all `X`. Both Release ShortRuns used Apple M5, macOS 26.6.2,
+SDK 10.0.400, .NET 10.0.11 Arm64, BenchmarkDotNet 0.15.8, one launch, three warmups,
+and three measurements.
+
+| Inputs | State | Baseline mean | Retained mean | Baseline allocation | Retained allocation |
+| -----: | ----- | ------------: | ------------: | ------------------: | ------------------: |
+|      4 | known |      50.10 ns |      17.30 ns |               424 B |               136 B |
+|      4 | `X`   |     120.96 ns |      17.09 ns |              1088 B |               136 B |
+|     64 | known |     208.42 ns |     115.69 ns |               480 B |               136 B |
+|     64 | `X`   |    1747.92 ns |     116.82 ns |             11864 B |               136 B |
+|    256 | known |     675.97 ns |     395.36 ns |               672 B |               136 B |
+|    256 | `X`   |    8022.05 ns |     418.77 ns |             46088 B |               136 B |
+
+For 256 uncertain inputs, standard deviations were 23.15 ns and 5.20 ns. These
+local kernel measurements support removing intermediate candidate objects; they
+do not estimate whole-Session speedup. Reproduce with
+`--job Short --filter '*PriorityEncoderBenchmarks*'`.
+
+### Catalog continuation query, 2026-09-08
+
+Catalog continuation now compares `(display_name_sort_key, durable_project_id)`
+directly with the cursor tuple. PostgreSQL compares row fields from left to right
+using their B-tree operators ([row comparisons](https://www.postgresql.org/docs/18/functions-comparisons.html#ROW-WISE-COMPARISON)).
+The existing subject/name/ID index can use both authorization and the cursor as
+index conditions; the previous expanded `OR` left the cursor as a scan filter.
+
+The reproducible [query-plan script](../../benchmarks/catalog-pagination.sql)
+uses a temporary table with the production column types and index order, 100,000
+rows, paired display names, and a 21-row page after row 90,000. On local PostgreSQL
+18.6 Linux Arm64, the old plan removed 90,000 rows by filtering; the tuple plan
+returned the page directly with no cursor filter. Both returned 21 rows. The
+repository tests also exercise authorization and a page boundary inside equal names.
+
+This is an `EXPLAIN (ANALYZE, BUFFERS, TIMING OFF)` plan comparison, not an
+application latency or production capacity measurement. Run the script through
+`psql -v ON_ERROR_STOP=1 -f benchmarks/catalog-pagination.sql`; its data disappears
+when the connection closes.
+
 ## Trace-read checkpoint, 2026-08-30
 
 The default Release job measured the public Trace query after setup populated the

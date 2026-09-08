@@ -1,39 +1,14 @@
-@inject IStringLocalizer<AccountText> Text
-
 <section class="account-shell" aria-labelledby="account-title">
-    <div class="account-introduction">
-        <p class="account-eyebrow">@Eyebrow</p>
+    <header class="account-introduction">
         <h1 id="account-title">@Title</h1>
         <p>@Description</p>
-        <ul class="account-assurances">
-            <li><span aria-hidden="true">✓</span>@Text["AssuranceCatalog"]</li>
-            <li><span aria-hidden="true">✓</span>@Text["AssuranceAttachments"]</li>
-            <li><span aria-hidden="true">✓</span>@Text["AssuranceSessions"]</li>
-        </ul>
+    </header>
+    <div class="account-card">
+        @ChildContent
     </div>
-
-    <FluentCard class="account-card"
-                Appearance="CardAppearance.Outline"
-                Width="100%">
-        <div class="account-card-context">
-            <FluentBadge Appearance="BadgeAppearance.Tint"
-                         Color="BadgeColor.Brand"
-                         Shape="BadgeShape.Rounded"
-                         Size="BadgeSize.Small"
-                         Content="@Text["SecureAccess"]" />
-            <span>@Text["ProtectedForm"]</span>
-        </div>
-        <FluentDivider Appearance="DividerAppearance.Subtle" />
-        <div class="account-card-content">
-            @ChildContent
-        </div>
-    </FluentCard>
 </section>
 
 @code {
-    [Parameter, EditorRequired]
-    public string Eyebrow { get; set; } = string.Empty;
-
     [Parameter, EditorRequired]
     public string Title { get; set; } = string.Empty;
 

@@ -46,12 +46,18 @@ internal sealed class SceneIntentTranslator
                 definition.Id,
                 [.. move.Moves.Select(item => new ComponentMove(
                     ResolveComponent(item.Component).Id,
-                    TranslatePlacement(item.Placement)))]),
+                    TranslatePlacement(item.Placement)))],
+                [.. move.RouteReplacements.Select(TranslateReplacement)],
+                [.. move.RouteAdditions.Select(addition => new NetWireGeometryAddition(
+                    ResolveNet(addition.Net).Id, TranslateRoute(addition.Route)))]),
             MoveDefinitionPortsSceneIntentV1 move => new MoveDefinitionPortsIntent(
                 definition.Id,
                 [.. move.Moves.Select(item => new DefinitionPortMove(
                     ResolveDefinitionPort(item.Port).Id,
-                    TranslatePlacement(item.Placement)))]),
+                    TranslatePlacement(item.Placement)))],
+                [.. move.RouteReplacements.Select(TranslateReplacement)],
+                [.. move.RouteAdditions.Select(addition => new NetWireGeometryAddition(
+                    ResolveNet(addition.Net).Id, TranslateRoute(addition.Route)))]),
             MoveAnnotationsSceneIntentV1 move => new MoveAnnotationsIntent(
                 definition.Id,
                 [.. move.Moves.Select(item => new AnnotationMove(

@@ -246,7 +246,7 @@ internal sealed partial class EditorWorkspaceTests
             await Assert.That(restarted.Simulation.LogicalTime).IsEqualTo(0UL);
             await Assert.That(after.Simulation).IsEqualTo(restarted.Simulation);
             await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion + 1);
-            await Assert.That(step).IsTypeOf<LogicLab.Application.Workspaces.NoScheduledStimulus>();
+            await Assert.That(step).IsTypeOf<LogicLab.Application.Workspaces.NoScheduledEvents>();
             await Assert.That(replay).IsEqualTo(restarted);
             await Assert.That(handles).Count().IsEqualTo(2);
             await Assert.That(SimulationRuntime.Close(handles[0])).IsTypeOf<SessionAlreadyClosed>();

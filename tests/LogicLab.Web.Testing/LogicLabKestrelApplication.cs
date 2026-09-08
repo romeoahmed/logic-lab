@@ -1,37 +1,41 @@
 using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using TUnit.AspNetCore;
+using TUnit.Core.Interfaces;
 
-namespace LogicLab.Web.BrowserTests;
+namespace LogicLab.Web.Testing;
 
-internal sealed class LogicLabBrowserApplication : TestWebApplicationFactory<Program>
+internal sealed class LogicLabKestrelApplication : TestWebApplicationFactory<Program>, IAsyncInitializer
 {
     private readonly X509Certificate2 certificate = CreateCertificate();
 
-    public LogicLabBrowserApplication() => UseKestrel(options =>
+    public LogicLabKestrelApplication() => UseKestrel(options =>
         options.Listen(
             IPAddress.Loopback,
             0,
             endpoint => endpoint.UseHttps(certificate)));
 
-    public Uri EditorUri
+    public Task InitializeAsync()
     {
-        get
-        {
-            StartServer();
-            return new Uri(ClientOptions.BaseAddress, "editor");
-        }
+        StartServer();
+        return Task.CompletedTask;
     }
+
+    public Uri EditorUri => new(ClientOptions.BaseAddress, "editor");
 
     public HttpClient CreateHttpsClient()
     {
-        StartServer();
         return new HttpClient(new HttpClientHandler
         {
             AllowAutoRedirect = false,
+            UseCookies = false,
             ServerCertificateCustomValidationCallback = (_, presented, _, _) =>
                 presented?.Thumbprint == certificate.Thumbprint,
         })
@@ -47,6 +51,12 @@ internal sealed class LogicLabBrowserApplication : TestWebApplicationFactory<Pro
         builder.UseSetting(
             "ConnectionStrings:LogicLab",
             "Host=localhost;Port=5432;Database=logiclab_browser_tests;Username=logiclab");
+        // Each browser context is a distinct anonymous caller. Ingress exhaustion
+        // belongs to WebHostSecurityTests, not to concurrent interface scenarios.
+        builder.ConfigureTestServices(services => services.Replace(
+            ServiceDescriptor.Singleton(new AnonymousWorkspaceIngressPolicy(
+                issuancePermitLimit: 128,
+                issuanceWindow: TimeSpan.FromMinutes(1)))));
     }
 
     protected override void Dispose(bool disposing)

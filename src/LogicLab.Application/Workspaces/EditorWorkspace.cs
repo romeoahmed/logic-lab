@@ -124,7 +124,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
 
         if (request is OpenDurable or ImportProject or OpenExample)
         {
-            return OpenCompiledWorkspaceAsync(request, cancellationToken);
+            return OpenProjectAsync(request, cancellationToken);
         }
 
         if (request is not CreateSandbox create)

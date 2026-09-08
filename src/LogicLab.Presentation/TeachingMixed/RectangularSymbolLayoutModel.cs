@@ -6,9 +6,7 @@ namespace LogicLab.Presentation.TeachingMixed;
 
 internal sealed record RectangularSymbolPort(
     string Id,
-    string DisplayName,
-    PortDirection Direction,
-    uint Width);
+    PortDirection Direction);
 
 internal sealed record RectangularSymbolPortFunction(
     string PortId,

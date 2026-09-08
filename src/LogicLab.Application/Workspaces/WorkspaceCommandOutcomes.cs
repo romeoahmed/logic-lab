@@ -57,7 +57,7 @@ public sealed record SessionStepped : WorkspaceCommandOutcome
     public ulong ProjectionVersion { get; }
 }
 
-public sealed record NoScheduledStimulus(
+public sealed record NoScheduledEvents(
     ulong SessionVersion,
     ulong LogicalTime,
     ulong ProjectionVersion) : WorkspaceCommandOutcome;

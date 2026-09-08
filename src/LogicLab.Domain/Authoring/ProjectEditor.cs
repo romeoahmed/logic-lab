@@ -1,11 +1,14 @@
+using System.Buffers;
 using System.Collections.ObjectModel;
 using System.Text;
 using LogicLab.Domain.Components;
 
 namespace LogicLab.Domain.Authoring;
 
+/// <summary>Creates valid Project Revisions and applies authored edits without mutating existing revisions.</summary>
 public static partial class ProjectEditor
 {
+    /// <summary>Starts a new revision lineage from a new-project seed or a validated Import Candidate.</summary>
     public static ProjectGenesisOutcome Begin(ProjectSeed seed)
     {
         ArgumentNullException.ThrowIfNull(seed);
@@ -19,6 +22,7 @@ public static partial class ProjectEditor
         };
     }
 
+    /// <summary>Commits every effect of one intent together, or returns diagnostics without a new revision.</summary>
     public static EditOutcome Apply(ProjectRevision revision, EditIntent intent)
     {
         ArgumentNullException.ThrowIfNull(revision);
@@ -262,7 +266,7 @@ public static partial class ProjectEditor
             intent.MemoryImage.DisplayName,
             intent.MemoryImage.Width,
             intent.MemoryImage.Depth,
-            [.. intent.MemoryImage.Words]);
+            intent.MemoryImage.Words);
         var document = revision.Document.WithMemoryImages(
             [.. revision.Document.MemoryImages, image]);
         var schema = document.LibrarySnapshot.ResolveContract(intent.Target.ContractKey);
@@ -449,7 +453,29 @@ public static partial class ProjectEditor
             return new EditRejected([.. diagnostics]);
         }
 
-        return Commit(revision, definition.WithComponentInstances(instances), [.. changedSources]);
+        var updated = definition.WithComponentInstances(instances);
+        if (intent.RouteReplacements.Count != 0 || intent.RouteAdditions.Count != 0)
+        {
+            var geometryChanges = BuildMoveGeometryChanges(
+                definition,
+                [.. definition.Nets.Where(net => net.Terminals.Any(terminal =>
+                    terminal is InstanceTerminalReference instance
+                    && placements.ContainsKey(instance.ComponentInstanceId)))
+                    .Select(net => net.Id)],
+                intent.RouteReplacements,
+                intent.RouteAdditions,
+                diagnostics);
+            if (geometryChanges is null)
+            {
+                return new EditRejected([.. diagnostics]);
+            }
+
+            updated = updated.WithWireGeometries(geometryChanges.UpdatedGeometries);
+            changedSources.AddRange(geometryChanges.ChangedGeometries.Select(geometry =>
+                new WireGeometrySourceIdentity(definition.Id, geometry.Id)));
+        }
+
+        return Commit(revision, updated, [.. changedSources]);
     }
 
     private static EditCommitted Commit(
@@ -566,33 +592,26 @@ public static partial class ProjectEditor
         bool allowLineFeed,
         CancellationToken cancellationToken)
     {
-        for (var index = 0; index < value.Length; index++)
+        var remaining = value.AsSpan();
+        for (var scalarCount = 0; !remaining.IsEmpty; scalarCount++)
         {
-            if ((index & 4_095) == 0)
+            if ((scalarCount & 4_095) == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
-            var character = value[index];
-            if (character <= '\u001f' && !(allowLineFeed && character == '\n'))
+            if (Rune.DecodeFromUtf16(remaining, out var rune, out var consumed)
+                != OperationStatus.Done)
+            {
+                return "unicodeScalar";
+            }
+
+            if (rune.Value <= '\u001f' && !(allowLineFeed && rune.Value == '\n'))
             {
                 return "controlCharacter";
             }
 
-            if (char.IsHighSurrogate(character))
-            {
-                if (index + 1 >= value.Length
-                    || !char.IsLowSurrogate(value[index + 1]))
-                {
-                    return "unicodeScalar";
-                }
-
-                index++;
-            }
-            else if (char.IsLowSurrogate(character))
-            {
-                return "unicodeScalar";
-            }
+            remaining = remaining[consumed..];
         }
 
         var isNormalized = value.IsNormalized(NormalizationForm.FormC);

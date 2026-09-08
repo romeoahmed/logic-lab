@@ -38,21 +38,21 @@ dependency; infrastructure defaults do not substitute for it.
 Each row needs a dated release tag, exact Web/Migrator digests, environment, operator,
 result, raw evidence location, and accepted deviations.
 
-| Drill                | Passing evidence                                                                                                         |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| clean migration      | bootstrap/migration/bootstrap Jobs succeed and Web identity cannot perform DDL                                           |
-| failed migration     | nonzero Job blocks Web deployment while the prior revision remains ready                                                 |
-| backup               | automatic backup retention and the pre-migration PITR boundary are recorded before mutation                              |
-| PITR                 | restore the recorded boundary to a new server, isolate verification, explicitly cut over, and retain the source          |
-| key continuity       | authentication survives controlled restart/revision replacement using the same Blob key ring                             |
-| key recovery         | accepted Blob version restores readiness and protected-cookie continuity                                                 |
-| upgrade              | reviewed version passes probes, representative workflows, and observation window                                         |
-| application rollback | prior digest pair deploys without rebuild and preserves current data                                                     |
-| schema compatibility | supported N/N-1 application pair works throughout the recorded rollback window                                           |
-| telemetry            | requests, dependencies, migration logs, readiness, and alerts arrive redacted and actionable                             |
-| load                 | qualified circuit, browser, workspace, transfer, and database corpora remain within accepted envelopes                   |
-| security             | authentication, authorization concealment, antiforgery, CSP, TLS/proxy trust, secret scanning, and redaction fail closed |
-| runbook              | an operator unfamiliar with the implementation completes release and recovery from this documentation                    |
+| Drill                | Passing evidence                                                                                                            |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| clean migration      | bootstrap/migration/bootstrap Jobs succeed and Web identity cannot perform DDL                                              |
+| failed migration     | nonzero Job blocks Web deployment; committed migration histories and prior-image readiness determine the recovery path      |
+| backup               | automatic backup retention and the pre-migration PITR boundary are recorded before mutation                                 |
+| PITR                 | restore the recorded boundary to a new server, isolate verification, explicitly cut over, and retain the source             |
+| key continuity       | authentication survives controlled restart/revision replacement using the same Blob key ring                                |
+| key recovery         | accepted Blob version restores readiness and protected-cookie continuity                                                    |
+| upgrade              | reviewed version passes probes, representative workflows, and observation window                                            |
+| application rollback | known-good digest pair with matching migration sets deploys without rebuild and preserves current data                      |
+| schema change        | maintenance window covers migration and Web cutover; failed or partial migration recovers through a forward release or PITR |
+| telemetry            | requests, dependencies, migration logs, readiness, and alerts arrive redacted and actionable                                |
+| load                 | qualified circuit, browser, workspace, transfer, and database corpora remain within accepted envelopes                      |
+| security             | authentication, authorization concealment, antiforgery, CSP, TLS/proxy trust, secret scanning, and redaction fail closed    |
+| runbook              | an operator unfamiliar with the implementation completes release and recovery from this documentation                       |
 
 Only after every applicable row passes and the owning plan dependencies are complete
 may item `43` authorize the phrase “production-qualified.”

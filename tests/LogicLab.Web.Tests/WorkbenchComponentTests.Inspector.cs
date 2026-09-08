@@ -71,7 +71,7 @@ internal sealed partial class WorkbenchComponentTests
 
         var nextRevision = WebTestCircuit.Commit(ProjectEditor.Apply(projection.ProjectRevision,
             new MoveComponentInstancesIntent(definition.Id,
-                [new ComponentMove(definition.ComponentInstances[0].Id, new ComponentPlacement(new GridPoint(0, 20)))])));
+                [new ComponentMove(definition.ComponentInstances[0].Id, new ComponentPlacement(new GridPoint(0, 20)))], [], [])));
         inspector.Render(parameters => parameters.Add(component => component.Projection,
             projection with { ProjectRevision = nextRevision }));
         await Assert.That(Fact("Value source")).IsEqualTo("Session uses an earlier revision");

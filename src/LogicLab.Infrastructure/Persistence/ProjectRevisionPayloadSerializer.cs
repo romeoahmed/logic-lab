@@ -242,9 +242,9 @@ internal static class ProjectRevisionPayloadSerializer
 
     private static ProjectRevision FromPayload(ProjectRevisionPayloadV2 payload)
     {
-        var document = RequireNotNull(payload.Document);
-        var circuitDefinitions = RequireNotNull(document.CircuitDefinitions);
-        var memoryImages = RequireNotNull(document.MemoryImages);
+        var document = payload.Document;
+        var circuitDefinitions = document.CircuitDefinitions;
+        var memoryImages = document.MemoryImages;
         var library = FromPayload(document.Library);
         var projectDocument = new ProjectDocument(
             new ProjectId(RequireValue(document.ProjectId)),
@@ -262,7 +262,6 @@ internal static class ProjectRevisionPayloadSerializer
 
     private static LibrarySnapshot FromPayload(LibraryReferencePayloadV2 library)
     {
-        RequireNotNull(library);
         if (!string.Equals(
                 library.LibraryId,
                 LibrarySnapshot.Core.LibraryId,
@@ -285,7 +284,6 @@ internal static class ProjectRevisionPayloadSerializer
     private static SymbolProfileReference FromPayload(
         SymbolProfilePayloadV2 profile)
     {
-        RequireNotNull(profile);
         return new SymbolProfileReference(
             RequireValue(profile.Id),
             RequireValue(profile.Version),
@@ -303,18 +301,18 @@ internal static class ProjectRevisionPayloadSerializer
         return new CircuitDefinition(
             new CircuitDefinitionId(RequireValue(definition.Id)),
             definition.DisplayName,
-            [.. RequireNotNull(definition.Ports).Select(FromPayload)],
-            [.. RequireNotNull(definition.ComponentInstances).Select(FromPayload)],
-            [.. RequireNotNull(definition.Nets).Select(FromPayload)],
-            [.. RequireNotNull(definition.Junctions).Select(FromPayload)],
-            [.. RequireNotNull(definition.WireGeometries).Select(FromPayload)],
-            [.. RequireNotNull(definition.Annotations).Select(FromPayload)]);
+            [.. definition.Ports.Select(FromPayload)],
+            [.. definition.ComponentInstances.Select(FromPayload)],
+            [.. definition.Nets.Select(FromPayload)],
+            [.. definition.Junctions.Select(FromPayload)],
+            [.. definition.WireGeometries.Select(FromPayload)],
+            [.. definition.Annotations.Select(FromPayload)]);
     }
 
     private static DefinitionPort FromPayload(DefinitionPortPayloadV2 port)
     {
         RequireNotNull(port);
-        var placement = RequireNotNull(port.Placement);
+        var placement = port.Placement;
         return new DefinitionPort(
             new DefinitionPortId(RequireValue(port.Id)),
             port.DisplayName,
@@ -340,11 +338,11 @@ internal static class ProjectRevisionPayloadSerializer
     private static ComponentInstance FromPayload(ComponentInstancePayloadV2 instance)
     {
         RequireNotNull(instance);
-        var placement = RequireNotNull(instance.Placement);
+        var placement = instance.Placement;
         return new ComponentInstance(
             new ComponentInstanceId(RequireValue(instance.Id)),
             FromPayload(instance.Target),
-            [.. RequireNotNull(instance.Parameters).Select(FromPayload)],
+            [.. instance.Parameters.Select(FromPayload)],
             new ComponentPlacement(
                 FromPayload(placement.Origin),
                 placement.QuarterTurnsClockwise switch
@@ -401,9 +399,9 @@ internal static class ProjectRevisionPayloadSerializer
             LogicVectorParameterValuePayloadV2 vector =>
                 new LogicVectorParameterValue(FromBits(vector.Bits)),
             SlicesParameterValuePayloadV2 slices => new SlicesParameterValue(
-                [.. RequireNotNull(slices.Values).Select(FromPayload)]),
+                [.. slices.Values.Select(FromPayload)]),
             WidthsParameterValuePayloadV2 widths =>
-                new WidthsParameterValue(RequireNotNull(widths.Values)),
+                new WidthsParameterValue(widths.Values),
             _ => throw InvalidPayload(),
         };
     }
@@ -414,8 +412,8 @@ internal static class ProjectRevisionPayloadSerializer
         return new Net(
             new NetId(RequireValue(net.Id)),
             net.Width,
-            [.. RequireNotNull(net.Terminals).Select(FromPayload)],
-            [.. RequireNotNull(net.JunctionIds)
+            [.. net.Terminals.Select(FromPayload)],
+            [.. net.JunctionIds
                 .Select(id => new JunctionId(RequireValue(id)))]);
     }
 
@@ -471,7 +469,7 @@ internal static class ProjectRevisionPayloadSerializer
         {
             UnroutedWireRoutePayloadV2 => new UnroutedWireRoute(),
             OrthogonalWireRoutePayloadV2 orthogonal => new OrthogonalWireRoute(
-                [.. RequireNotNull(orthogonal.Points).Select(FromPayload)]),
+                [.. orthogonal.Points.Select(FromPayload)]),
             _ => throw InvalidPayload(),
         };
     }
@@ -501,7 +499,7 @@ internal static class ProjectRevisionPayloadSerializer
             image.DisplayName,
             image.Width,
             image.Depth,
-            RequireNotNull(image.PackedCells));
+            image.PackedCells);
     }
 
     private static GridPoint FromPayload(GridPointPayloadV2 point) =>
@@ -606,6 +604,7 @@ internal static class ProjectRevisionPayloadSerializer
         return !string.IsNullOrEmpty(value) ? value : throw InvalidPayload();
     }
 
+    // Strict JSON validates properties; collection elements still require a null check.
     private static T RequireNotNull<T>(T? value)
         where T : class
     {

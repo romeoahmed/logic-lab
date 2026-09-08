@@ -75,7 +75,12 @@ Each module separates:
 
 The [Browser Adapter Contract](../contracts/browser-adapters.md) solely defines valid published values and preconditions. `ReplaceAsync` validates a complete candidate, then swaps published state atomically; `SceneUnavailableV1` is a complete replacement that clears drawable static state. The Scene adapter alone supports exact-base patches because it has a real patch producer; Waveform uses complete replacements.
 
-The C# adapter may send a replacement in bounded private batches under an unguessable transfer identity. JavaScript publishes only after validating counts and digest. Cancellation remains effective during digest verification: aborting a transfer or destroying the handle discards the candidate and leaves no later publication. Batch mechanics are private to the adapter.
+The C# adapter sends bounded binary batches using Blazor's native
+[`byte[]`/`Uint8Array` interop](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-10.0#object-serialization).
+Scene and waveform share one candidate transfer implementation. It copies each batch
+into an owned buffer and publishes only after verifying the complete length and
+digest. Aborting or destroying the handle during digest verification prevents later
+publication. Transfer identities and batching remain private to the adapters.
 
 ## 4. Coordinate spaces and transforms
 

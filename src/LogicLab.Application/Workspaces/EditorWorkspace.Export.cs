@@ -45,10 +45,8 @@ internal sealed partial class EditorWorkspace
                     case ContextualIntentAccepted accepted:
                         completed = RejectIfRunRequiresPause(state, command);
                         if (completed is null
-                            && (command.Precondition.ProjectRevisionId
-                                    != state.Revision.RevisionId
-                                || command.ProjectRevisionId
-                                    != state.Revision.RevisionId))
+                            && command.Precondition.ProjectRevisionId
+                                != state.Revision.RevisionId)
                         {
                             completed = Reject(
                                 WorkspaceOutcomeReasons

@@ -143,6 +143,29 @@ internal sealed partial class LogicAnalyzerTests
     }
 
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task StaticRender_TraceReaderThrows_PropagatesExecutionFailure(bool overflow)
+    {
+        await using var context = WebTestContext.CreateBunitContext();
+        context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
+        var fixture = Fixture.Create();
+        Exception failure = overflow
+            ? new OverflowException("Trace execution overflowed.")
+            : new ArgumentException("Trace execution failed.");
+
+        var observed = await Assert.That(() =>
+        {
+            _ = context.Render<LogicAnalyzer>(parameters => parameters
+                .Add(component => component.Projection, fixture.Projection)
+                .Add(component => component.TraceReader, (_, _) =>
+                    Task.FromException<TraceWindowOutcome?>(failure)));
+        }).Throws<Exception>();
+
+        await Assert.That(observed).IsSameReferenceAs(failure);
+    }
+
+    [Test]
     public async Task StaticRender_InitialTraceFailure_RetryRequestsTheTraceAgain()
     {
         await using var context = WebTestContext.CreateBunitContext();

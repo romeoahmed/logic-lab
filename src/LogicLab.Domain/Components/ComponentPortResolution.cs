@@ -4,6 +4,9 @@ using LogicLab.Domain.Authoring;
 
 namespace LogicLab.Domain.Components;
 
+/// <summary>
+/// A validated symbolic Port shape that supports lookup without expanding generated families.
+/// </summary>
 public sealed class ComponentPortResolution
 {
     private readonly ReadOnlyCollection<ComponentPortSchema> schemas;
@@ -20,6 +23,7 @@ public sealed class ComponentPortResolution
         this.portMeasure = portMeasure;
     }
 
+    /// <summary>Returns false when the exact Port count exceeds <see cref="ulong.MaxValue"/>.</summary>
     public bool TryGetPortCount(out ulong portCount)
     {
         portCount = portMeasure.Count;
@@ -40,6 +44,10 @@ public sealed class ComponentPortResolution
         schemas.SequenceEqual(other.schemas)
         && ComponentPortResolver.HaveSameShape(schemas, parameters, other.parameters);
 
+    /// <summary>
+    /// Expands Ports in contract order only when their count fits both the supplied budget
+    /// and a managed collection; otherwise returns false with an empty collection.
+    /// </summary>
     public bool TryMaterialize(
         ulong maximumPortCount,
         out ReadOnlyCollection<ResolvedComponentPortSchema> ports,

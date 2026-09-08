@@ -1,27 +1,7 @@
 <section @key="rendererGeneration"
          class="logic-analyzer"
-         aria-labelledby="logic-analyzer-heading"
+         aria-label="@Text["LogicAnalyzer"]"
          @ref="hostElement">
-    <header class="analyzer-heading">
-        <div>
-            <p class="eyebrow">@Text["LogicAnalyzerEyebrow"]</p>
-            <h2 id="logic-analyzer-heading">@Text["LogicAnalyzer"]</h2>
-        </div>
-        @if (Simulation is not null)
-        {
-            <dl class="analyzer-readout">
-                <div>
-                    <dt>@Text["LogicalTime"]</dt>
-                    <dd>@Simulation.LogicalTime</dd>
-                </div>
-                <div>
-                    <dt>@Text["SessionVersion"]</dt>
-                    <dd>@Simulation.SessionVersion</dd>
-                </div>
-            </dl>
-        }
-    </header>
-
     @if (Simulation is null)
     {
         <div class="analyzer-empty" role="status">
@@ -170,7 +150,7 @@
                                 <div class="probe-controls">
                                     <FluentSelect TOption="string"
                                                   TValue="string"
-                                                  aria-label="@Text["Radix"]"
+                                                  AriaLabel="@Text["Radix"]"
                                                   Size="ListSize.Small"
                                                   Value="@row.Radix"
                                                   ValueChanged="@(value => ChangeRadixAsync(row, value))"

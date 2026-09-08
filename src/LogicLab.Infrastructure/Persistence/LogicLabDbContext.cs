@@ -22,7 +22,8 @@ public sealed class LogicLabDbContext(DbContextOptions<LogicLabDbContext> option
             .HasName("pk_durable_projects");
         projects.Property(project => project.Id)
             .HasColumnName("durable_project_id")
-            .HasMaxLength(64);
+            .HasMaxLength(64)
+            .UseCollation("C");
         projects.Property(project => project.ClaimWorkspaceId)
             .HasColumnName("claim_workspace_id")
             .HasMaxLength(64);
