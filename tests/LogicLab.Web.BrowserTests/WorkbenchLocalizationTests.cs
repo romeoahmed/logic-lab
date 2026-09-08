@@ -46,17 +46,13 @@ internal sealed class WorkbenchLocalizationTests(LogicLabBrowserApplication appl
     [Test]
     public async Task CultureForm_ExampleWorkspace_RoundTripRetainsCircuitAndSession()
     {
-        await Page.GotoAsync(application.EditorUri.ToString());
-        await Page.Locator("[data-command='author-bit-serial']").ClickAsync();
-        var renderer = Page.Locator("[data-scene-renderer]");
-        await Expect(renderer).ToHaveAttributeAsync("data-scene-renderer", "ready");
-        await Page.Locator("[data-command='session']").ClickAsync();
-        var step = Page.Locator("[data-command='step']");
-        await Expect(step).ToBeEnabledAsync();
-        await step.ClickAsync();
-        await Expect(Page.Locator("[data-status='logical-time'] dd")).ToHaveTextAsync("1");
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenExampleAsync("author-bit-serial");
+        await workbench.StartSimulation.ClickAsync();
+        await workbench.Step.ClickAsync();
+        await Expect(workbench.LogicalTime).ToHaveTextAsync("1");
         var workspaceUrl = Page.Url;
-        var logicalTime = await Page.Locator("[data-status='logical-time'] dd").InnerTextAsync();
+        var logicalTime = 1;
 
         foreach (var culture in new[] { "en-US", "zh-CN" })
         {
@@ -64,11 +60,20 @@ internal sealed class WorkbenchLocalizationTests(LogicLabBrowserApplication appl
             await form.Locator("select").SelectOptionAsync(culture);
             await form.Locator("fluent-button").ClickAsync();
             await Expect(Page.Locator("html")).ToHaveAttributeAsync("lang", culture);
-            await Expect(renderer).ToHaveAttributeAsync("data-scene-renderer", "ready");
-            await Expect(step).ToBeEnabledAsync();
-            await Expect(Page.Locator("[data-status='logical-time'] dd")).ToHaveTextAsync(logicalTime);
-            await Expect(Page.Locator("canvas[data-scene-canvas]")).ToHaveAttributeAsync("lang", culture);
+            // The new language proves document commit, not completed loading or
+            // Interactive Server attachment. Wait for those phases separately.
+            await Page.WaitForLoadStateAsync(LoadState.Load);
+            await Expect(workbench.Step).ToBeEnabledAsync();
+            await Expect(workbench.Renderer).ToHaveAttributeAsync("data-scene-renderer", "ready");
+            await Expect(workbench.LogicalTime).ToHaveTextAsync(TimeText());
+            await Expect(workbench.Canvas).ToHaveAttributeAsync("lang", culture);
             await Assert.That(Page.Url).IsEqualTo(workspaceUrl);
+
+            await workbench.Step.ClickAsync();
+            logicalTime++;
+            await Expect(workbench.LogicalTime).ToHaveTextAsync(TimeText());
         }
+
+        string TimeText() => logicalTime.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 }
