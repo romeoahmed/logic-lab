@@ -1,0 +1,32 @@
+@using LogicLab.Engine.Simulation
+@inject IStringLocalizer<EditorText> Text
+
+@if (inputs.Count != 0)
+{
+    <section class="input-stimulus" data-input-stimulus>
+        <h3>@Text["InputValues"]</h3>
+        <p>@Text["InputValuesHint"]</p>
+        @foreach (var input in inputs)
+        {
+            <FluentTextInput @key="input.Source"
+                             Id="@($"stimulus-{input.InstanceId}")"
+                             data-stimulus-input="@input.InstanceId"
+                             Label="@input.Label"
+                             Value="@input.Bits"
+                             ValueChanged="@(value => input.Bits = value ?? string.Empty)"
+                             Immediate="true"
+                             MaxLength="@input.Width"
+                             AutoComplete="off"
+                             Disabled="Disabled"
+                             Width="100%" />
+        }
+        @if (!InputsValid)
+        {
+            <p class="input-error">@Text["InputValuesInvalid"]</p>
+        }
+        <FluentButton data-command="stimulus"
+                      Appearance="ButtonAppearance.Primary"
+                      Disabled="@(Disabled || !InputsValid)"
+                      OnClick="ScheduleAsync">@Text["ApplyInputs"]</FluentButton>
+    </section>
+}

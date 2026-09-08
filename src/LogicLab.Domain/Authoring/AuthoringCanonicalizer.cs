@@ -169,7 +169,7 @@ internal static class AuthoringCanonicalizer
                     string.CompareOrdinal(
                         l.CircuitDefinitionId.Value,
                         r.CircuitDefinitionId.Value),
-                _ => CompareCircuitEntities(left, right),
+                _ => CompareCircuitEntities((CircuitSourceIdentity)left, (CircuitSourceIdentity)right),
             };
         }
 
@@ -180,25 +180,19 @@ internal static class AuthoringCanonicalizer
                 ProjectRootSourceIdentity => 0,
                 MemoryImageSourceIdentity => 1,
                 CircuitRootSourceIdentity => 2,
-                DefinitionPortSourceIdentity or
-                    ComponentInstanceSourceIdentity or
-                    InstancePortSourceIdentity or
-                    NetSourceIdentity or
-                    JunctionSourceIdentity or
-                    WireGeometrySourceIdentity or
-                    AnnotationSourceIdentity => 3,
+                CircuitSourceIdentity => 3,
                 _ => throw new InvalidOperationException(
                     "The Authored Source Identity variant is undefined."),
             };
         }
 
         private static int CompareCircuitEntities(
-            AuthoredSourceIdentity left,
-            AuthoredSourceIdentity right)
+            CircuitSourceIdentity left,
+            CircuitSourceIdentity right)
         {
             var circuitComparison = string.CompareOrdinal(
-                GetCircuitDefinitionId(left).Value,
-                GetCircuitDefinitionId(right).Value);
+                left.CircuitDefinitionId.Value,
+                right.CircuitDefinitionId.Value);
             if (circuitComparison != 0)
             {
                 return circuitComparison;
@@ -216,26 +210,9 @@ internal static class AuthoringCanonicalizer
                 CircuitEntityId(right));
             return entityComparison != 0
                 ? entityComparison
-                : CompareOptionalPortIds(
+                : string.CompareOrdinal(
                     (left as InstancePortSourceIdentity)?.PortId,
                     (right as InstancePortSourceIdentity)?.PortId);
-        }
-
-        private static CircuitDefinitionId GetCircuitDefinitionId(
-            AuthoredSourceIdentity identity)
-        {
-            return identity switch
-            {
-                DefinitionPortSourceIdentity source => source.CircuitDefinitionId,
-                ComponentInstanceSourceIdentity source => source.CircuitDefinitionId,
-                InstancePortSourceIdentity source => source.CircuitDefinitionId,
-                NetSourceIdentity source => source.CircuitDefinitionId,
-                JunctionSourceIdentity source => source.CircuitDefinitionId,
-                WireGeometrySourceIdentity source => source.CircuitDefinitionId,
-                AnnotationSourceIdentity source => source.CircuitDefinitionId,
-                _ => throw new InvalidOperationException(
-                    "The circuit Source Identity variant is undefined."),
-            };
         }
 
         private static int CircuitEntityKind(AuthoredSourceIdentity identity)
@@ -268,16 +245,6 @@ internal static class AuthoringCanonicalizer
                 _ => throw new InvalidOperationException(
                     "The circuit entity Source Identity variant is undefined."),
             };
-        }
-
-        private static int CompareOptionalPortIds(string? left, string? right)
-        {
-            if (left is null)
-            {
-                return right is null ? 0 : -1;
-            }
-
-            return right is null ? 1 : string.CompareOrdinal(left, right);
         }
 
         private static int CompareProjectResources(

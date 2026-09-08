@@ -141,6 +141,37 @@ internal sealed class ProjectEditorCatalogTests
     }
 
     [Test]
+    [Arguments(100_000U)]
+    [Arguments(uint.MaxValue)]
+    public async Task Apply_SetGeneratedPortParameters_ChangesBehaviorWithoutExpandingPorts(uint inputCount)
+    {
+        var revision = BeginProject();
+        var definitionId = revision.Document.EntryCircuitDefinitionId;
+        ComponentParameterBinding[] parameters =
+        [
+            new("inputCount", new Unsigned32ParameterValue(inputCount)),
+            new("priority", new ChoiceParameterValue("lowestIndex")),
+        ];
+        revision = Commit(ProjectEditor.Apply(revision, new PlaceComponentInstanceIntent(
+            definitionId, Contract("logic.priority_encoder"), parameters,
+            new ComponentPlacement(new GridPoint(0, 0)))));
+        var instance = revision.Document.EntryCircuitDefinition.ComponentInstances.Single();
+        parameters[1] = new("priority", new ChoiceParameterValue("highestIndex"));
+        var intent = new SetInstanceParametersIntent(definitionId, instance.Id, parameters);
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var outcome = ProjectEditor.Apply(revision, intent);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        var committed = (await Assert.That(outcome).IsTypeOf<EditCommitted>())!;
+        await Assert.That(committed.Revision.Document.EntryCircuitDefinition.ComponentInstances.Single().Parameters)
+            .IsEquivalentTo(parameters, CollectionOrdering.Matching);
+        // A generous regression guard: allocating even one record per generated Port
+        // exceeds this by orders of magnitude. This is not a deployment limit.
+        await Assert.That(allocated).IsLessThan(1_000_000L);
+    }
+
+    [Test]
     public async Task Apply_RemoveInstances_RemovesTerminalMembershipAndEmptyNet()
     {
         var revision = BeginProject();

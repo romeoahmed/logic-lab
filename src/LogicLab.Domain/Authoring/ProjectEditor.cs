@@ -407,31 +407,41 @@ public static partial class ProjectEditor
             diagnostics.Add(MissingReference("componentInstance"));
         }
 
-        var seenIds = new HashSet<ComponentInstanceId>();
-        var replacements = new List<ComponentInstance>(intent.Moves.Count);
+        var placements = new Dictionary<ComponentInstanceId, ComponentPlacement>(intent.Moves.Count);
+        var instances = definition.ComponentInstances.ToArray();
+        var changedSources = new List<AuthoredSourceIdentity>(intent.Moves.Count);
 
         foreach (var move in intent.Moves)
         {
-            if (!seenIds.Add(move.ComponentInstanceId))
+            if (!placements.TryAdd(move.ComponentInstanceId, move.Placement))
             {
                 diagnostics.Add(DuplicateId("componentInstance"));
-                continue;
             }
+        }
 
-            var instance = definition.FindComponentInstance(move.ComponentInstanceId);
-            if (instance is null)
+        var matchedCount = 0;
+        for (var index = 0; index < instances.Length; index++)
+        {
+            var instance = instances[index];
+            if (!placements.TryGetValue(instance.Id, out var placement))
             {
-                diagnostics.Add(MissingReference("componentInstance"));
                 continue;
             }
 
-            if (!Enum.IsDefined(move.Placement.QuarterTurnsClockwise))
+            matchedCount++;
+            if (!Enum.IsDefined(placement.QuarterTurnsClockwise))
             {
                 diagnostics.Add(InvalidCoordinate("placement", "orientation"));
                 continue;
             }
 
-            replacements.Add(instance.WithPlacement(move.Placement));
+            instances[index] = instance.WithPlacement(placement);
+            changedSources.Add(new ComponentInstanceSourceIdentity(definition.Id, instance.Id));
+        }
+
+        if (matchedCount != placements.Count)
+        {
+            diagnostics.Add(MissingReference("componentInstance"));
         }
 
         if (diagnostics.Count != 0)
@@ -439,13 +449,7 @@ public static partial class ProjectEditor
             return new EditRejected([.. diagnostics]);
         }
 
-        var updatedDefinition = definition.ReplaceComponentInstances([.. replacements]);
-        var changedSources = replacements
-            .Select(instance => (AuthoredSourceIdentity)new ComponentInstanceSourceIdentity(
-                definition.Id,
-                instance.Id))
-            .ToArray();
-        return Commit(revision, updatedDefinition, changedSources);
+        return Commit(revision, definition.WithComponentInstances(instances), [.. changedSources]);
     }
 
     private static EditCommitted Commit(

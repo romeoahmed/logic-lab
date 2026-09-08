@@ -122,7 +122,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
             return CopyAsync(copy, cancellationToken);
         }
 
-        if (request is OpenDurable or ImportProject)
+        if (request is OpenDurable or ImportProject or OpenExample)
         {
             return OpenCompiledWorkspaceAsync(request, cancellationToken);
         }
@@ -377,6 +377,11 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
             return Reject(
                 WorkspaceOutcomeReasons.WorkspaceAdmissionRejected,
                 policyEvidence: documentPolicyEvidence);
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Reject(WorkspaceOutcomeReasons.WorkspaceCancelled);
         }
 
         if (ReferenceEquals(committed.Revision, state.Revision))

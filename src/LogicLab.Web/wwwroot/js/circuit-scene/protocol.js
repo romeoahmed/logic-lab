@@ -14,73 +14,6 @@ const spatialCellSize = 400;
 const spatialEntryBaseBytes = 64;
 export const interopEnvelopeBytes = 512n;
 
-// Generated from the cmap table of the fingerprinted packaged WOFF2 asset. Keep this
-// list in lockstep with --ll-scene-font-asset when replacing that file.
-const packagedFontCodePointRanges = Object.freeze([
-  [0x0020, 0x007e],
-  [0x00a0, 0x00ac],
-  [0x00ae, 0x00b4],
-  [0x00b6, 0x0107],
-  [0x010a, 0x0113],
-  [0x0116, 0x011b],
-  [0x011e, 0x0123],
-  [0x0126, 0x0127],
-  [0x012a, 0x012b],
-  [0x012e, 0x0133],
-  [0x0136, 0x0137],
-  [0x0139, 0x013e],
-  [0x0141, 0x0148],
-  [0x0150, 0x0155],
-  [0x0158, 0x015b],
-  [0x015e, 0x0165],
-  [0x016a, 0x016b],
-  [0x016e, 0x017e],
-  [0x0192, 0x0192],
-  [0x0218, 0x021b],
-  [0x0237, 0x0237],
-  [0x02c6, 0x02c7],
-  [0x02c9, 0x02c9],
-  [0x02d8, 0x02dd],
-  [0x0300, 0x0304],
-  [0x0306, 0x0308],
-  [0x030a, 0x030c],
-  [0x0312, 0x0312],
-  [0x0326, 0x0328],
-  [0x0394, 0x0394],
-  [0x03a9, 0x03a9],
-  [0x03bc, 0x03bc],
-  [0x03c0, 0x03c0],
-  [0x1e80, 0x1e85],
-  [0x1e9e, 0x1e9e],
-  [0x1ef2, 0x1ef3],
-  [0x2009, 0x2009],
-  [0x2013, 0x2014],
-  [0x2018, 0x201a],
-  [0x201c, 0x201e],
-  [0x2020, 0x2022],
-  [0x2026, 0x2026],
-  [0x2030, 0x2030],
-  [0x2039, 0x203a],
-  [0x2044, 0x2044],
-  [0x20ac, 0x20ac],
-  [0x20b9, 0x20b9],
-  [0x2113, 0x2113],
-  [0x2122, 0x2122],
-  [0x212e, 0x212e],
-  [0x2202, 0x2202],
-  [0x220f, 0x220f],
-  [0x2211, 0x2212],
-  [0x2215, 0x2215],
-  [0x2219, 0x221a],
-  [0x221e, 0x221e],
-  [0x222b, 0x222b],
-  [0x2248, 0x2248],
-  [0x2260, 0x2260],
-  [0x2264, 0x2265],
-  [0x25ca, 0x25ca],
-  [0x266a, 0x266a],
-]);
-
 export class BrowserPolicyError extends Error {
   constructor(dimension, observed) {
     super(`${dimension} policy exhausted`);
@@ -795,30 +728,6 @@ function assertPolicyLimit(dimension, observed, limit) {
   if (BigInt(observed) > BigInt(limit)) {
     throw new BrowserPolicyError(dimension, observed);
   }
-}
-export function packagedFontSupports(text) {
-  for (const character of text) {
-    const codePoint = character.codePointAt(0);
-    let lower = 0;
-    let upper = packagedFontCodePointRanges.length - 1;
-    let supported = false;
-    while (lower <= upper) {
-      const middle = Math.floor((lower + upper) / 2);
-      const [minimum, maximum] = packagedFontCodePointRanges[middle];
-      if (codePoint < minimum) {
-        upper = middle - 1;
-      } else if (codePoint > maximum) {
-        lower = middle + 1;
-      } else {
-        supported = true;
-        break;
-      }
-    }
-    if (!supported) {
-      return false;
-    }
-  }
-  return true;
 }
 export function decodeBase64(value) {
   const binary = atob(value);

@@ -204,38 +204,45 @@ internal sealed class WorkCoordinatorTests
             cancellationToken,
             out var first,
             out _);
-        await firstStarted.Task.WaitAsync(cancellationToken);
-        _ = coordinator.TryScheduleSession(
-            firstWorkspace,
-            AnonymousWorkspaceCaller.Instance,
-            _ =>
-            {
-                sameWorkspaceStarted.TrySetResult();
-                return ValueTask.FromResult<WorkspaceCommandOutcome>(RejectedOutcome());
-            },
-            cancellationToken,
-            out var sameWorkspace,
-            out _);
-        _ = coordinator.TryScheduleSession(
-            secondWorkspace,
-            AnonymousWorkspaceCaller.Instance,
-            _ =>
-            {
-                otherWorkspaceStarted.TrySetResult();
-                return ValueTask.FromResult<WorkspaceCommandOutcome>(RejectedOutcome());
-            },
-            cancellationToken,
-            out var otherWorkspace,
-            out _);
+        try
+        {
+            await firstStarted.Task.WaitAsync(cancellationToken);
+            _ = coordinator.TryScheduleSession(
+                firstWorkspace,
+                AnonymousWorkspaceCaller.Instance,
+                _ =>
+                {
+                    sameWorkspaceStarted.TrySetResult();
+                    return ValueTask.FromResult<WorkspaceCommandOutcome>(RejectedOutcome());
+                },
+                cancellationToken,
+                out var sameWorkspace,
+                out _);
+            _ = coordinator.TryScheduleSession(
+                secondWorkspace,
+                AnonymousWorkspaceCaller.Instance,
+                _ =>
+                {
+                    otherWorkspaceStarted.TrySetResult();
+                    return ValueTask.FromResult<WorkspaceCommandOutcome>(RejectedOutcome());
+                },
+                cancellationToken,
+                out var otherWorkspace,
+                out _);
 
-        await otherWorkspaceStarted.Task.WaitAsync(cancellationToken);
-        await Assert.That(sameWorkspaceStarted.Task.IsCompleted).IsFalse();
-        releaseFirst.TrySetResult();
-        await sameWorkspaceStarted.Task.WaitAsync(cancellationToken);
-        await Task.WhenAll(
-            first!.Completion,
-            sameWorkspace!.Completion,
-            otherWorkspace!.Completion).WaitAsync(cancellationToken);
+            await otherWorkspaceStarted.Task.WaitAsync(cancellationToken);
+            await Assert.That(sameWorkspaceStarted.Task.IsCompleted).IsFalse();
+            releaseFirst.TrySetResult();
+            await sameWorkspaceStarted.Task.WaitAsync(cancellationToken);
+            await Task.WhenAll(
+                first!.Completion,
+                sameWorkspace!.Completion,
+                otherWorkspace!.Completion).WaitAsync(cancellationToken);
+        }
+        finally
+        {
+            releaseFirst.TrySetResult();
+        }
 
         static WorkspaceCommandRejected RejectedOutcome()
         {
@@ -300,6 +307,7 @@ internal sealed class WorkCoordinatorTests
         {
             await Assert.That(rejection).IsNull();
             await Assert.That(log.Properties["Lane"]).IsEqualTo(lane);
+            await Assert.That(log.Exception).IsNull();
             await Assert.That(log.Properties["Correlation"])
                 .IsEqualTo(schedulingTrace.ToHexString());
             await Assert.That(log.Properties["Correlation"])

@@ -1,0 +1,25 @@
+.input-stimulus {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+  border-block-start: 1px solid var(--ll-border);
+}
+
+.input-stimulus h3,
+.input-stimulus p {
+  margin: 0;
+}
+
+.input-stimulus p {
+  color: var(--ll-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.input-stimulus .input-error {
+  color: var(--ll-danger, #a42432);
+}
+
+.input-stimulus h3 {
+  font-size: 1rem;
+}

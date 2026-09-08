@@ -276,7 +276,7 @@ internal sealed class ImportProjectWorkspaceTests
             revision,
             new PlaceComponentInstanceIntent(
                 revision.Document.EntryCircuitDefinitionId,
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, "logic.not"),
+                new ComponentContractKey(LibrarySnapshot.Core.LibraryId, "logic.not"),
                 [new ComponentParameterBinding(
                     "width",
                     new Unsigned32ParameterValue(1))],

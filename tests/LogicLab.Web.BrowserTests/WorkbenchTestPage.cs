@@ -13,7 +13,9 @@ internal sealed class WorkbenchTestPage(IPage page, Uri editorUri)
 
     public ILocator Compile => Command("compile");
 
-    public ILocator InverterStarter => Command("author");
+    public ILocator Undo => Command("undo");
+
+    public ILocator Redo => Command("redo");
 
     public ILocator LogicalTime => page.Locator("[data-status='logical-time'] dd");
 
@@ -45,7 +47,7 @@ internal sealed class WorkbenchTestPage(IPage page, Uri editorUri)
 
     public ILocator WaveformSecondaryCursor => WaveformControl("Time cursors", "B");
 
-    public ILocator SetInputsHigh => Command("stimulus");
+    public ILocator ApplyInputs => Command("stimulus");
 
     public ILocator StartSimulation => Command("session");
 
@@ -71,13 +73,63 @@ internal sealed class WorkbenchTestPage(IPage page, Uri editorUri)
         new PageGetByRoleOptions { Name = "Components", Exact = true });
 
     private ILocator Command(string command) =>
-        page.Locator($"[data-command='{command}']");
+        // Playwright does not treat a custom element's disabled attribute as
+        // native actionability. Wait for Fluent's command state explicitly.
+        page.Locator($"[data-command='{command}']:not([disabled])");
 
     private ILocator WaveformControl(string group, string label) =>
         Waveform.GetByRole(
                 AriaRole.Group,
                 new LocatorGetByRoleOptions { Name = group })
             .GetByText(label, new LocatorGetByTextOptions { Exact = true });
+
+    public async Task OpenLibraryAsync() => await OpenPanelAsync("library");
+
+    public async Task OpenInspectorAsync() => await OpenPanelAsync("inspector");
+
+    private async Task OpenPanelAsync(string panel)
+    {
+        var toggle = page.Locator($"[data-dock-toggle='{panel}']");
+        if (await toggle.IsVisibleAsync() && await toggle.GetAttributeAsync("aria-expanded") != "true")
+        {
+            await toggle.ClickAsync();
+        }
+    }
+
+    public async Task SetAllInputsHighAsync()
+    {
+        await OpenInspectorAsync();
+        var inputs = page.Locator("[data-input-stimulus]").GetByRole(AriaRole.Textbox);
+        await Expect(inputs.First).ToBeVisibleAsync();
+        for (var index = 0; index < await inputs.CountAsync(); index++)
+        {
+            var input = inputs.Nth(index);
+            var width = int.Parse((await input.GetAttributeAsync("maxlength"))!, System.Globalization.CultureInfo.InvariantCulture);
+            await input.FillAsync(new string('1', width));
+        }
+    }
+
+    public async Task ApplyInputsAsync()
+    {
+        var nextTime = checked(ulong.Parse(
+            (await LogicalTime.TextContentAsync())!,
+            System.Globalization.CultureInfo.InvariantCulture) + 1);
+        await ApplyInputs.ClickAsync();
+        // The browser click returns before the server acknowledges the batch.
+        await Expect(page.Locator(".status-message")).ToHaveTextAsync(
+            $"Input values scheduled for logical time {nextTime.ToString(System.Globalization.CultureInfo.InvariantCulture)}.");
+    }
+
+    public async Task OpenExampleAsync(string command = "author", int width = 1_280, int height = 900)
+    {
+        await page.SetViewportSizeAsync(width, height);
+        var response = await page.GotoAsync(editorUri.ToString());
+        await Assert.That(response!.Ok).IsTrue();
+        await Command(command).ClickAsync();
+        await Expect(StartSimulation).ToBeEnabledAsync();
+        await Expect(Renderer).ToHaveAttributeAsync("data-scene-renderer", "ready");
+        await Expect(Canvas).ToBeVisibleAsync();
+    }
 
     public async Task OpenSandboxAsync(int width = 1_280, int height = 900)
     {
@@ -90,7 +142,6 @@ internal sealed class WorkbenchTestPage(IPage page, Uri editorUri)
         var createSandbox = Command("create");
         await Expect(createSandbox).ToBeVisibleAsync();
         await createSandbox.ClickAsync();
-        await Expect(ComponentSearch).ToBeVisibleAsync();
         await Expect(Renderer).ToHaveAttributeAsync("data-scene-renderer", "ready");
         await Expect(Canvas).ToBeVisibleAsync();
     }

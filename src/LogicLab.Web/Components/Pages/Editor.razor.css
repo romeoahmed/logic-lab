@@ -64,60 +64,44 @@
   border-block-end: 1px solid var(--ll-border);
 }
 
-.workbench-body,
-.schematic-workspace,
-.instrument-bay,
-.library-dock,
-.canvas-workspace,
-.inspector-dock {
-  min-inline-size: 0;
-}
-
 .workbench-body {
   container: workbench / inline-size;
-}
-
-.instrument-bay {
-  position: relative;
-  z-index: 1;
-}
-
-.schematic-workspace {
-  display: grid;
-  grid-template-areas:
-    "canvas"
-    "library"
-    "inspector";
-  grid-template-columns: minmax(0, 1fr);
-  align-items: stretch;
-  min-block-size: 0;
-}
-
-.library-dock {
-  grid-area: library;
-  max-block-size: 24rem;
-  overflow: hidden;
-  border-block-end: 1px solid var(--ll-border);
-}
-
-.library-dock ::deep .component-palette {
-  block-size: 100%;
-  border-inline-end: 0;
+  min-inline-size: 0;
 }
 
 .canvas-workspace {
   display: grid;
-  grid-area: canvas;
   grid-template-rows: auto minmax(0, 1fr);
-  min-block-size: clamp(30rem, 72svh, 40rem);
+  min-block-size: 0;
+  min-inline-size: 0;
   overflow: hidden;
   background: var(--ll-canvas);
 }
 
-.inspector-dock {
-  grid-area: inspector;
-  border-block-start: 1px solid var(--ll-border);
-  background: var(--ll-panel);
+.instrument-bay {
+  position: relative;
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: auto;
+}
+
+.workbench-shell[data-workbench-active="true"] {
+  block-size: 100%;
+  min-block-size: 0;
+  gap: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+[data-workbench-active="true"] .workbench-deck {
+  display: grid;
+  min-block-size: 0;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+[data-workbench-active="true"] .workbench-body {
+  display: grid;
+  min-block-size: 0;
+  grid-template-rows: minmax(10rem, 1fr) minmax(0, 24%);
 }
 
 .inspector-heading {
@@ -279,64 +263,6 @@
   color: var(--ll-ink);
 }
 
-@container workbench (inline-size >= 44rem) {
-  .schematic-workspace {
-    grid-template-areas:
-      "library canvas"
-      "inspector inspector";
-    grid-template-columns: minmax(12rem, 14rem) minmax(0, 1fr);
-    grid-template-rows: clamp(36rem, calc(100dvh - 14rem), 46rem) auto;
-  }
-
-  .library-dock {
-    max-block-size: none;
-    border-block-end: 0;
-    border-inline-end: 1px solid var(--ll-border);
-  }
-
-  .canvas-workspace {
-    block-size: auto;
-    min-block-size: 0;
-  }
-
-  .inspector-dock {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
-  }
-
-  .inspector-heading {
-    grid-column: 1 / -1;
-  }
-
-  .inspector-dock > :not(.inspector-heading) {
-    border-inline-end: 1px solid var(--ll-border);
-  }
-}
-
-@container workbench (inline-size >= 70rem) {
-  .schematic-workspace {
-    grid-template-areas: "library canvas inspector";
-    grid-template-columns: minmax(12rem, 15rem) minmax(32rem, 1fr) minmax(15rem, 18rem);
-    grid-template-rows: minmax(0, 1fr);
-    block-size: clamp(38rem, calc(100dvh - 15rem), 50rem);
-  }
-
-  .canvas-workspace {
-    min-block-size: 0;
-  }
-
-  .inspector-dock {
-    display: block;
-    overflow: auto;
-    border-block-start: 0;
-    border-inline-start: 1px solid var(--ll-border);
-  }
-
-  .inspector-dock > :not(.inspector-heading) {
-    border-inline-end: 0;
-  }
-}
-
 @media (max-width: 800px) {
   .workbench-heading {
     grid-template-columns: 1fr;
@@ -361,5 +287,52 @@
 
   .workbench-deck {
     border-radius: var(--ll-radius-small);
+  }
+}
+
+.instrument-size-control {
+  display: flex;
+  justify-content: end;
+  block-size: 0;
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 5;
+  background: var(--ll-panel);
+}
+
+.instrument-size-control button {
+  min-block-size: 2rem;
+  align-self: start;
+  padding-inline: 0.75rem;
+  border: 0;
+  color: var(--ll-signal-strong);
+  background: var(--ll-panel);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+[data-workbench-active="true"] .workbench-body[data-instruments-expanded="true"] {
+  grid-template-rows: 0 minmax(0, 1fr);
+}
+
+[data-instruments-expanded="true"] ::deep .workbench-dock {
+  visibility: hidden;
+  overflow: hidden;
+}
+
+@media (min-width: 720px) {
+  [data-workbench-active="true"] .workbench-body:not([data-instruments-expanded="true"]) {
+    grid-template-rows: minmax(10rem, 1fr) minmax(0, 40%);
+  }
+}
+
+@media (max-height: 40rem) {
+  .workbench-shell[data-workbench-active="true"] {
+    block-size: auto;
+  }
+
+  [data-workbench-active="true"] .workbench-deck {
+    grid-template-rows: auto auto 32rem auto;
   }
 }

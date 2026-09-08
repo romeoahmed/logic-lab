@@ -99,6 +99,14 @@ The Priority Encoder remains the explicit Teaching Extension defined in Section 
 
 Text measurement uses a versioned font fingerprint and Metric Set. The planning seam receives a Symbol Text Measurer whose font and Metric Set fingerprints must equal the Symbol Request fingerprints; a mismatch returns `presentation_font_fingerprint_mismatch` or `presentation_metric_fingerprint_mismatch` and publishes no plan. Each measurement request carries the matched Metric Set so the result is expressed at the requested `unitsPerH` scale. Symbol geometry and application chrome typography are separate. A font or Metric Set change invalidates derived Geometry Plans but not Project semantics.
 
+`CollectTextRequests(ProjectRevision, CircuitDefinitionId, PresentationFingerprint,
+maximumPortCount, CancellationToken)` discovers unique measurement requests through
+the same symbol recipes and primitive text composition used by projection. Discovery
+does not translate placements or validate a complete scene: an estimated text extent
+must not suppress later requests through a coordinate overflow. The returned requests
+are immutable; cancellation throws before any collection is returned. Only the later
+`Project` call with actual matched measurements can publish a Schematic Projection.
+
 `PresentationLocaleIdV1` is the shared closed value used by Symbol Requests, measurement requests, text operations, and plan keys. Its V1 registry is exactly the supported UI cultures `en-US | zh-CN` from [Web Host §5](./web-host.md#5-culture-localization-and-direction); arbitrary BCP 47 tags and free-form strings do not cross the planning boundary. The registered values use the full culture-name form documented by [.NET `CultureInfo.Name`](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo.name?view=net-10.0).
 
 ## 4. Projection value contracts

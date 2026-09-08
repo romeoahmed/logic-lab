@@ -1,0 +1,40 @@
+using BenchmarkDotNet.Attributes;
+using LogicLab.Engine.Simulation;
+
+namespace LogicLab.Benchmarks;
+
+[MemoryDiagnoser(displayGenColumns: false)]
+[BenchmarkCategory("simulation", "trace")]
+public class SimulationTraceReadBenchmarks
+{
+    private SimulationTraceReadFixture fixture = null!;
+
+    [Params(16, 256, 4096)]
+    public int TransitionCount { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        fixture = EngineBenchmarkCorpus.CreateTraceReadFixture(TransitionCount);
+    }
+
+    [GlobalCleanup]
+    public void Cleanup()
+    {
+        _ = (SessionClosed)SimulationRuntime.Close(fixture.Handle);
+    }
+
+    [Benchmark(Baseline = true)]
+    public TraceTransitionsAvailable ReadTransitions() =>
+        (TraceTransitionsAvailable)SimulationRuntime.Read(
+            fixture.Handle,
+            fixture.TransitionsQuery,
+            CancellationToken.None);
+
+    [Benchmark]
+    public TraceSummaryAvailable ReadVisualSummary() =>
+        (TraceSummaryAvailable)SimulationRuntime.Read(
+            fixture.Handle,
+            fixture.SummaryQuery,
+            CancellationToken.None);
+}

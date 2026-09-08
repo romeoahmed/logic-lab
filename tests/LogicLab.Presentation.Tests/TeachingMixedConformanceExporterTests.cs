@@ -151,7 +151,7 @@ internal sealed class TeachingMixedConformanceExporterTests
                 revision,
                 new PlaceComponentInstanceIntent(
                     definitionId,
-                    new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
+                    new ComponentContractKey(LibrarySnapshot.Core.LibraryId, contractId),
                     Parameters(contractId),
                     new ComponentPlacement(new GridPoint(index * 6, index * 4))))).Revision;
         }

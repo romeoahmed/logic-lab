@@ -66,7 +66,7 @@ HTTP adapters use RFC 9457 Problem Details:
 }
 ```
 
-`traceId` uses the `CorrelationToken` shape from Diagnostics V1. `detail` is optional and localized. It never exposes unauthorized IDs, project content, stack traces, filesystem paths, tokens, or internal policy capacity.
+`traceId` preserves the application's logged correlation and uses the `CorrelationToken` shape from Diagnostics V1. `detail` is optional and localized. Error bodies omit `instance` because a request path may contain an Export Ticket or another private locator. They never expose unauthorized IDs, project content, stack traces, filesystem paths, tokens, or internal policy capacity.
 
 HTTP status mapping is consistent across transfer and any later measured large-window endpoint:
 

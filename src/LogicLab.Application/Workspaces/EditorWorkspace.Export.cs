@@ -163,7 +163,7 @@ internal sealed partial class EditorWorkspace
                 ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
                 : WorkspaceOutcomeReasons.WorkspaceInternalDefect;
             var correlation = ApplicationCorrelation.CurrentOrCreate();
-            LogExportFailure(logger, exception, correlation, code);
+            LogExportFailure(logger, correlation, code);
             return Reject(code);
         }
         finally
@@ -180,7 +180,7 @@ internal sealed partial class EditorWorkspace
                         when (!ExceptionClassifier.IsFatal(exception))
                     {
                         var correlation = ApplicationCorrelation.CurrentOrCreate();
-                        LogExportCleanupFailure(logger, exception, correlation);
+                        LogExportCleanupFailure(logger, correlation);
                     }
                 }
             }
@@ -254,7 +254,6 @@ internal sealed partial class EditorWorkspace
         Message = "Export preparation failed with correlation {Correlation} and outcome {OutcomeCode}.")]
     private static partial void LogExportFailure(
         ILogger logger,
-        Exception exception,
         string correlation,
         string outcomeCode);
 
@@ -264,6 +263,5 @@ internal sealed partial class EditorWorkspace
         Message = "Unpublished export staging cleanup failed with correlation {Correlation}.")]
     private static partial void LogExportCleanupFailure(
         ILogger logger,
-        Exception exception,
         string correlation);
 }

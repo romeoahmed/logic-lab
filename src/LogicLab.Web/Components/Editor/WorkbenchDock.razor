@@ -1,0 +1,56 @@
+@inject IStringLocalizer<EditorText> Text
+
+<div class="workbench-dock" @onkeydown="HandleKeyDownAsync">
+    <div class="dock-switches">
+        <button type="button" class="library-toggle" data-dock-toggle="library"
+                aria-expanded="@(openPanel == Panel.Library ? "true" : "false")"
+                aria-controls="workbench-library-panel" @ref="libraryToggle"
+                @onclick="@(() => Toggle(Panel.Library))">@Text["Components"]</button>
+        <button type="button" class="inspector-toggle" data-dock-toggle="inspector"
+                aria-expanded="@(openPanel == Panel.Inspector ? "true" : "false")"
+                aria-controls="workbench-inspector-panel" @ref="inspectorToggle"
+                @onclick="@(() => Toggle(Panel.Inspector))">@Text["Inspector"]</button>
+    </div>
+    <div class="dock-content" data-open-panel="@openPanel.ToString().ToLowerInvariant()">
+        <div class="dock-canvas">@Canvas</div>
+        <div id="workbench-library-panel" class="library-dock" data-testid="workbench-library">
+            @Library
+        </div>
+        <div id="workbench-inspector-panel" class="inspector-dock" data-testid="workbench-inspector">
+            @Inspector
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public RenderFragment Canvas { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public RenderFragment Library { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public RenderFragment Inspector { get; set; } = null!;
+
+    private enum Panel { None, Library, Inspector }
+
+    private Panel openPanel;
+    private ElementReference libraryToggle;
+    private ElementReference inspectorToggle;
+
+    private void Toggle(Panel panel) => openPanel = openPanel == panel ? Panel.None : panel;
+
+    public async Task CloseAsync()
+    {
+        var previous = openPanel;
+        openPanel = Panel.None;
+        if (previous != Panel.None)
+        {
+            StateHasChanged();
+            await (previous == Panel.Library ? libraryToggle : inspectorToggle).FocusAsync();
+        }
+    }
+
+    private Task HandleKeyDownAsync(KeyboardEventArgs args) =>
+        args.Key == "Escape" ? CloseAsync() : Task.CompletedTask;
+}

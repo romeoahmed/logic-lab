@@ -16,7 +16,7 @@ internal static class ScenePlaceCatalog
         ArgumentNullException.ThrowIfNull(document);
 
         var options = new List<ScenePlaceOptionV1>();
-        foreach (var contract in CoreLibrarySchema.Contracts)
+        foreach (var contract in document.LibrarySnapshot.Contracts)
         {
             if (!TryCreateDefaultParameters(contract, out var parameters))
             {
@@ -57,12 +57,12 @@ internal static class ScenePlaceCatalog
         var sceneBindings = new List<SceneParameterBindingV1>(contract.Parameters.Count);
         foreach (var parameter in contract.Parameters)
         {
-            if (parameter.Kind == ComponentParameterKind.MemoryImage)
+            if (parameter is MemoryImageParameterSchema image)
             {
-                var wordWidth = Width(bindings, parameter.MemoryImageWidthParameterId);
+                var wordWidth = Width(bindings, image.WordWidthParameterId);
                 var addressWidth = Width(
                     bindings,
-                    parameter.MemoryImageAddressWidthParameterId);
+                    image.AddressWidthParameterId);
                 if (addressWidth >= 32)
                 {
                     parameters = [];
@@ -110,34 +110,29 @@ internal static class ScenePlaceCatalog
         ComponentParameterSchema schema,
         IReadOnlyList<ComponentParameterBinding> bindings)
     {
-        return schema.Kind switch
+        return schema switch
         {
-            ComponentParameterKind.PositiveWidth => new Unsigned32ParameterValue(
-                PositiveWidth(schema, bindings)),
-            ComponentParameterKind.LogicVector => new LogicVectorParameterValue(
-                [.. Enumerable.Repeat(
-                    LogicValue.Zero,
-                    checked((int)(schema.FixedWidth ?? Width(bindings, schema.WidthParameterId))))]),
-            ComponentParameterKind.Choice => new ChoiceParameterValue(
-                schema.AllowedValues.First()),
-            ComponentParameterKind.Slices => new SlicesParameterValue(
-                [.. Enumerable.Repeat(
-                    new BitSlice(0, 1),
-                    Math.Max(1, schema.MinimumItemCount))]),
-            ComponentParameterKind.Widths => new WidthsParameterValue(
-                [.. Enumerable.Repeat(1u, Math.Max(1, schema.MinimumItemCount))]),
-            ComponentParameterKind.BinaryLogicValue => new LogicVectorParameterValue(
-                [LogicValue.Zero]),
-            ComponentParameterKind.PositiveUnsigned64 => new Unsigned64ParameterValue(1),
-            ComponentParameterKind.MemoryImage => throw new InvalidOperationException(
+            WidthParameterSchema width => new Unsigned32ParameterValue(PositiveWidth(width, bindings)),
+            FixedLogicVectorParameterSchema vector => ZeroVector(vector.Width),
+            VariableLogicVectorParameterSchema vector => ZeroVector(Width(bindings, vector.WidthParameterId)),
+            ChoiceParameterSchema choice => new ChoiceParameterValue(choice.AllowedValues[0]),
+            SlicesParameterSchema slices => new SlicesParameterValue(
+                [.. Enumerable.Repeat(new BitSlice(0, 1), slices.MinimumItemCount)]),
+            WidthsParameterSchema widths => new WidthsParameterValue(
+                [.. Enumerable.Repeat(1u, widths.MinimumItemCount)]),
+            BinaryLogicParameterSchema => new LogicVectorParameterValue([LogicValue.Zero]),
+            PositiveUnsigned64ParameterSchema => new Unsigned64ParameterValue(1),
+            MemoryImageParameterSchema => throw new InvalidOperationException(
                 "Memory-backed contracts require an explicit Memory Image selection."),
-            _ => throw new InvalidOperationException(
-                "The component parameter kind is undefined."),
+            _ => throw new InvalidOperationException("The component parameter schema is undefined."),
         };
     }
 
+    private static LogicVectorParameterValue ZeroVector(uint width) =>
+        new([.. Enumerable.Repeat(LogicValue.Zero, checked((int)width))]);
+
     private static uint PositiveWidth(
-        ComponentParameterSchema schema,
+        WidthParameterSchema schema,
         IReadOnlyList<ComponentParameterBinding> bindings)
     {
         var minimum = schema.MinimumValue;

@@ -1,10 +1,6 @@
 @inject IStringLocalizer<EditorText> Text
 
 <section class="definition-navigator">
-    <header class="definition-navigator-heading">
-        <p>@Text["DefinitionContext"]</p>
-        <span>@Text["TabsHierarchyEntry"]</span>
-    </header>
     <div class="definition-navigator-content">
         @if (Document is null || SelectedDefinitionId is null)
         {

@@ -137,12 +137,12 @@
   <data name="StatusReady" xml:space="preserve"><value>Ready to create a Sandbox.</value></data>
   <data name="StatusReopenedDurable" xml:space="preserve"><value>Project reopened.</value></data>
   <data name="StatusReopenedSandbox" xml:space="preserve"><value>Sandbox reopened.</value></data>
-  <data name="StatusSandboxCreated" xml:space="preserve"><value>Sandbox created. Choose an example or draw a circuit.</value></data>
+  <data name="StatusSandboxCreated" xml:space="preserve"><value>Sandbox created. Place components to draw a circuit.</value></data>
   <data name="StepCommitted" xml:space="preserve"><value>Advanced to logical time {0}.</value></data>
   <data name="StepFailed" xml:space="preserve"><value>Step failed: {0}.</value></data>
   <data name="StepRejected" xml:space="preserve"><value>Step rejected: {0}.</value></data>
   <data name="StimulusRejected" xml:space="preserve"><value>Stimulus rejected: {0}.</value></data>
-  <data name="StimulusScheduled" xml:space="preserve"><value>Inputs set to 1 at logical time {0}.</value></data>
+  <data name="StimulusScheduled" xml:space="preserve"><value>Input values scheduled for logical time {0}.</value></data>
   <data name="TitleDurable" xml:space="preserve"><value>Project Workbench</value></data>
   <data name="TitleOpening" xml:space="preserve"><value>Workspace Workbench</value></data>
   <data name="TitleSandbox" xml:space="preserve"><value>Sandbox Workbench</value></data>
@@ -201,15 +201,14 @@
   <data name="PanTool" xml:space="preserve"><value>Pan</value></data>
   <data name="SelectTool" xml:space="preserve"><value>Select</value></data>
   <data name="WireTool" xml:space="preserve"><value>Wire</value></data>
-  <data name="NextStep" xml:space="preserve"><value>Next step</value></data>
   <data name="ChooseStarterHint" xml:space="preserve"><value>Choose a starting circuit below.</value></data>
   <data name="ProjectOptions" xml:space="preserve"><value>Project options</value></data>
   <data name="StarterEyebrow" xml:space="preserve"><value>Start with a working circuit</value></data>
   <data name="StarterTitle" xml:space="preserve"><value>Choose an example</value></data>
-  <data name="StarterDescription" xml:space="preserve"><value>Choose a complete circuit, then compile, simulate, and inspect its signals.</value></data>
+  <data name="StarterDescription" xml:space="preserve"><value>Open a complete circuit, start simulation, then change its inputs and observe the signals.</value></data>
   <data name="LearningStepChoose" xml:space="preserve"><value>Choose</value></data>
-  <data name="LearningStepCompile" xml:space="preserve"><value>Compile</value></data>
-  <data name="LearningStepSimulate" xml:space="preserve"><value>Simulate</value></data>
+  <data name="LearningStepInputs" xml:space="preserve"><value>Set inputs</value></data>
+  <data name="LearningStepStart" xml:space="preserve"><value>Start simulation</value></data>
   <data name="LearningStepObserve" xml:space="preserve"><value>Observe</value></data>
   <data name="StarterInverterTitle" xml:space="preserve"><value>Inverter basics</value></data>
   <data name="StarterInverterDescription" xml:space="preserve"><value>See how a NOT gate inverts an input before it reaches the output.</value></data>
@@ -402,4 +401,58 @@
   <data name="InspectorChoice_highestIndex" xml:space="preserve"><value>Highest index first</value></data>
   <data name="InspectorChoice_left" xml:space="preserve"><value>Left</value></data>
   <data name="InspectorChoice_right" xml:space="preserve"><value>Right</value></data>
+  <data name="ExampleOpened" xml:space="preserve"><value>{0} is ready to simulate.</value></data>
+  <data name="InputValues" xml:space="preserve"><value>Next input values</value></data>
+  <data name="InputValuesHint" xml:space="preserve"><value>Enter binary values (most significant bit first). Apply inputs schedules them together for the next logical time; Step advances to that event.</value></data>
+  <data name="InputValuesInvalid" xml:space="preserve"><value>Use exactly the input width in 0, 1, X, or Z.</value></data>
+  <data name="ApplyInputs" xml:space="preserve"><value>Apply inputs</value></data>
+  <data name="AuthorCircuitHint" xml:space="preserve"><value>Place components and connect their ports.</value></data>
+  <data name="Undo" xml:space="preserve"><value>Undo</value></data>
+  <data name="Redo" xml:space="preserve"><value>Redo</value></data>
+  <data name="UndoSucceeded" xml:space="preserve"><value>Last edit undone.</value></data>
+  <data name="RedoSucceeded" xml:space="preserve"><value>Edit restored.</value></data>
+  <data name="WaveformTab" xml:space="preserve"><value>Waveform</value></data>
+  <data name="Diagnostics" xml:space="preserve"><value>Diagnostics</value></data>
+  <data name="DiagnosticCount" xml:space="preserve"><value>{0} diagnostics</value></data>
+  <data name="DiagnosticPage" xml:space="preserve"><value>Page {0} of {1}</value></data>
+  <data name="DiagnosticEmpty" xml:space="preserve"><value>No diagnostics in the current compilation or session.</value></data>
+  <data name="DiagnosticCompileFirst" xml:space="preserve"><value>Compile the circuit to check its connections and component contracts.</value></data>
+  <data name="DiagnosticCompilation" xml:space="preserve"><value>Compilation</value></data>
+  <data name="DiagnosticSimulation" xml:space="preserve"><value>Simulation</value></data>
+  <data name="DiagnosticEarlierSession" xml:space="preserve"><value>Session uses an earlier revision</value></data>
+  <data name="DiagnosticSourceUnavailable" xml:space="preserve"><value>Source unavailable</value></data>
+  <data name="DiagnosticSourceSelected" xml:space="preserve"><value>Diagnostic source selected in the circuit.</value></data>
+  <data name="DiagnosticDetails" xml:space="preserve"><value>Details</value></data>
+  <data name="DiagnosticUnknown" xml:space="preserve"><value>The operation reported a diagnostic. Open Details for its code.</value></data>
+  <data name="DiagnosticSeverity_error" xml:space="preserve"><value>Error</value></data>
+  <data name="DiagnosticSeverity_warning" xml:space="preserve"><value>Warning</value></data>
+  <data name="DiagnosticSeverity_info" xml:space="preserve"><value>Information</value></data>
+  <data name="Diagnostic_compiler_entry_definition_missing" xml:space="preserve"><value>The entry circuit definition is missing.</value></data>
+  <data name="Diagnostic_compiler_hierarchy_recursion" xml:space="preserve"><value>A circuit definition contains itself through the hierarchy. Remove the recursive instance.</value></data>
+  <data name="Diagnostic_compiler_library_version_mismatch" xml:space="preserve"><value>The project and compiler use different component library versions.</value></data>
+  <data name="Diagnostic_compiler_library_digest_mismatch" xml:space="preserve"><value>The component library content does not match the project.</value></data>
+  <data name="Diagnostic_compiler_contract_unresolved" xml:space="preserve"><value>A component contract cannot be resolved.</value></data>
+  <data name="Diagnostic_compiler_port_unresolved" xml:space="preserve"><value>A component port is not defined by its contract.</value></data>
+  <data name="Diagnostic_compiler_required_terminal_unconnected" xml:space="preserve"><value>Connect this required terminal to a net.</value></data>
+  <data name="Diagnostic_compiler_parameter_schema_mismatch" xml:space="preserve"><value>The component parameters do not match its contract.</value></data>
+  <data name="Diagnostic_compiler_width_mismatch" xml:space="preserve"><value>Connected terminals have different widths. Add an explicit width conversion.</value></data>
+  <data name="Diagnostic_compiler_illegal_port_direction" xml:space="preserve"><value>A port direction is invalid for this connection.</value></data>
+  <data name="Diagnostic_compiler_policy_exhausted" xml:space="preserve"><value>Compilation exceeded a project limit. Open Details to inspect the limit.</value></data>
+  <data name="Diagnostic_compiler_internal_invariant" xml:space="preserve"><value>Compilation encountered an internal fault. Preserve the project and diagnostic details.</value></data>
+  <data name="Diagnostic_simulation_net_undriven" xml:space="preserve"><value>No active driver supplies this net. Its value is Z.</value></data>
+  <data name="Diagnostic_simulation_unknown_driver" xml:space="preserve"><value>An unknown driver contributes X to this net.</value></data>
+  <data name="Diagnostic_simulation_contention" xml:space="preserve"><value>Drivers supply conflicting values to this net.</value></data>
+  <data name="Diagnostic_simulation_indeterminate_feedback" xml:space="preserve"><value>Feedback could not settle to a known value.</value></data>
+  <data name="Diagnostic_simulation_indefinite_clock_edge" xml:space="preserve"><value>An uncertain clock transition makes the captured state indeterminate.</value></data>
+  <data name="Diagnostic_simulation_control_conflict" xml:space="preserve"><value>The active control inputs conflict.</value></data>
+  <data name="Diagnostic_simulation_contract_defect" xml:space="preserve"><value>A component evaluator violated its contract. This advance was not committed.</value></data>
+  <data name="DiagnosticEarlierSource" xml:space="preserve">
+    <value>Source from an earlier revision</value>
+  </data>
+  <data name="DiagnosticRevision" xml:space="preserve">
+    <value>Revision</value>
+  </data>
+  <data name="ObserveProbe" xml:space="preserve"><value>Show in waveform</value></data>
+  <data name="ExpandInstruments" xml:space="preserve"><value>Expand instruments</value></data>
+  <data name="CollapseInstruments" xml:space="preserve"><value>Return to circuit</value></data>
 </root>

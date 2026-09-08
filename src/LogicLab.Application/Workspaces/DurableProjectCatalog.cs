@@ -354,7 +354,6 @@ internal sealed partial class DurableProjectCatalog(
                 : DurableProjectCatalogOutcomeReasons.InternalDefect;
             LogCatalogFailure(
                 logger,
-                exception,
                 ApplicationCorrelation.CurrentOrCreate(),
                 stage,
                 code);
@@ -368,7 +367,6 @@ internal sealed partial class DurableProjectCatalog(
         Message = "Durable Project Catalog failed with correlation {Correlation}, stage {Stage}, and outcome {OutcomeCode}.")]
     private static partial void LogCatalogFailure(
         ILogger logger,
-        Exception exception,
         string correlation,
         string stage,
         string outcomeCode);

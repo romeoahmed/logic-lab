@@ -133,7 +133,7 @@ internal sealed record CompilerTestCircuit(
             revision,
             new PlaceComponentInstanceIntent(
                 revision.Document.EntryCircuitDefinitionId,
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
+                new ComponentContractKey(LibrarySnapshot.Core.LibraryId, contractId),
                 parameters,
                 new ComponentPlacement(origin))));
     }

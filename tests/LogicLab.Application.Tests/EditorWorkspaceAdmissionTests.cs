@@ -53,7 +53,7 @@ internal sealed class EditorWorkspaceAdmissionTests
         var first = await workspace.DispatchAsync(
             Edit(opened, opened.Projection, new PlaceComponentInstanceIntent(
                 definitionId,
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, "logic.not"),
+                new ComponentContractKey(LibrarySnapshot.Core.LibraryId, "logic.not"),
                 [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
                 new ComponentPlacement(new GridPoint(0, 0)))),
             CancellationToken.None);
@@ -62,7 +62,7 @@ internal sealed class EditorWorkspaceAdmissionTests
         var rejected = await workspace.DispatchAsync(
             Edit(opened, beforeRejected, new PlaceComponentInstanceIntent(
                 definitionId,
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, "logic.not"),
+                new ComponentContractKey(LibrarySnapshot.Core.LibraryId, "logic.not"),
                 [new ComponentParameterBinding("width", new Unsigned32ParameterValue(1))],
                 new ComponentPlacement(new GridPoint(4, 0)))),
             CancellationToken.None);
@@ -255,7 +255,7 @@ internal sealed class EditorWorkspaceAdmissionTests
 
         return new PlaceComponentInstanceIntent(
             definitionId,
-            new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
+            new ComponentContractKey(LibrarySnapshot.Core.LibraryId, contractId),
             parameters,
             new ComponentPlacement(new GridPoint(0, 0)));
     }

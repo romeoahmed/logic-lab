@@ -6,8 +6,8 @@
     </header>
     <ol>
         <li><strong>1</strong><span>@Text["LearningStepChoose"]</span></li>
-        <li><strong>2</strong><span>@Text["LearningStepCompile"]</span></li>
-        <li><strong>3</strong><span>@Text["LearningStepSimulate"]</span></li>
+        <li><strong>2</strong><span>@Text["LearningStepStart"]</span></li>
+        <li><strong>3</strong><span>@Text["LearningStepInputs"]</span></li>
         <li><strong>4</strong><span>@Text["LearningStepObserve"]</span></li>
     </ol>
     <div class="starter-options">
@@ -39,7 +39,7 @@
     public string? BusyCommand { get; set; }
 
     [Parameter]
-    public EventCallback<StarterExample> OnSelect { get; set; }
+    public EventCallback<LogicLab.Application.Examples.ExampleProject> OnSelect { get; set; }
 
     [Inject]
     private IStringLocalizer<EditorText> Text { get; set; } = null!;

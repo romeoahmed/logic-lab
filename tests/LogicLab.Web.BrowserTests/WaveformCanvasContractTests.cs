@@ -8,6 +8,219 @@ namespace LogicLab.Web.BrowserTests;
 internal sealed class WaveformCanvasContractTests : PageTest
 {
     [Test]
+    [Arguments("0", "1")]
+    [Arguments("0", "3")]
+    [Arguments("0", "7")]
+    [Arguments("18446744073709551610", "18446744073709551616")]
+    [Arguments("18446744073709551000", "18446744073709551616")]
+    public async Task Ruler_ShortOrLargeLogicalTimes_DrawsDistinctAccurateNonoverlappingLabels(string start, string end)
+    {
+        var waveform = new WaveformCanvasTestPage(Page);
+        await waveform.OpenAndMountAsync();
+        await waveform.Canvas.EvaluateAsync("""
+            canvas => {
+              const context = canvas.getContext('2d');
+              const fillRect = context.fillRect.bind(context);
+              const fillText = context.fillText.bind(context);
+              window.rulerLabels = [];
+              context.fillRect = (x, y, width, height) => {
+                if (x === 0 && y === 0) window.rulerLabels = [];
+                fillRect(x, y, width, height);
+              };
+              context.fillText = (text, x, y, ...args) => {
+                if (y === 15) {
+                  const width = context.measureText(text).width;
+                  const left = x - (context.textAlign === 'right' ? width : context.textAlign === 'center' ? width / 2 : 0);
+                  window.rulerLabels.push({ text, x, left, right: left + width });
+                }
+                fillText(text, x, y, ...args);
+              };
+            }
+            """);
+        var snapshot = JsonSerializer.SerializeToNode(
+            WaveformCanvasTestPage.Snapshot(segmentEndExclusive: end, viewportEndExclusive: end),
+            JsonSerializerOptions.Web)!;
+        snapshot["viewState"]!["viewport"]!["startInclusive"] = start;
+        snapshot["trace"]!["segments"]![0]!["range"]!["startInclusive"] = start;
+        await Assert.That(await waveform.CommitSnapshotAsync(snapshot)).IsTrue();
+        await waveform.WaitForFramesAsync();
+
+        await Assert.That(await Page.EvaluateAsync<bool>("""
+            ({ start, end }) => {
+              const labels = window.rulerLabels;
+              const width = document.querySelector('[data-waveform-canvas]').getBoundingClientRect().width;
+              const span = BigInt(end) - BigInt(start);
+              return labels.length >= 2 && labels[0].text === start && labels.at(-1).text === end
+                && new Set(labels.map(label => label.text)).size === labels.length
+                && labels.every((label, index) => {
+                  const ratio = Number(BigInt(label.text) - BigInt(start)) / Number(span);
+                  return Math.abs(label.x - ratio * width) < 0.01
+                    && (index === 0 || labels[index - 1].right < label.left);
+                });
+            }
+            """, new { start, end })).IsTrue();
+    }
+
+    [Test]
+    public async Task PageRemoval_WithoutDotNetDisposal_DestroysNestedHandle()
+    {
+        var waveform = new WaveformCanvasTestPage(Page);
+        await waveform.OpenAndMountAsync();
+        await waveform.WaitForFramesAsync();
+
+        await Page.Locator("[data-waveform-page]").EvaluateAsync("element => element.remove()");
+        await waveform.WaitForFramesAsync();
+
+        await Assert.That(await Page.EvaluateAsync<bool>("""
+            () => {
+              try {
+                window.waveformHandle.setInteractionMode('commitEnabled');
+                return false;
+              } catch {
+                return window.waveformHandle.destroyed;
+              }
+            }
+            """)).IsTrue();
+    }
+
+    [Test]
+    public async Task ProbeRows_DomReordersBeforeSnapshot_KeepsTraceWithItsProbe()
+    {
+        var waveform = new WaveformCanvasTestPage(Page);
+        await waveform.OpenAndMountAsync();
+        await Page.Locator("[data-probe-spine]").EvaluateAsync("""
+            spine => {
+              const row = spine.querySelector('[data-waveform-row-track]');
+              row.style.height = '100px';
+              const next = row.cloneNode(true);
+              next.dataset.waveformRowTrack = 'probe-b';
+              spine.append(next);
+              const context = document.querySelector('[data-waveform-canvas]').getContext('2d');
+              const fillText = context.fillText.bind(context);
+              window.waveformLabels = [];
+              context.fillText = (text, x, y, ...args) => {
+                window.waveformLabels.push({ text, y });
+                fillText(text, x, y, ...args);
+              };
+            }
+            """);
+        var snapshot = JsonSerializer.SerializeToNode(
+            WaveformCanvasTestPage.Snapshot(vectorData: "AQ=="), JsonSerializerOptions.Web)!;
+        var rows = snapshot["rows"]!.AsArray();
+        rows[0]!["width"] = 4;
+        var nextRow = rows[0]!.DeepClone();
+        nextRow["probeId"] = "probe-b";
+        nextRow["displayOrdinal"] = 1;
+        rows.Add(nextRow);
+        var segments = snapshot["trace"]!["segments"]!.AsArray();
+        segments[0]!["value"]!["width"] = 4;
+        var nextSegment = segments[0]!.DeepClone();
+        nextSegment["probeId"] = "probe-b";
+        nextSegment["value"]!["data"] = "BA==";
+        segments.Add(nextSegment);
+        await Assert.That(await waveform.CommitSnapshotAsync(snapshot)).IsTrue();
+        await waveform.WaitForFramesAsync();
+
+        await Page.Locator("[data-probe-spine]").EvaluateAsync("""
+            spine => {
+              window.waveformLabels = [];
+              const rows = spine.querySelectorAll('[data-waveform-row-track]');
+              spine.insertBefore(rows[1], rows[0]);
+            }
+            """);
+        await waveform.WaitForFramesAsync();
+
+        await Assert.That(await Page.EvaluateAsync<bool>("""
+            () => {
+              const first = window.waveformLabels.find(label => label.text === '0001');
+              const second = window.waveformLabels.find(label => label.text === '0010');
+              return !!first && !!second && second.y < first.y;
+            }
+            """)).IsTrue();
+    }
+
+    [Test]
+    public async Task ProbeRows_DomPrecedesSnapshot_RemainsAvailableUntilReplacement()
+    {
+        var waveform = new WaveformCanvasTestPage(Page);
+        await waveform.OpenAndMountAsync();
+        await Assert.That(await waveform.CommitSnapshotAsync(
+            WaveformCanvasTestPage.Snapshot())).IsTrue();
+        await waveform.WaitForFramesAsync();
+
+        await Page.Locator("[data-probe-spine]").EvaluateAsync("""
+            spine => {
+              const row = spine.querySelector('[data-waveform-row-track]');
+              const next = row.cloneNode(true);
+              next.dataset.waveformRowTrack = 'probe-b';
+              spine.append(next);
+              spine.dispatchEvent(new Event('scroll'));
+            }
+            """);
+        await waveform.WaitForFramesAsync();
+        var replacement = JsonSerializer.SerializeToNode(
+            WaveformCanvasTestPage.Snapshot(waveformVersion: 2), JsonSerializerOptions.Web)!;
+        var rows = replacement["rows"]!.AsArray();
+        var nextRow = rows[0]!.DeepClone();
+        nextRow["probeId"] = "probe-b";
+        nextRow["displayOrdinal"] = 1;
+        rows.Add(nextRow);
+        var segments = replacement["trace"]!["segments"]!.AsArray();
+        var nextSegment = segments[0]!.DeepClone();
+        nextSegment["probeId"] = "probe-b";
+        segments.Add(nextSegment);
+
+        await Assert.That(await waveform.CommitSnapshotAsync(replacement)).IsTrue();
+        await waveform.WaitForFramesAsync();
+        await Assert.That(await waveform.PlacePrimaryCursorAsync(180)).IsEqualTo("3");
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task BusLabels_FourStateVectors_PreserveUnknownAndHighImpedance(bool summary)
+    {
+        var waveform = new WaveformCanvasTestPage(Page);
+        await waveform.OpenAndMountAsync();
+        await waveform.Canvas.EvaluateAsync("""
+            canvas => {
+              const context = canvas.getContext('2d');
+              const fillText = context.fillText.bind(context);
+              window.waveformLabels = [];
+              context.fillText = (text, ...args) => {
+                window.waveformLabels.push(text);
+                fillText(text, ...args);
+              };
+            }
+            """);
+        var snapshot = JsonSerializer.SerializeToNode(
+            WaveformCanvasTestPage.Snapshot(vectorData: "Sw=="),
+            JsonSerializerOptions.Web)!;
+        snapshot["rows"]![0]!["width"] = 4;
+        var trace = snapshot["trace"]!;
+        var segment = trace["segments"]![0]!;
+        segment["value"]!["width"] = 4;
+        if (summary)
+        {
+            trace["kind"] = "summary";
+            trace["aggregation"] = "logic-envelope-v1";
+            segment["firstValue"] = segment["value"]!.DeepClone();
+            segment["lastValue"] = segment["value"]!.DeepClone();
+            segment["lastValue"]!["data"] = "AQ==";
+            segment.AsObject().Remove("value");
+            segment.AsObject().Remove("transitionAtStart");
+            segment["hadTransition"] = true;
+            segment["hadMixedValues"] = true;
+        }
+
+        await Assert.That(await waveform.CommitSnapshotAsync(snapshot)).IsTrue();
+        await waveform.WaitForFramesAsync();
+
+        var labels = await Page.EvaluateAsync<string[]>("() => window.waveformLabels");
+        await Assert.That(labels).Contains(summary ? "10XZ→0001" : "10XZ");
+    }
+
+    [Test]
     [Arguments("abort")]
     [Arguments("destroy")]
     public async Task Transfer_CancelledDuringDigest_DoesNotPublish(string cancellation)
@@ -644,13 +857,19 @@ internal sealed class WaveformCanvasTestPage(IPage page)
         </head>
         <body>
           <dialog id="components-reconnect-modal"></dialog>
+          <main data-browser-host-ancestor>
+          <div data-waveform-page>
+          <div>
           <section data-waveform-host style="display:grid;grid-template-columns:180px 600px">
             <aside data-probe-spine style="height:300px;overflow:auto">
               <h3 style="height:30px;margin:0">Signals</h3>
-              <div data-waveform-row-track style="height:480px">A</div>
+              <div data-waveform-row-track="probe-a" style="height:480px">A</div>
             </aside>
             <canvas data-waveform-canvas style="display:block;width:600px;height:300px"></canvas>
           </section>
+          </div>
+          </div>
+          </main>
           <script>
             const nativeMatchMedia = window.matchMedia.bind(window);
             window.matchMedia = query => {

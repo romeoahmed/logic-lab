@@ -684,8 +684,8 @@ internal sealed partial class ComplexTeachingMixedGeometryPlannerTests
 
     private static ComponentSymbolRequestV1 Request(string contractId)
     {
-        var contract = CoreLibrarySchema.FindContract(new ComponentContractKey(
-            CoreLibrarySchema.LibraryId,
+        var contract = LibrarySnapshot.Core.ResolveContract(new ComponentContractKey(
+            LibrarySnapshot.Core.LibraryId,
             contractId)) ?? throw new InvalidOperationException($"Missing {contractId}.");
         return new ComponentSymbolRequestV1(
             contract,

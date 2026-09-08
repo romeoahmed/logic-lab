@@ -104,7 +104,11 @@ The complete record, discriminator, identity, ordering, Unicode, and canonical-b
 
 The Project content digest uses the section 2 framed part sequence with domain prefix `UTF8("logiclab-project-content-v1\0")`. The `project.json` length and hash come from its canonical bytes; each memory length and hash comes from the validated canonical header/payload bytes; paths use ordinal order. The digest compares normalized content; it is not authored Project identity, Project Revision identity, Durable Project identity, authorship, or authorization.
 
-`System.Text.Json` source-generated contexts and explicit converters are appropriate implementations. The .NET 10 serializer options set `AllowDuplicateProperties = false`. Project Format also performs a bounded `Utf8JsonReader` validation pass before typed deserialization so low-level reader and custom-converter paths cannot bypass duplicate-member, depth, token, or numeric checks.
+Import uses the source-generated `System.Text.Json` schema with .NET 10 strict options.
+Before DTO allocation, bounded `Utf8JsonReader` passes enforce lexical limits and
+closed member shapes without constructing a JSON document tree. Schema validation
+uses the generated metadata and accepts a discriminator anywhere in its object;
+the serializer owns scalar types, ranges, and nullability.
 
 ## 4. Memory image encoding
 

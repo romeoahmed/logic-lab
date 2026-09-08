@@ -1,14 +1,9 @@
 using System.Diagnostics;
 using LogicLab.Application.Workspaces;
-using LogicLab.Domain;
-using LogicLab.Domain.Authoring;
-using LogicLab.Domain.Components;
 using LogicLab.Web.Components.Editor;
-using LogicLab.Web.Scene;
 using LogicLab.Web.Transfers;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.Localization;
 using Microsoft.JSInterop;
 
@@ -22,6 +17,7 @@ public sealed partial class Editor : IAsyncDisposable
     private readonly ProjectImportWorkflow projectImportWorkflow;
     private readonly TimeProvider timeProvider;
     private readonly CancellationTokenSource componentLifetime = new();
+    private readonly CancellationToken componentCancellationToken;
     private WorkspaceAttachmentNavigation? attachmentNavigation;
     private int isDisposed;
 
@@ -36,6 +32,7 @@ public sealed partial class Editor : IAsyncDisposable
         this.workspace = workspace;
         this.projectImportWorkflow = projectImportWorkflow;
         this.timeProvider = timeProvider;
+        componentCancellationToken = componentLifetime.Token;
     }
 
     private WorkspaceProjection? Projection { get; set; }
@@ -43,21 +40,6 @@ public sealed partial class Editor : IAsyncDisposable
     private Attached? Attachment { get; set; }
 
     private WorkspaceAttachmentFailure? AttachmentFailure { get; set; }
-
-    private SceneSelectionV1? SceneSelection { get; set; }
-
-    private SceneToolV1 SceneTool { get; set; } = SceneSelectToolV1.Instance;
-
-    private IReadOnlyList<ScenePlaceOptionV1> ScenePlaceOptions { get; set; } = [];
-
-    private CircuitDefinitionId? SelectedDefinitionId { get; set; }
-
-    private CircuitDefinition? SelectedDefinition => Projection is null
-        || SelectedDefinitionId is null
-            ? null
-            : Projection.ProjectRevision.Document.FindCircuitDefinition(SelectedDefinitionId);
-
-    private List<HierarchyNavigationStep> HierarchyNavigation { get; } = [];
 
     private bool IsInteractive { get; set; }
 
@@ -74,28 +56,6 @@ public sealed partial class Editor : IAsyncDisposable
     private string? PreparedExportUrl { get; set; }
 
     private string ClaimDisplayName { get; set; } = string.Empty;
-
-    private WorkbenchCommandBar.CommandBarModel CommandBarModel => new()
-    {
-        CanCreate = CanCreate,
-        CanImport = CanImport,
-        CanPrepareExport = CanPrepareExport,
-        ShowClaim = ShowClaim,
-        CanClaim = CanClaim,
-        ShowSave = ShowSave,
-        CanSave = CanSave,
-        ClaimDisplayName = ClaimDisplayName,
-        CanCompile = CanCompile,
-        CanCreateSession = CanCreateSession,
-        CanRestartSession = CanRestartSession,
-        CanCloseSession = CanCloseSession,
-        CanHotSwapSession = CanHotSwapSession,
-        CanScheduleStimulus = CanScheduleStimulus,
-        CanStep = CanStep,
-        CanRun = CanStep,
-        CanPause = CommandsAvailable && IsSimulationRunning,
-        ActiveCommand = ActiveCommand,
-    };
 
     private WorkspaceCaller CurrentCaller { get; set; } =
         AnonymousWorkspaceCaller.Instance;
@@ -147,6 +107,10 @@ public sealed partial class Editor : IAsyncDisposable
             ? AnonymousWorkspaceCaller.Instance
             : WorkspaceCallerAdapter.FromPrincipal(
                 (await AuthenticationStateTask).User);
+        if (Volatile.Read(ref isDisposed) != 0)
+        {
+            return;
+        }
         if (caller is null)
         {
             if (!IsCallerAvailable)
@@ -203,102 +167,6 @@ public sealed partial class Editor : IAsyncDisposable
             CancellationToken.None);
     }
 
-    private bool CommandsAvailable => Volatile.Read(ref isDisposed) == 0
-        && IsInteractive
-        && IsCallerAvailable
-        && (WorkspaceIdValue is null || Attachment is not null);
-
-    private bool CanCreate => CommandsAvailable
-        && WorkspaceIdValue is null
-        && Projection is null;
-
-    private bool CanAuthor => CommandsAvailable
-        && Projection is not null
-        && Projection.Simulation is null
-        && Projection.Compilation is not CompilationPublishedProjection
-        && Projection.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances.Count == 0;
-
-    private bool IsSimulationRunning => Projection?.Simulation?.Run is RunRunningProjection;
-
-    private bool CanMutateWorkspace => CommandsAvailable && !IsSimulationRunning;
-
-    private bool CanPrepareExport => CanMutateWorkspace && Projection is not null;
-
-    private bool ShowClaim => CommandsAvailable
-        && CurrentCaller is AuthenticatedWorkspaceCaller
-        && Projection?.Durability is SandboxWorkspaceDurabilityProjection;
-
-    private bool CanClaim => ShowClaim && CanMutateWorkspace && ClaimDisplayName.Length != 0;
-
-    private bool ShowSave => CommandsAvailable
-        && CurrentCaller is AuthenticatedWorkspaceCaller
-        && Projection?.Durability is DurableWorkspaceDurabilityProjection;
-
-    private bool CanSave => ShowSave && CanMutateWorkspace
-        && Projection?.Durability is DurableWorkspaceDurabilityProjection
-        {
-            SaveStatus: DurableSaveStatus.Changed,
-        };
-
-    private bool HasSaveConflict => ShowSave
-        && Projection?.Durability is DurableWorkspaceDurabilityProjection
-        {
-            SaveStatus: DurableSaveStatus.Conflict,
-        };
-
-    private bool CanImport => CanMutateWorkspace
-        && Projection?.Compilation is not (CompilationQueuedProjection or CompilationRunningProjection);
-
-    private bool CanSetEntryDefinition => CanMutateWorkspace
-        && ActiveCommand is null
-        && Projection is not null;
-
-    private bool CanEnterDefinitionInstances => Projection is not null
-        && SelectedDefinitionId is not null
-        && (HierarchyNavigation.Count != 0
-            || SelectedDefinitionId == Projection.ProjectRevision.Document
-                .EntryCircuitDefinitionId);
-
-    private bool CanCompile => CommandsAvailable
-        && Projection is not null
-        && Projection.Simulation is not { Run: RunRunningProjection }
-        && Projection.Compilation is not CompilationPublishedProjection
-        && Projection.ProjectRevision.Document.EntryCircuitDefinition.ComponentInstances.Count > 0;
-
-    private bool CanCreateSession => CommandsAvailable
-        && Projection?.Simulation is null
-        && Projection?.Compilation is CompilationPublishedProjection;
-
-    private bool CanRestartSession => CommandsAvailable
-        && Projection?.Simulation is { Run: not RunRunningProjection }
-        && Projection.Compilation is CompilationPublishedProjection;
-
-    private bool CanCloseSession => CommandsAvailable
-        && Projection?.Simulation is { Run: not RunRunningProjection };
-
-    private bool CanHotSwapSession => CanRestartSession
-        && Projection!.Simulation!.CompilationArtifactKey
-            != ((CompilationPublishedProjection)Projection.Compilation).ArtifactKey;
-
-    private bool HasCurrentSimulation =>
-        Projection?.Simulation is { Run: not RunRunningProjection } simulation
-        && Projection.Compilation is CompilationPublishedProjection compilation
-        && simulation.CompilationArtifactKey == compilation.ArtifactKey;
-
-    private bool CanUseSceneProbe => CanMutateWorkspace
-        && Projection?.Simulation is not null
-        && CurrentSceneHierarchyPath is not null;
-
-    private bool HasProgrammableInputs => Projection?.ProjectRevision.Document
-        .EntryCircuitDefinition.ComponentInstances.Any(IsProgrammableInput) is true;
-
-    private bool CanScheduleStimulus => CommandsAvailable
-        && HasCurrentSimulation
-        && HasProgrammableInputs;
-
-    private bool CanStep => CommandsAvailable
-        && HasCurrentSimulation;
-
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender && RendererInfo.IsInteractive)
@@ -326,7 +194,7 @@ public sealed partial class Editor : IAsyncDisposable
         if (CommandsAvailable && IsSimulationRunning
             && (runObservation is null || runObservation.IsCompleted))
         {
-            runObservation = ObserveRunAsync(componentLifetime.Token);
+            runObservation = ObserveRunAsync(componentCancellationToken);
         }
     }
 
@@ -339,7 +207,7 @@ public sealed partial class Editor : IAsyncDisposable
         var browserHistoryEntryState = await (attachmentNavigation
                 ?? throw new InvalidOperationException(
                     "Attachment navigation is unavailable before interactive rendering."))
-            .ReadHistoryEntryStateAsync(workspaceLocator, componentLifetime.Token);
+            .ReadHistoryEntryStateAsync(workspaceLocator, componentCancellationToken);
         var hasPriorFence = WorkspaceAttachmentHistoryState.TryRead(
             browserHistoryEntryState ?? Navigation.HistoryEntryState,
             workspaceId,
@@ -357,7 +225,7 @@ public sealed partial class Editor : IAsyncDisposable
                     workspaceId,
                     LogicLabWebBuild.Fingerprint,
                     caller),
-            componentLifetime.Token);
+            componentCancellationToken);
         if (!hasPriorFence
             && attachOutcome is AttachRejected
             {
@@ -373,7 +241,7 @@ public sealed partial class Editor : IAsyncDisposable
                     new LogicLab.Application.Workspaces.WorkspaceId(WorkspaceIdValue!),
                     LogicLabWebBuild.Fingerprint,
                     authenticatedCaller),
-                componentLifetime.Token);
+                componentCancellationToken);
         }
 
         if (attachOutcome is Attached attached)
@@ -416,84 +284,14 @@ public sealed partial class Editor : IAsyncDisposable
         Status = Text["AttachmentRejected", rejectionCode];
     }
 
-    private Task RunWorkbenchCommandAsync(
-        WorkbenchCommandBar.WorkbenchCommand command) => command switch
-        {
-            WorkbenchCommandBar.WorkbenchCommand.Create => RunCommandAsync(
-                "create",
-                () => CanCreate,
-                CreateProject),
-            WorkbenchCommandBar.WorkbenchCommand.PrepareExport => RunCommandAsync(
-                "export",
-                () => CanPrepareExport,
-                PrepareProjectExport),
-            WorkbenchCommandBar.WorkbenchCommand.Claim => RunCommandAsync(
-                "claim",
-                () => CanClaim,
-                ClaimSandboxProject),
-            WorkbenchCommandBar.WorkbenchCommand.Save => RunCommandAsync(
-                "save",
-                () => CanSave,
-                SaveDurableProject),
-            WorkbenchCommandBar.WorkbenchCommand.Compile => RunCommandAsync(
-                "compile",
-                () => CanCompile,
-                Compile),
-            WorkbenchCommandBar.WorkbenchCommand.CreateSession => RunCommandAsync(
-                "session",
-                () => CanCreateSession,
-                CreateSimulationSession),
-            WorkbenchCommandBar.WorkbenchCommand.RestartSession => RunCommandAsync(
-                "restart", () => CanRestartSession, RestartSimulationSession),
-            WorkbenchCommandBar.WorkbenchCommand.CloseSession => RunCommandAsync(
-                "close-session", () => CanCloseSession, CloseSimulationSession),
-            WorkbenchCommandBar.WorkbenchCommand.HotSwapSession => RunCommandAsync(
-                "hot-swap", () => CanHotSwapSession, HotSwapSimulationSession),
-            WorkbenchCommandBar.WorkbenchCommand.ScheduleStimulus => RunCommandAsync(
-                "stimulus",
-                () => CanScheduleStimulus,
-                ScheduleStimulus),
-            WorkbenchCommandBar.WorkbenchCommand.Step => RunCommandAsync(
-                "step",
-                () => CanStep,
-                Step),
-            WorkbenchCommandBar.WorkbenchCommand.StartRun => RunCommandAsync(
-                "run", () => CanStep, StartSimulationRun),
-            WorkbenchCommandBar.WorkbenchCommand.PauseRun => RunCommandAsync(
-                "pause", () => CommandsAvailable && IsSimulationRunning, PauseSimulationRun),
-            _ => throw new ArgumentOutOfRangeException(nameof(command), command, null),
-        };
+    private Task CreateProject() => OpenInitialWorkspaceAsync(
+        new CreateSandbox("Sandbox Project", "Main", RequireCurrentCaller()),
+        Text["StatusSandboxCreated"]);
 
-    private async Task RunCommandAsync(
-        string command,
-        Func<bool> canExecute,
-        Func<Task> operation)
+    private async Task OpenInitialWorkspaceAsync(OpenWorkspaceRequest request, string successStatus)
     {
-        ArgumentException.ThrowIfNullOrEmpty(command);
-        ArgumentNullException.ThrowIfNull(canExecute);
-        ArgumentNullException.ThrowIfNull(operation);
-        if (ActiveCommand is not null || !canExecute())
-        {
-            return;
-        }
-
-        ActiveCommand = command;
-        try
-        {
-            await operation();
-        }
-        finally
-        {
-            ActiveCommand = null;
-        }
-    }
-
-    private async Task CreateProject()
-    {
-        var caller = RequireCurrentCaller();
-        var outcome = await workspace.OpenAsync(
-            new CreateSandbox("Sandbox Project", "Main", caller),
-            CancellationToken.None);
+        var caller = request.Caller;
+        var outcome = await workspace.OpenAsync(request, componentCancellationToken);
         if (outcome is not WorkspaceOpened opened)
         {
             Status = Text[
@@ -507,7 +305,7 @@ public sealed partial class Editor : IAsyncDisposable
                 opened.WorkspaceId,
                 LogicLabWebBuild.Fingerprint,
                 caller),
-            CancellationToken.None);
+            componentCancellationToken);
         if (attachOutcome is not Attached attached)
         {
             var code = attachOutcome switch
@@ -534,317 +332,7 @@ public sealed partial class Editor : IAsyncDisposable
         HierarchyNavigation.Clear();
         ProjectScene();
         await PreserveAttachmentFenceAsync(attached);
-        Status = Text["StatusSandboxCreated"];
-    }
-
-    private void UpdateClaimDisplayName(string value)
-    {
-        ClaimDisplayName = value;
-    }
-
-    private async Task ClaimSandboxProject()
-    {
-        var projection = Projection
-            ?? throw new InvalidOperationException("A Workspace is not attached.");
-        var outcome = await Execute(context => new ClaimSandbox(
-            context,
-            new ClaimPrecondition(projection.ProjectRevision.RevisionId),
-            ClaimDisplayName));
-        Status = outcome switch
-        {
-            DurableProjectClaimed claimed => Text[
-                "ClaimSucceeded",
-                claimed.DisplayName.Value],
-            WorkspaceCommandRejected rejected => Text["ClaimRejected", rejected.Code],
-            _ => throw new UnreachableException(),
-        };
-    }
-
-    private async Task SaveDurableProject()
-    {
-        var projection = Projection
-            ?? throw new InvalidOperationException("A Workspace is not attached.");
-        var durability = projection.Durability as DurableWorkspaceDurabilityProjection
-            ?? throw new InvalidOperationException("The Workspace is not durable.");
-        var outcome = await Execute(context => new SaveDurable(
-            context,
-            new DurableSavePrecondition(
-                projection.ProjectRevision.RevisionId,
-                durability.ObservedDurableVersion)));
-        Status = outcome switch
-        {
-            DurableProjectSaved saved => Text[
-                "SaveSucceeded",
-                saved.DurableVersion.Value],
-            DurableProjectSaveConflict => Text["SaveConflictStatus"],
-            WorkspaceCommandRejected rejected => Text["SaveRejected", rejected.Code],
-            _ => throw new UnreachableException(),
-        };
-    }
-
-    private async Task ReloadDurableProject()
-    {
-        var durability = Projection?.Durability as DurableWorkspaceDurabilityProjection
-            ?? throw new InvalidOperationException("The Workspace is not durable.");
-        await OpenIndependentWorkspace(
-            new OpenDurable(durability.DurableProjectId, RequireCurrentCaller()),
-            Text["OpeningLatestDurable"]);
-    }
-
-    private async Task KeepConflictAsCopy()
-    {
-        var attachment = Attachment
-            ?? throw new InvalidOperationException("A Workspace is not attached.");
-        var projection = Projection
-            ?? throw new InvalidOperationException("A Workspace is not attached.");
-        await OpenIndependentWorkspace(
-            new CopyWorkspace(
-                projection.WorkspaceId,
-                attachment.AttachmentId,
-                attachment.Generation,
-                projection.ProjectionVersion,
-                WorkspaceCopySaveTarget.DetachedSandbox,
-                RequireCurrentCaller()),
-            Text["OpeningCopy"]);
-    }
-
-    private async Task OpenIndependentWorkspace(
-        OpenWorkspaceRequest request,
-        string openingStatus)
-    {
-        Status = openingStatus;
-        var outcome = await workspace.OpenAsync(request, componentLifetime.Token);
-        if (outcome is WorkspaceOpenRejected rejected)
-        {
-            Status = Text["OpeningRejected", rejected.Code];
-            return;
-        }
-
-        var opened = (WorkspaceOpened)outcome;
-        Navigation.NavigateTo(
-            CreateWorkspaceLocator(opened.WorkspaceId),
-            new NavigationOptions
-            {
-                ForceLoad = true,
-                ReplaceHistoryEntry = true,
-            });
-    }
-
-
-    private async Task Compile()
-    {
-        var projection = Projection!;
-        var revision = projection.ProjectRevision;
-        var precondition = new CompilationPrecondition(
-            revision.RevisionId,
-            revision.Document.EntryCircuitDefinitionId,
-            revision.Document.LibrarySnapshot.Fingerprint);
-        var observationCancellationToken = componentLifetime.Token;
-        WorkspaceCommandOutcome outcome;
-        try
-        {
-            outcome = await Execute(
-                context => new RequestCompilation(context, precondition),
-                commandCancellationToken: CancellationToken.None,
-                observationCancellationToken: observationCancellationToken);
-        }
-        catch (OperationCanceledException)
-            when (observationCancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
-
-        if (outcome is not CompilationAccepted accepted)
-        {
-            Status = Text[
-                "CompilationRejectedStatus",
-                ((WorkspaceCommandRejected)outcome).Code];
-            return;
-        }
-
-        Status = Text[
-            "CompilationAccepted",
-            accepted.CompilationGeneration.Value];
-        WorkspaceReadOutcome? observation;
-        try
-        {
-            observation = await WaitForCompilationAsync(
-                accepted.CompilationGeneration,
-                observationCancellationToken);
-        }
-        catch (OperationCanceledException)
-            when (observationCancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
-
-        if (observation is null)
-        {
-            Status = Text["CompilationStatusDetached"];
-            return;
-        }
-
-        Status = observation switch
-        {
-            CompilationSnapshot { Compilation: CompilationPublishedProjection } =>
-                Text["CompilationArtifactPublished"],
-            CompilationSnapshot { Compilation: CompilationSupersededProjection } => Text[
-                "CompilationWasSuperseded",
-                accepted.CompilationGeneration.Value],
-            CompilationSnapshot { Compilation: CompilationRejectedProjection rejected } =>
-                Text["CompilationRejectedStatus", rejected.RejectionCode],
-            WorkspaceReadRejected rejected =>
-                Text["CompilationStatusUnavailable", rejected.Code],
-            _ => Text["CompilationEndedUnknown"],
-        };
-    }
-
-    private async Task<WorkspaceReadOutcome?> WaitForCompilationAsync(
-        CompilationGeneration generation,
-        CancellationToken cancellationToken)
-    {
-        var reattachAttempted = false;
-        while (Projection is not null)
-        {
-            var read = await workspace.ReadAsync(
-                QueryContext(),
-                new ReadCompilation(generation),
-                cancellationToken);
-            if (read is WorkspaceReadRejected
-                {
-                    RetryDisposition: RetryDisposition.Reattach,
-                }
-                && !reattachAttempted
-                && await TryReattachAsync(cancellationToken))
-            {
-                reattachAttempted = true;
-                continue;
-            }
-
-            if (read is not CompilationSnapshot snapshot)
-            {
-                await Refresh(cancellationToken);
-                return read;
-            }
-
-            if (snapshot.Compilation is CompilationQueuedProjection
-                or CompilationRunningProjection)
-            {
-                await Task.Delay(
-                    ProjectionRefreshInterval,
-                    timeProvider,
-                    cancellationToken);
-                await Refresh(cancellationToken);
-                continue;
-            }
-
-            await Refresh(cancellationToken);
-            return snapshot;
-        }
-
-        return null;
-    }
-
-    private async Task PrepareProjectExport()
-    {
-        var revision = Projection?.ProjectRevision
-            ?? throw new InvalidOperationException("Workspace is not open.");
-        var revisionId = revision.RevisionId;
-        var outcome = await Execute(context => new PrepareExport(
-            context,
-            new AuthoringPrecondition(revisionId),
-            revisionId));
-        if (outcome is not ExportPrepared prepared)
-        {
-            PreparedExportUrl = null;
-            Status = Text[
-                "ExportRejected",
-                ((WorkspaceCommandRejected)outcome).Code];
-            return;
-        }
-
-        PreparedExportUrl =
-            $"/downloads/{Uri.EscapeDataString(prepared.ExportTicket.Value)}";
-        Status = Text["ExportPrepared", prepared.ExpiresAfterSeconds];
-    }
-
-    private async Task ImportProjectPackage(InputFileChangeEventArgs change)
-    {
-        ArgumentNullException.ThrowIfNull(change);
-        if (ActiveCommand is not null || !CanImport)
-        {
-            return;
-        }
-
-        ActiveCommand = "import";
-        PreparedExportUrl = null;
-        try
-        {
-            await using var source = change.File.OpenReadStream(
-                projectImportWorkflow.MaximumCarrierBytes,
-                componentLifetime.Token);
-            var outcome = await projectImportWorkflow.ImportAsync(
-                source,
-                RequireCurrentCaller(),
-                componentLifetime.Token);
-            if (outcome is WorkspaceOpenRejected rejected)
-            {
-                Status = Text["ImportRejected", rejected.Code];
-                return;
-            }
-
-            var imported = (WorkspaceOpened)outcome;
-            Status = Text["ImportOpening"];
-            Navigation.NavigateTo(
-                CreateWorkspaceLocator(imported.WorkspaceId),
-                new NavigationOptions
-                {
-                    ForceLoad = true,
-                    ReplaceHistoryEntry = true,
-                });
-        }
-        catch (OperationCanceledException)
-            when (componentLifetime.IsCancellationRequested)
-        {
-            Status = Text["ImportCancelled"];
-        }
-        catch (IOException)
-        {
-            Status = Text["ImportRejected", "package_limit_exceeded"];
-        }
-        finally
-        {
-            ActiveCommand = null;
-        }
-    }
-
-    private async Task<bool> Apply(EditIntent intent)
-    {
-        ArgumentNullException.ThrowIfNull(intent);
-        var projection = Projection;
-        if (projection is null || !CanMutateWorkspace)
-        {
-            return false;
-        }
-
-        var precondition = new AuthoringPrecondition(
-            projection.ProjectRevision.RevisionId);
-        var outcome = await Execute(context => new ApplyEdit(
-            context,
-            precondition,
-            intent));
-        if (outcome is AuthoringCommitted)
-        {
-            return Projection is not null;
-        }
-
-        if (Projection is null)
-        {
-            return false;
-        }
-
-        Status = Text["AuthoringRejected", ((WorkspaceCommandRejected)outcome).Code];
-        return false;
+        Status = successStatus;
     }
 
     private async Task<WorkspaceCommandOutcome> Execute(
@@ -914,7 +402,7 @@ public sealed partial class Editor : IAsyncDisposable
         await navigation.ReplaceHistoryEntryAsync(
             CreateWorkspaceLocator(attachment.Projection.WorkspaceId),
             WorkspaceAttachmentHistoryState.Serialize(attachment),
-            componentLifetime.Token);
+            componentCancellationToken);
     }
 
     private static string CreateWorkspaceLocator(WorkspaceId workspaceId)
@@ -1135,151 +623,6 @@ public sealed partial class Editor : IAsyncDisposable
             ? CurrentCaller
             : throw new InvalidOperationException(
                 "The current authentication state has no stable Workspace caller.");
-    }
-
-    private void ProjectScene()
-    {
-        if (Projection is null)
-        {
-            ScenePlaceOptions = [];
-            SceneTool = SceneSelectToolV1.Instance;
-            return;
-        }
-
-        var document = Projection.ProjectRevision.Document;
-        NormalizeHierarchyNavigation(document);
-        _ = SelectedDefinitionId
-            ?? throw new InvalidOperationException("The Scene definition is unavailable.");
-        ScenePlaceOptions = ScenePlaceCatalog.Build(document);
-        EnsureSceneToolAvailable();
-        NormalizeSceneSelection();
-    }
-
-    private Task ChangeSceneToolAsync(SceneToolV1 tool)
-    {
-        ArgumentNullException.ThrowIfNull(tool);
-        if (!CanMutateWorkspace && tool is not (SceneSelectToolV1 or ScenePanToolV1))
-        {
-            return Task.CompletedTask;
-        }
-
-        if (tool is SceneProbeToolV1 && !CanUseSceneProbe)
-        {
-            return Task.CompletedTask;
-        }
-
-        SceneTool = tool;
-        return Task.CompletedTask;
-    }
-
-    private void EnsureSceneToolAvailable()
-    {
-        if (!CanMutateWorkspace && SceneTool is not (SceneSelectToolV1 or ScenePanToolV1))
-        {
-            SceneTool = SceneSelectToolV1.Instance;
-            return;
-        }
-
-        if (SceneTool is ScenePlaceToolV1 place
-            && !ScenePlaceOptions.Any(option => option.Tool.Target == place.Target))
-        {
-            SceneTool = SceneSelectToolV1.Instance;
-            return;
-        }
-
-        if (SceneTool is not SceneProbeToolV1)
-        {
-            return;
-        }
-
-        if (Projection?.Simulation is null || CurrentSceneHierarchyPath is not { } hierarchyPath)
-        {
-            SceneTool = SceneSelectToolV1.Instance;
-            return;
-        }
-
-        SceneTool = new SceneProbeToolV1(hierarchyPath);
-    }
-
-    private Task ConsumeSceneToolAsync()
-    {
-        SceneTool = SceneSelectToolV1.Instance;
-        return Task.CompletedTask;
-    }
-
-    private Task HandleSceneSelectionAsync(SceneSelectionV1 change)
-    {
-        ArgumentNullException.ThrowIfNull(change);
-        var selected = SceneSelection?.Sources.ToList() ?? [];
-        switch (change.SelectionMode)
-        {
-            case "replace":
-                selected = [.. change.Sources];
-                break;
-            case "add":
-                foreach (var source in change.Sources)
-                {
-                    if (!selected.Any(candidate => candidate.Key == source.Key))
-                    {
-                        selected.Add(source);
-                    }
-                }
-                break;
-            case "toggle":
-                foreach (var source in change.Sources)
-                {
-                    var index = selected.FindIndex(candidate => candidate.Key == source.Key);
-                    if (index >= 0)
-                    {
-                        selected.RemoveAt(index);
-                    }
-                    else
-                    {
-                        selected.Add(source);
-                    }
-                }
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(
-                    nameof(change),
-                    change.SelectionMode,
-                    "The Scene selection mode is undefined.");
-        }
-
-        SceneSelection = selected.Count == 0
-            ? null
-            : new SceneSelectionV1(selected, "replace");
-        return Task.CompletedTask;
-    }
-
-    private void NormalizeSceneSelection()
-    {
-        if (SceneSelection is null || Projection is null || SelectedDefinitionId is null)
-        {
-            SceneSelection = null;
-            return;
-        }
-
-        var retained = SceneSelection.Sources
-            .Where(source => source.CircuitDefinitionId == SelectedDefinitionId?.Value
-                && SceneSourceMap.Contains(Projection.ProjectRevision, source))
-            .ToArray();
-        SceneSelection = retained.Length == 0
-            ? null
-            : new SceneSelectionV1(retained, "replace");
-    }
-
-    private static ComponentContractKey Contract(string contractId)
-    {
-        return new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId);
-    }
-
-    private static InstanceTerminalReference Terminal(
-        CircuitDefinitionId definitionId,
-        ComponentInstanceId componentId,
-        string portId)
-    {
-        return new InstanceTerminalReference(definitionId, componentId, portId);
     }
 
     private sealed record WorkspaceAttachmentFailure(

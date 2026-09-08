@@ -597,7 +597,7 @@ internal sealed partial class SimulationFeedbackTests
             new PlaceComponentInstanceIntent(
                 revision.Document.EntryCircuitDefinitionId,
                 new LibraryComponentTarget(new ComponentContractKey(
-                    CoreLibrarySchema.LibraryId,
+                    LibrarySnapshot.Core.LibraryId,
                     contractId)),
                 parameters,
                 new ComponentPlacement(new GridPoint(existing.Count * 4, 0)))));

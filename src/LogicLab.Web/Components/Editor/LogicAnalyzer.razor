@@ -154,17 +154,17 @@
                             <li @key="row.ProbeId"
                                 data-probe-binding="@row.Binding"
                                 data-probe-pattern="@row.Pattern"
+                                data-probe-observed="@(row.ProbeId == observedProbeId ? "true" : null)"
                                 data-probe-appearance="@(row.AppearanceOrdinal % 4U)"
-                                data-waveform-row-track>
+                                data-waveform-row-track="@row.ProbeId">
                                 <span class="probe-rail" aria-hidden="true"></span>
                                 <div class="probe-identity">
-                                    <span class="probe-swatch" aria-hidden="true"></span>
                                     <FluentButton Class="probe-label"
                                                   Type="ButtonType.Button"
                                                   Appearance="ButtonAppearance.Transparent"
                                                   Title="@Text["RevealNet"]"
                                                   Disabled="@(row.SceneNavigation != "available")"
-                                                  OnClick="@(_ => RevealAsync(row))"><span>@row.ShortLabel</span></FluentButton>
+                                                  OnClick="@(_ => RevealAsync(row))"><ProbeIdentityCue ProbeId="@row.ProbeId" Label="@row.ShortLabel" /></FluentButton>
                                     <strong title="@formattedValue">@formattedValue</strong>
                                 </div>
                                 <div class="probe-controls">

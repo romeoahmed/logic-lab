@@ -9,7 +9,7 @@ internal static class ProjectEditorTestContext
         ((EditCommitted)outcome).Revision;
 
     public static ComponentContractKey Contract(string contractId) =>
-        new(CoreLibrarySchema.LibraryId, contractId);
+        new(LibrarySnapshot.Core.LibraryId, contractId);
 
     public static SymbolProfileReference TeachingMixedProfile() =>
         new(

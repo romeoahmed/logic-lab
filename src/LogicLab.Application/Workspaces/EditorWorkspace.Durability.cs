@@ -322,9 +322,9 @@ internal sealed partial class EditorWorkspace
             var outcome = await execute(cancellationToken).ConfigureAwait(false);
             return projectOutcome(outcome);
         }
-        catch (DurableProjectCommitUncertainException exception)
+        catch (DurableProjectCommitUncertainException)
         {
-            LogDurableRepositoryException(exception);
+            LogDurableRepositoryFailure();
             return await RecoverDurableRepositoryOutcomeAsync(
                 readReceipt,
                 projectOutcome).ConfigureAwait(false);
@@ -338,7 +338,7 @@ internal sealed partial class EditorWorkspace
         }
         catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
-            LogDurableRepositoryException(exception);
+            LogDurableRepositoryFailure();
             return Reject(ExceptionClassifier.IsInfrastructureFailure(exception)
                 ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
                 : WorkspaceOutcomeReasons.WorkspaceInternalDefect);
@@ -361,15 +361,15 @@ internal sealed partial class EditorWorkspace
         }
         catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
-            LogDurableRepositoryException(exception);
+            LogDurableRepositoryFailure();
             return Reject(WorkspaceOutcomeReasons.IdempotencyWindowExpired);
         }
     }
 
-    private void LogDurableRepositoryException(Exception exception)
+    private void LogDurableRepositoryFailure()
     {
         var correlation = ApplicationCorrelation.CurrentOrCreate();
-        LogDurableRepositoryFailure(logger, exception, correlation);
+        LogDurableRepositoryFailure(logger, correlation);
     }
 
     private AuthorizationAdmissionEpoch? PublishDurableOutcomeUnderLock(
@@ -554,6 +554,5 @@ internal sealed partial class EditorWorkspace
         Message = "Durable repository operation failed with correlation {Correlation}.")]
     private static partial void LogDurableRepositoryFailure(
         ILogger logger,
-        Exception exception,
         string correlation);
 }

@@ -4,7 +4,6 @@ using System.Globalization;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
-using LogicLab.Domain.Components;
 using LogicLab.Engine.Compilation;
 using LogicLab.Web.Scene;
 
@@ -176,7 +175,7 @@ internal static class BrowserWaveformProjection
             sceneNet,
             checked((uint)probe.Value.Count),
             displayOrdinal,
-            ProbePresentation.Label(revision, probe.Source, displayOrdinal, labels),
+            ProbePresentation.Label(revision, probe.Source, labels),
             radix,
             appearance.Ordinal,
             appearance.Pattern,
@@ -211,7 +210,6 @@ internal static class BrowserWaveformProjection
                 ? ProbePresentation.Label(
                     revision,
                     source,
-                    row.DisplayOrdinal,
                     labels)
                 : row.ShortLabel,
             row.Radix,
@@ -484,69 +482,3 @@ internal static class BrowserWaveformProjection
         TraceTransitionTransfer Transfer,
         ulong LogicalTime);
 }
-
-internal static class ProbePresentation
-{
-    public static string Label(
-        ProjectRevision revision,
-        CompilationSource compilationSource,
-        int ordinal,
-        ProbePresentationLabels labels)
-    {
-        ArgumentNullException.ThrowIfNull(revision);
-        ArgumentNullException.ThrowIfNull(compilationSource);
-        if (compilationSource.Identity is not NetSourceIdentity source
-            || revision.Document.FindCircuitDefinition(source.CircuitDefinitionId)
-                is not { } definition
-            || definition.FindNet(source.NetId) is not { } net)
-        {
-            return FormattableString.Invariant($"P{ordinal + 1}");
-        }
-
-        return NetLabel(definition, net, labels);
-    }
-
-    public static string NetLabel(CircuitDefinition definition, Net net, ProbePresentationLabels labels)
-    {
-        var boundaryPorts = net.Terminals
-            .OfType<DefinitionTerminalReference>()
-            .Select(terminal => definition.FindPort(terminal.DefinitionPortId))
-            .OfType<DefinitionPort>()
-            .ToArray();
-        var netLabel = FormattableString.Invariant(
-            $"N{definition.Nets.IndexOf(net) + 1}");
-        var outputPort = boundaryPorts.FirstOrDefault(port => port.Direction == PortDirection.Output);
-        if (outputPort is not null)
-        {
-            return outputPort.DisplayName;
-        }
-
-        var components = net.Terminals
-            .OfType<InstanceTerminalReference>()
-            .Select(terminal => definition.FindComponentInstance(terminal.ComponentInstanceId))
-            .OfType<ComponentInstance>()
-            .Select(instance => (Instance: instance, Target: instance.Target as LibraryComponentTarget))
-            .Where(item => item.Target is not null)
-            .ToArray();
-        var output = components.FirstOrDefault(item =>
-            item.Target!.ContractKey.ContractId == "sink.output").Instance;
-        if (output is not null)
-        {
-            return output.DisplayName ?? labels.Output;
-        }
-
-        var inputPort = boundaryPorts.FirstOrDefault(port => port.Direction == PortDirection.Input);
-        if (inputPort is not null)
-        {
-            return inputPort.DisplayName;
-        }
-
-        var input = components.FirstOrDefault(item =>
-            item.Target!.ContractKey.ContractId == "source.input").Instance;
-        return input is not null
-            ? input.DisplayName ?? labels.Input
-            : netLabel;
-    }
-}
-
-internal readonly record struct ProbePresentationLabels(string Input, string Output);

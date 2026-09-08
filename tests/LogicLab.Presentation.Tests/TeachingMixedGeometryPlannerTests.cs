@@ -998,8 +998,8 @@ internal sealed class TeachingMixedGeometryPlannerTests
         PresentationLocaleIdV1? localeId = null,
         BaseDirectionV1 baseDirection = BaseDirectionV1.LeftToRight)
     {
-        var contract = CoreLibrarySchema.FindContract(new ComponentContractKey(
-            CoreLibrarySchema.LibraryId,
+        var contract = LibrarySnapshot.Core.ResolveContract(new ComponentContractKey(
+            LibrarySnapshot.Core.LibraryId,
             contractId)) ?? throw new InvalidOperationException($"Missing {contractId}.");
         parameters ??= contractId switch
         {

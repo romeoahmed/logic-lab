@@ -212,6 +212,15 @@ class WaveformHandle {
     }
   }
 
+  revealProbe(probeId) {
+    this.ensureLive();
+    if (!this.published?.rows.some((row) => row.probeId === probeId)) return;
+    const row = [...this.probeSpine.querySelectorAll("[data-waveform-row-track]")].find(
+      (element) => element.dataset.waveformRowTrack === probeId,
+    );
+    row?.scrollIntoView({ block: "center", inline: "nearest" });
+  }
+
   reconnectStateChanged(event) {
     const state = event.detail?.state;
     if (["show", "paused", "retrying", "failed", "rejected"].includes(state)) {
@@ -311,9 +320,14 @@ class WaveformHandle {
   }
 
   installRemovalObserver() {
-    const root = this.host.parentElement ?? document.body;
-    this.removalObserver = new MutationObserver(() => {
-      if (!this.host.isConnected) this.destroy();
+    const root = this.host.closest("[data-browser-host-ancestor]") ?? document.body;
+    this.removalObserver = new MutationObserver((records) => {
+      if (!this.host.isConnected) {
+        this.destroy();
+      } else if (records.some((record) => this.probeSpine?.contains(record.target))) {
+        this.rowLayoutCache = null;
+        this.invalidate();
+      }
     });
     this.removalObserver.observe(root, { childList: true, subtree: true });
   }
@@ -701,31 +715,38 @@ class WaveformHandle {
     if (!this.probeSpine || !this.canvas) return null;
     if (this.rowLayoutCache) return this.rowLayoutCache;
     const rows = [...this.probeSpine.querySelectorAll("[data-waveform-row-track]")];
-    if (rows.length !== this.published.rows.length) return null;
+    // Razor can update rows before the matching snapshot crosses interop.
+    // Match identities so pending additions, removals, and reorders never attach
+    // an old Trace to a different Probe label.
+    const indexByProbe = new Map(this.published.rows.map((row, index) => [row.probeId, index]));
+    const indexFor = (row) => indexByProbe.get(row.dataset.waveformRowTrack);
     const canvasBounds = this.canvas.getBoundingClientRect();
     const spineBounds = this.probeSpine.getBoundingClientRect();
     if (Math.abs(spineBounds.top - canvasBounds.top) >= 1) {
       const availableHeight = Math.max(1, this.cssHeight - rulerHeight);
-      const rowHeight = availableHeight / rows.length;
-      this.rowLayoutCache = rows.map((_, index) => ({
-        index,
-        top: rulerHeight + index * rowHeight,
-        height: rowHeight,
-      }));
+      const rowHeight = availableHeight / Math.max(1, rows.length);
+      this.rowLayoutCache = rows
+        .map((row, index) => ({
+          index: indexFor(row),
+          top: rulerHeight + index * rowHeight,
+          height: rowHeight,
+        }))
+        .filter((layout) => layout.index !== undefined);
       return this.rowLayoutCache;
     }
 
     this.rowLayoutCache = rows
-      .map((row, index) => {
+      .map((row) => {
         const bounds = row.getBoundingClientRect();
         return {
-          index,
+          index: indexFor(row),
           top: bounds.top - canvasBounds.top,
           height: bounds.height,
         };
       })
       .filter(
         (layout) =>
+          layout.index !== undefined &&
           layout.height > 0 &&
           layout.top + layout.height > rulerHeight &&
           layout.top < this.cssHeight,
@@ -1033,16 +1054,24 @@ function drawRuler(context, width, height, viewport, ink, muted, border) {
   const start = BigInt(viewport.startInclusive);
   const end = BigInt(viewport.endExclusive);
   const span = end - start;
-  for (let index = 0; index <= 5; index++) {
-    const x = (width * index) / 5;
-    const time = start + (span * BigInt(index)) / 5n;
+  const startWidth = context.measureText(start.toString()).width;
+  const endWidth = context.measureText(end.toString()).width;
+  const capacity = Math.max(
+    1,
+    Math.min(5, Math.floor(width / (Math.max(startWidth, endWidth) * 1.5 + 24))),
+  );
+  const intervals = Number(span < BigInt(capacity) ? span : BigInt(capacity));
+  for (let index = 0; index <= intervals; index++) {
+    const time = start + (span * BigInt(index)) / BigInt(intervals);
+    const x = timeX(time.toString(), viewport, width);
     context.strokeStyle = border;
     context.beginPath();
     context.moveTo(x + 0.5, height - 6);
     context.lineTo(x + 0.5, height);
     context.stroke();
-    context.fillStyle = index === 0 || index === 5 ? ink : muted;
-    context.textAlign = index === 0 ? "left" : index === 5 ? "right" : "center";
+    if (index === intervals && width < startWidth + endWidth + 16) continue;
+    context.fillStyle = index === 0 || index === intervals ? ink : muted;
+    context.textAlign = index === 0 ? "left" : index === intervals ? "right" : "center";
     context.fillText(time.toString(), x, height / 2);
   }
 }
@@ -1249,10 +1278,8 @@ function vectorSymbols(vector) {
 
 function vectorText(values) {
   const symbols = ["0", "1", "X", "Z"];
-  const text = values
-    .slice()
+  const text = Array.from(values, (value) => symbols[value])
     .reverse()
-    .map((value) => symbols[value])
     .join("");
   return text.length <= 14 ? text : `${text.slice(0, 6)}…${text.slice(-6)}`;
 }

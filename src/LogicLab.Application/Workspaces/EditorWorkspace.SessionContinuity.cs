@@ -229,7 +229,9 @@ internal sealed partial class EditorWorkspace
         WorkspaceCommand command,
         CancellationToken cancellationToken)
     {
-        return RejectIfRunRequiresPause(state, command)
+        return cancellationToken.IsCancellationRequested
+            ? Reject(WorkspaceOutcomeReasons.WorkspaceCancelled)
+            : RejectIfRunRequiresPause(state, command)
             ?? command switch
             {
                 CreateSession create => OpenSessionWithPrecondition(

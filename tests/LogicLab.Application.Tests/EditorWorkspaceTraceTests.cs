@@ -404,7 +404,7 @@ internal sealed class EditorWorkspaceTraceTests
             AnonymousWorkspaceCaller.Instance);
 
     private static ComponentContractKey Contract(string contractId) => new(
-        CoreLibrarySchema.LibraryId,
+        LibrarySnapshot.Core.LibraryId,
         contractId);
 
     private static ComponentInstance FindLibrary(

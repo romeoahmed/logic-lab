@@ -5,6 +5,7 @@ using LogicLab.Application.Workspaces;
 using LogicLab.ProjectFormat;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Components.Pages;
+using LogicLab.Web.Scene;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
@@ -124,7 +125,7 @@ internal sealed class EditorDurableRouteTests
             opened.WorkspaceId,
             AuthenticationStateFor("subject-editor"));
         await rendered.WaitForElementAsync(
-            "[data-command='author']:not([disabled])");
+            "[data-place-option$=':source.input']:not([disabled])");
         var attached = (Attached)workspace.AttachOutcomes.Single();
         var initialProjection = rendered.FindComponent<WorkbenchStatusStrip>()
             .Instance.Projection!;
@@ -141,14 +142,14 @@ internal sealed class EditorDurableRouteTests
             })));
 
         await rendered.WaitForElementAsync(
-            "[data-command='author']:not([disabled])");
+            "[data-place-option$=':source.input']:not([disabled])");
         var retainedProjection = rendered.FindComponent<WorkbenchStatusStrip>()
             .Instance.Projection!;
         var retainedDefinitionId = rendered.FindComponent<CircuitSceneHost>()
             .Instance.CircuitDefinitionId;
         using (Assert.Multiple())
         {
-            await Assert.That(rendered.Find("[data-command='author']")
+            await Assert.That(rendered.Find("[data-place-option$=':source.input']")
                     .HasAttribute("disabled"))
                 .IsFalse();
             await Assert.That(rendered.Find("[data-command='create']")
@@ -163,7 +164,7 @@ internal sealed class EditorDurableRouteTests
             await Assert.That(retainedDefinitionId).IsEqualTo(initialDefinitionId);
         }
 
-        await rendered.Find("[data-command='author']").ClickAsync();
+        await PlaceInputAsync(rendered);
         await rendered.WaitForElementAsync(
             "[data-command='compile']:not([disabled])");
 
@@ -208,11 +209,11 @@ internal sealed class EditorDurableRouteTests
             opened.WorkspaceId,
             AuthenticationStateFor("subject-editor"));
         await rendered.WaitForElementAsync(
-            "[data-command='author']:not([disabled])");
+            "[data-place-option$=':source.input']:not([disabled])");
         var attached = (Attached)workspace.AttachOutcomes.Single();
 
         workspace.ProjectReadsAsDurable();
-        await rendered.Find("[data-command='author']").ClickAsync();
+        await PlaceInputAsync(rendered);
         await rendered.WaitForStateAsync(() => rendered
             .FindComponent<WorkbenchStatusStrip>()
             .Instance.Projection?.Durability
@@ -261,10 +262,10 @@ internal sealed class EditorDurableRouteTests
             opened.WorkspaceId,
             AuthenticationStateFor("subject-editor"));
         await rendered.WaitForElementAsync(
-            "[data-command='author']:not([disabled])");
+            "[data-place-option$=':source.input']:not([disabled])");
         var initialAttachment = (Attached)workspace.AttachOutcomes.Single();
 
-        var authoring = rendered.Find("[data-command='author']").ClickAsync();
+        var authoring = PlaceInputAsync(rendered);
         await workspace.ReattachStarted.WaitAsync(cancellationToken);
         rendered.Render(parameters => parameters
             .Add(value => value.Value, AuthenticationStateFor(null))
@@ -566,8 +567,8 @@ internal sealed class EditorDurableRouteTests
                 .AddChildContent<Editor>(editor => editor
                     .Add(component => component.WorkspaceIdValue,
                         opened.WorkspaceId.Value)));
-        await rendered.WaitForElementAsync("[data-command='author']:not([disabled])");
-        await rendered.Find("[data-command='author']").ClickAsync();
+        await rendered.WaitForElementAsync("[data-place-option$=':source.input']:not([disabled])");
+        await PlaceInputAsync(rendered);
         await rendered.WaitForStateAsync(() => workspace.ReadCaller is not null);
         await rendered.FindComponent<Editor>().Instance.DisposeAsync();
 
@@ -590,18 +591,29 @@ internal sealed class EditorDurableRouteTests
         }
     }
 
+    private static Task PlaceInputAsync(
+        IRenderedComponent<CascadingValue<Task<AuthenticationState>>> rendered)
+    {
+        var host = rendered.FindComponent<CircuitSceneHost>().Instance;
+        var tool = rendered.FindComponent<ComponentPalette>().Instance.Options.Single(option =>
+            option.Tool.Target is SceneLibraryComponentTargetV1 { ContractId: "source.input" }).Tool;
+        var intent = new PlaceComponentSceneIntentV1(
+            LogicLabWebBuild.Fingerprint,
+            1,
+            host.ProjectionVersion,
+            host.CircuitDefinitionId.Value,
+            tool.Target,
+            tool.Parameters,
+            new SceneComponentPlacementV1(new SceneGridPointV1(0, 0), 0, false),
+            tool.DisplayName,
+            "none");
+        return rendered.InvokeAsync(() => host.OnIntent.InvokeAsync(intent));
+    }
+
     private static void Configure(
         BunitContext context,
         IEditorWorkspace workspace)
     {
-        context.JSInterop
-            .SetupModule(
-                "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/InputFile/FluentInputFile.razor.js")
-            .Mode = JSRuntimeMode.Loose;
-        context.JSInterop
-            .SetupModule(
-                "./_content/Microsoft.FluentUI.AspNetCore.Components/Components/KeyCode/FluentKeyCode.razor.js")
-            .Mode = JSRuntimeMode.Loose;
         context.Services.AddSingleton(TimeProvider.System);
         context.Services.AddSingleton(PackagePolicy.Default);
         context.Services.AddSingleton(workspace);

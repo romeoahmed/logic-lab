@@ -134,6 +134,50 @@ internal sealed class VectorLogicTests
     }
 
     [Test]
+    public async Task Concat_EveryWordOffset_NormalizesAcrossBoundariesWithoutMutatingInputs()
+    {
+        var tailValues = Enumerable.Range(0, 129).Select(index => (LogicValue)(index & 3)).ToArray();
+        var tail = new LogicVector(tailValues);
+        for (var offset = 0; offset < LogicVector.BitsPerWord; offset++)
+        {
+            var prefixValues = Enumerable.Repeat(LogicValue.One, 64 + offset).ToArray();
+            var prefix = new LogicVector(prefixValues);
+            var result = VectorLogic.Concat([prefix, tail]);
+            var expected = prefixValues.Concat(tailValues.Select(ScalarLogic.NormalizeInput)).ToArray();
+
+            await Assert.That(LogicVectorTestData.Matches(result, expected)).IsTrue();
+            await Assert.That(LogicVectorTestData.Matches(prefix, prefixValues)).IsTrue();
+            await Assert.That(LogicVectorTestData.Matches(tail, tailValues)).IsTrue();
+            await Assert.That((result.GetLowWord(result.WordCount - 1) | result.GetHighWord(result.WordCount - 1))
+                & ~LogicVector.GetWordMask(result.Width, result.WordCount - 1)).IsEqualTo(0UL);
+        }
+    }
+
+    [Test]
+    [Arguments(LogicValue.Zero)]
+    [Arguments(LogicValue.One)]
+    [Arguments(LogicValue.X)]
+    [Arguments(LogicValue.Z)]
+    public async Task Extend_WordBoundarySignValues_NormalizesFillAndClearsPadding(LogicValue sign)
+    {
+        int[] widths = [1, 63, 64, 65, 127, 128, 129];
+        foreach (var width in widths)
+        {
+            var values = Enumerable.Repeat(LogicValue.Zero, width).ToArray();
+            values[^1] = sign;
+            var input = new LogicVector(values);
+            var extended = VectorLogic.SignExtend(input, width + 129);
+            var expected = values.Select(ScalarLogic.NormalizeInput)
+                .Concat(Enumerable.Repeat(ScalarLogic.NormalizeInput(sign), 129)).ToArray();
+
+            await Assert.That(LogicVectorTestData.Matches(extended, expected)).IsTrue();
+            await Assert.That(LogicVectorTestData.Matches(input, values)).IsTrue();
+            await Assert.That((extended.GetLowWord(extended.WordCount - 1) | extended.GetHighWord(extended.WordCount - 1))
+                & ~LogicVector.GetWordMask(extended.Width, extended.WordCount - 1)).IsEqualTo(0UL);
+        }
+    }
+
+    [Test]
     public async Task Concat_InvalidInputs_ThrowExactExceptions()
     {
         using (Assert.Multiple())

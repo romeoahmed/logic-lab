@@ -26,8 +26,8 @@ logic analyzer.
   explicit Trace Gaps.
 - **Keep and exchange work.** Claim durable projects, reopen them under authorization,
   and import or export the strict `.logiclab` package format.
-- **Start from useful examples.** Build an inverter, a multiplexer steering circuit,
-  or one of two 4-bit adders—carry-lookahead and bit-serial—directly in the editor.
+- **Start from useful examples.** Open an inverter, a multiplexer steering circuit,
+  or one of two 4-bit adders—carry-lookahead and bit-serial—as a complete, compiled Sandbox.
 - **Work in English or Simplified Chinese.** The host and editor share localized,
   direction-aware presentation while protocol and diagnostic identities remain
   stable.
@@ -79,7 +79,7 @@ Sandbox. The same launch profile also serves `http://localhost:5151`.
 A first useful pass through the workbench is:
 
 1. choose a starter or author a circuit;
-2. compile the current Project Revision;
+2. compile your authored Project Revision (built-in examples open compiled);
 3. create a Simulation Session, then choose Nets to observe with Probes; and
 4. apply inputs, Step or Run, then inspect values and waveform history.
 

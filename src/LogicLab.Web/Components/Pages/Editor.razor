@@ -3,7 +3,7 @@
 @rendermode InteractiveServer
 <PageTitle>@EditorPageTitle</PageTitle>
 
-<div class="workbench-shell">
+<div class="workbench-shell" data-workbench-active="@(Projection is not null && AttachmentFailure is null ? "true" : "false")">
     @if (AttachmentFailure is not null)
     {
         <section class="workspace-recovery"
@@ -31,7 +31,7 @@
                            href="/projects">@Text["ViewDurableProjects"]</a>
                         <a class="recovery-secondary"
                            data-recovery="sandbox"
-                           href="/editor">@Text["StartNewSandbox"]</a>
+                           href="/editor" data-enhance-nav="false">@Text["StartNewSandbox"]</a>
                     }
                 </div>
                 <p class="workspace-error-code">@Text["ErrorCodeLabel"] <code>@AttachmentFailure.Code</code></p>
@@ -105,60 +105,87 @@
                                      OnBack="LeaveDefinitionInstance" />
             </div>
 
-            <div class="workbench-body">
+            <div class="workbench-body" data-instruments-expanded="@(instrumentsExpanded ? "true" : "false")">
+                @if (CanCreate)
+                {
+                    <StarterGuide BusyCommand="@ActiveCommand" OnSelect="OpenExampleAsync" />
+                }
                 @if (Projection is not null && SelectedDefinitionId is not null)
                 {
-                    <div class="schematic-workspace">
-                        <main class="canvas-workspace" data-testid="workbench-canvas">
-                            <SceneToolStrip ActiveTool="SceneTool"
-                                            HierarchyPath="CurrentSceneHierarchyPath"
-                                            CanProbe="CanUseSceneProbe"
-                                            CanWire="CanMutateWorkspace"
-                                            ActiveToolChanged="ChangeSceneToolAsync" />
-                            <CircuitSceneHost ProjectRevision="Projection.ProjectRevision"
-                                              ProjectionVersion="Projection.ProjectionVersion"
-                                              CircuitDefinitionId="SelectedDefinitionId"
-                                              Selection="SceneSelection"
-                                              ActiveTool="SceneTool"
-                                              Simulation="Projection.Simulation"
-                                              Compilation="Projection.Compilation"
-                                              HierarchyPath="CurrentSceneHierarchyPath"
-                                              OnSelect="HandleSceneSelectionAsync"
-                                              OnIntent="HandleSceneIntentAsync"
-                                              OnToolConsumed="ConsumeSceneToolAsync" />
-                        </main>
-                        <div class="library-dock" data-testid="workbench-library">
+                    <WorkbenchDock @ref="workbenchDock">
+                        <Canvas>
+                            <div class="canvas-workspace" data-testid="workbench-canvas">
+                                <SceneToolStrip ActiveTool="SceneTool"
+                                                HierarchyPath="CurrentSceneHierarchyPath"
+                                                CanProbe="CanUseSceneProbe"
+                                                CanWire="CanMutateWorkspace"
+                                                ActiveToolChanged="ChangeSceneToolAsync" />
+                                <CircuitSceneHost ProjectRevision="Projection.ProjectRevision"
+                                                  ProjectionVersion="Projection.ProjectionVersion"
+                                                  CircuitDefinitionId="SelectedDefinitionId"
+                                                  Selection="SceneSelection"
+                                                  RevealVersion="sourceRevealVersion"
+                                                  ActiveTool="SceneTool"
+                                                  Simulation="Projection.Simulation"
+                                                  Compilation="Projection.Compilation"
+                                                  HierarchyPath="CurrentSceneHierarchyPath"
+                                                  OnSelect="HandleSceneSelectionAsync"
+                                                  OnIntent="HandleSceneIntentAsync"
+                                                  OnToolConsumed="ConsumeSceneToolAsync" />
+                            </div>
+                        </Canvas>
+                        <Library>
                             <ComponentPalette Options="ScenePlaceOptions"
                                               Disabled="@(!CanMutateWorkspace)"
                                               ActiveTool="SceneTool"
-                                              ActiveToolChanged="ChangeSceneToolAsync" />
-                        </div>
-                        <aside class="inspector-dock" aria-labelledby="inspector-title">
-                            <header class="inspector-heading">
-                                <h2 id="inspector-title">@Text["Inspector"]</h2>
-                                <p>@Text["InspectorDescription"]</p>
-                            </header>
-                            @if (CanAuthor && SceneSelection is null)
-                            {
-                                <StarterGuide BusyCommand="@ActiveCommand"
-                                              OnSelect="RunStarterExampleAsync" />
-                            }
-                            <SelectionInspector Projection="Projection"
-                                                DefinitionId="SelectedDefinitionId"
-                                                Selection="SceneSelection"
-                                                HierarchyPath="CurrentSceneHierarchyPath"
-                                                CanEdit="@(CanMutateWorkspace && ActiveCommand is null)"
-                                                OnEdit="HandleInspectorEditAsync" />
-                        </aside>
-                    </div>
+                                              ActiveToolChanged="ChangePaletteToolAsync" />
+                        </Library>
+                        <Inspector>
+                            <aside aria-labelledby="inspector-title">
+                                <header class="inspector-heading">
+                                    <h2 id="inspector-title">@Text["Inspector"]</h2>
+                                    <p>@Text["InspectorDescription"]</p>
+                                </header>
+                                <SelectionInspector Projection="Projection"
+                                                    DefinitionId="SelectedDefinitionId"
+                                                    Selection="SceneSelection"
+                                                    HierarchyPath="CurrentSceneHierarchyPath"
+                                                    CanEdit="@(CanMutateWorkspace && ActiveCommand is null)"
+                                                    OnObserveProbe="ObserveProbeAsync"
+                                                    OnEdit="HandleInspectorEditAsync" />
+                                @if (Projection.Simulation is { } simulation && InputHierarchyPath is { } inputPath)
+                                {
+                                    <InputStimulusPanel @key="simulation.SessionId" Revision="Projection.ProjectRevision"
+                                                        DefinitionId="SelectedDefinitionId"
+                                                        Path="inputPath"
+                                                        Disabled="@(!CanScheduleStimulus || ActiveCommand is not null)"
+                                                        OnSchedule="ScheduleInputsAsync" />
+                                }
+                            </aside>
+                        </Inspector>
+                    </WorkbenchDock>
                     <div class="instrument-bay">
-                        <LogicAnalyzer Projection="Projection"
-                                       TraceReader="ReadTraceWindowAsync"
-                                       IsConnected="@CommandsAvailable"
-                                       OnProbeOrderChanged="ReorderProbesAsync"
-                                       OnRevealProbe="RevealProbeSourceAsync"
-                                       OnRemoveProbe="RemoveProbeAsync"
-                                       OnRebindProbe="RebindProbeAsync" />
+                        <div class="instrument-size-control">
+                            <button type="button" data-instruments-toggle
+                                    aria-expanded="@(instrumentsExpanded ? "true" : "false")"
+                                    @onclick="@(() => instrumentsExpanded = !instrumentsExpanded)">
+                                @Text[instrumentsExpanded ? "CollapseInstruments" : "ExpandInstruments"]
+                            </button>
+                        </div>
+                        <FluentTabs @bind-ActiveTabId="instrumentTab">
+                            <FluentTab Id="waveform" Header="@Text["WaveformTab"]" DeferredLoading="false">
+                                <LogicAnalyzer @ref="logicAnalyzer" Projection="Projection"
+                                               TraceReader="ReadTraceWindowAsync"
+                                               IsConnected="@CommandsAvailable"
+                                               OnProbeOrderChanged="ReorderProbesAsync"
+                                               OnRevealProbe="RevealProbeSourceAsync"
+                                               OnRemoveProbe="RemoveProbeAsync"
+                                               OnRebindProbe="RebindProbeAsync" />
+                            </FluentTab>
+                            <FluentTab Id="diagnostics" Header="@Text["Diagnostics"]" DeferredLoading="true">
+                                <DiagnosticList Projection="Projection" OnReveal="RevealDiagnosticAsync" />
+                            </FluentTab>
+                        </FluentTabs>
                     </div>
                 }
             </div>

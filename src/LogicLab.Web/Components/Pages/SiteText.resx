@@ -41,22 +41,22 @@
   <data name="NotFoundTitle" xml:space="preserve"><value>Page not found</value></data>
   <data name="HelpFirstCircuitEyebrow" xml:space="preserve"><value>Your first five minutes</value></data>
   <data name="HelpFirstCircuitTitle" xml:space="preserve"><value>Build your first working circuit.</value></data>
-  <data name="HelpStepCreateTitle" xml:space="preserve"><value>Create a Sandbox</value></data>
-  <data name="HelpStepCreateDescription" xml:space="preserve"><value>A Sandbox is a temporary, in-memory project where you can experiment freely.</value></data>
-  <data name="HelpStepChooseTitle" xml:space="preserve"><value>Choose Inverter basics</value></data>
-  <data name="HelpStepChooseDescription" xml:space="preserve"><value>The starter contains one input, one NOT gate, one output, and explicit wires.</value></data>
-  <data name="HelpStepCompileTitle" xml:space="preserve"><value>Compile the circuit</value></data>
-  <data name="HelpStepCompileDescription" xml:space="preserve"><value>Compilation turns the authored diagram into a deterministic executable circuit.</value></data>
-  <data name="HelpStepRunTitle" xml:space="preserve"><value>Start the simulation and step</value></data>
-  <data name="HelpStepRunDescription" xml:space="preserve"><value>Set the input to 1, step once, and read the output in the signal monitor.</value></data>
+  <data name="HelpStepChooseTitle" xml:space="preserve"><value>Open Inverter basics</value></data>
+  <data name="HelpStepChooseDescription" xml:space="preserve"><value>Choose the example on the Workbench start page. It opens as a complete, compiled Sandbox with one input, one NOT gate, and one output.</value></data>
+  <data name="HelpStepStartTitle" xml:space="preserve"><value>Start simulation</value></data>
+  <data name="HelpStepStartDescription" xml:space="preserve"><value>Start the simulation session. The output appears in the logic analyzer; after editing the circuit, compile it again before starting a new session.</value></data>
+  <data name="HelpStepInputsTitle" xml:space="preserve"><value>Apply an input</value></data>
+  <data name="HelpStepInputsDescription" xml:space="preserve"><value>In the Inspector, enter 1 in the input field and choose Apply inputs. This schedules the change for the next logical time.</value></data>
+  <data name="HelpStepRunTitle" xml:space="preserve"><value>Step and observe</value></data>
+  <data name="HelpStepRunDescription" xml:space="preserve"><value>Step once. The inverter output becomes 0. Change the input to 0, apply it, and step again to see the output become 1.</value></data>
   <data name="HelpExamplesEyebrow" xml:space="preserve"><value>Choose the right example</value></data>
   <data name="HelpExamplesTitle" xml:space="preserve"><value>Start small, then reveal more structure.</value></data>
   <data name="HelpInverterTitle" xml:space="preserve"><value>Inverter basics</value></data>
-  <data name="HelpInverterDescription" xml:space="preserve"><value>Start here. One clear signal path demonstrates the complete compile-and-step workflow.</value></data>
+  <data name="HelpInverterDescription" xml:space="preserve"><value>One clear signal path demonstrates applying inputs, stepping, and reading the output. The example opens compiled.</value></data>
   <data name="HelpCombinationalExamplesTitle" xml:space="preserve"><value>Combinational structure</value></data>
   <data name="HelpCombinationalExamplesDescription" xml:space="preserve"><value>The multiplexer stays compact; the four-bit carry-lookahead adder exposes generate, propagate, and parallel carry terms.</value></data>
   <data name="HelpBitSerialTitle" xml:space="preserve"><value>Bit-serial addition</value></data>
-  <data name="HelpBitSerialDescription" xml:space="preserve"><value>Reuse one full adder across clock edges while operand, result, and carry registers preserve state.</value></data>
+  <data name="HelpBitSerialDescription" xml:space="preserve"><value>The default 11 + 6 reaches Serial result 0001 and Carry out 1 after four rising clock edges (seven steps). To reuse the circuit, enter binary A and B, set Load operands to 1, apply, and step through the next rising edge. Then set Load operands to 0, apply, and advance four more rising edges. Each step toggles the clock.</value></data>
   <data name="HelpCanvasEyebrow" xml:space="preserve"><value>Canvas controls</value></data>
   <data name="HelpCanvasTitle" xml:space="preserve"><value>Select, pan, and zoom the schematic.</value></data>
   <data name="HelpCanvasSelect" xml:space="preserve"><value>Select</value></data>

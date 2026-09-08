@@ -1,6 +1,6 @@
 <Solution>
   <Folder Name="/benchmarks/">
-    <Project Path="benchmarks/LogicLab.Engine.Benchmarks/LogicLab.Engine.Benchmarks.csproj" />
+    <Project Path="benchmarks/LogicLab.Benchmarks/LogicLab.Benchmarks.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/LogicLab.Application/LogicLab.Application.csproj" />

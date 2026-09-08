@@ -133,7 +133,7 @@
 
 .component-groups button small {
   color: var(--ll-subtle);
-  font-family: "IBM Plex Mono", "Noto Sans Mono CJK", ui-monospace, monospace;
+  font-family: var(--ll-font-mono);
   font-size: 0.62rem;
 }
 

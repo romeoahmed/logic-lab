@@ -270,14 +270,14 @@ public static partial class Compiler
 
     private static CompilationSource Source(
         HierarchyPath path,
-        AuthoredSourceIdentity identity)
+        CircuitSourceIdentity identity)
     {
         return new CompilationSource(identity, path);
     }
 
     private static CompilerCircuitLocation CircuitLocation(
         HierarchyPath path,
-        AuthoredSourceIdentity identity)
+        CircuitSourceIdentity identity)
     {
         return new CompilerCircuitLocation(Source(path, identity));
     }

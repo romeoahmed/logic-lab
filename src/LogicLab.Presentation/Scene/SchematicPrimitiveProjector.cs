@@ -23,16 +23,7 @@ internal static class SchematicPrimitiveProjector
             point,
             direction,
             terminalHalfExtent);
-        var measurement = TextMeasurementBoundary.Measure(
-            textMeasurer,
-            new SymbolTextMeasurementRequestV1(
-                port.DisplayName,
-                FontRoleV1.PortLabel,
-                TextAlignmentV1.Center,
-                fingerprint.MetricSet,
-                fingerprint.LocaleId,
-                fingerprint.BaseDirection),
-            cancellationToken);
+        var measurement = MeasureDefinitionPortText(port, fingerprint, textMeasurer, cancellationToken);
         var labelEnvelope = measurement.InkAndAdvanceBounds(
             TextAlignmentV1.Center,
             fingerprint.BaseDirection);
@@ -75,6 +66,21 @@ internal static class SchematicPrimitiveProjector
             anchor,
             hitRegions);
     }
+
+    internal static SymbolTextMeasurementV1 MeasureDefinitionPortText(
+        DefinitionPort port,
+        PresentationFingerprintV1 fingerprint,
+        ISymbolTextMeasurerV1 textMeasurer,
+        CancellationToken cancellationToken) => TextMeasurementBoundary.Measure(
+            textMeasurer,
+            new SymbolTextMeasurementRequestV1(
+                port.DisplayName,
+                FontRoleV1.PortLabel,
+                TextAlignmentV1.Center,
+                fingerprint.MetricSet,
+                fingerprint.LocaleId,
+                fingerprint.BaseDirection),
+            cancellationToken);
 
     public static WireGeometryItemV1 ProjectWire(
         WireGeometry wire,
@@ -151,43 +157,10 @@ internal static class SchematicPrimitiveProjector
         ISymbolTextMeasurerV1 textMeasurer,
         CancellationToken cancellationToken)
     {
-        var alignment = annotation.Alignment switch
-        {
-            AnnotationAlignment.Start => TextAlignmentV1.Start,
-            AnnotationAlignment.Center => TextAlignmentV1.Center,
-            AnnotationAlignment.End => TextAlignmentV1.End,
-            _ => throw new InvalidOperationException("The Annotation alignment is undefined."),
-        };
+        var alignment = AnnotationTextAlignment(annotation);
         var origin = SchematicGeometry.ToPlanPoint(annotation.Position, fingerprint);
-        // Empty logical lines advance the baseline without producing glyphs.
-        var lines = annotation.Text.Split('\n', StringSplitOptions.None);
-        var visibleLines = new List<(
-            int Index,
-            string Text,
-            RectV1 Envelope)>(lines.Length);
-        for (var index = 0; index < lines.Length; index++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (lines[index].Length == 0)
-            {
-                continue;
-            }
-
-            var measurement = TextMeasurementBoundary.Measure(
-                textMeasurer,
-                new SymbolTextMeasurementRequestV1(
-                    lines[index],
-                    FontRoleV1.Symbol,
-                    alignment,
-                    fingerprint.MetricSet,
-                    fingerprint.LocaleId,
-                    fingerprint.BaseDirection),
-                cancellationToken);
-            visibleLines.Add((
-                index,
-                lines[index],
-                measurement.InkAndAdvanceBounds(alignment, fingerprint.BaseDirection)));
-        }
+        var visibleLines = MeasureAnnotationLines(
+            annotation, fingerprint, textMeasurer, cancellationToken, out var lineCount);
 
         var h = fingerprint.MetricSet.UnitsPerH;
         var minimumTop = visibleLines.Count == 0
@@ -222,7 +195,7 @@ internal static class SchematicPrimitiveProjector
             origin.X,
             checked(origin.Y + minimumTop),
             origin.X,
-            checked(origin.Y + minimumTop + checked(lines.Length * linePitch)));
+            checked(origin.Y + minimumTop + checked(lineCount * linePitch)));
         var projectedBounds = operations
             .Select(operation => operation.Bounds)
             .Aggregate(logicalLineBounds, Union);
@@ -238,6 +211,53 @@ internal static class SchematicPrimitiveProjector
                 null,
                 new RectHitShapeV1(interactionBounds))]);
     }
+
+    internal static List<(int Index, string Text, RectV1 Envelope)> MeasureAnnotationLines(
+        Annotation annotation,
+        PresentationFingerprintV1 fingerprint,
+        ISymbolTextMeasurerV1 textMeasurer,
+        CancellationToken cancellationToken,
+        out int lineCount)
+    {
+        var alignment = AnnotationTextAlignment(annotation);
+        // Empty logical lines advance the baseline without producing glyphs.
+        var lines = annotation.Text.Split('\n', StringSplitOptions.None);
+        lineCount = lines.Length;
+        var visibleLines = new List<(int Index, string Text, RectV1 Envelope)>(lineCount);
+        for (var index = 0; index < lineCount; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (lines[index].Length == 0)
+            {
+                continue;
+            }
+
+            var measurement = TextMeasurementBoundary.Measure(
+                textMeasurer,
+                new SymbolTextMeasurementRequestV1(
+                    lines[index],
+                    FontRoleV1.Symbol,
+                    alignment,
+                    fingerprint.MetricSet,
+                    fingerprint.LocaleId,
+                    fingerprint.BaseDirection),
+                cancellationToken);
+            visibleLines.Add((
+                index,
+                lines[index],
+                measurement.InkAndAdvanceBounds(alignment, fingerprint.BaseDirection)));
+        }
+
+        return visibleLines;
+    }
+
+    private static TextAlignmentV1 AnnotationTextAlignment(Annotation annotation) => annotation.Alignment switch
+    {
+        AnnotationAlignment.Start => TextAlignmentV1.Start,
+        AnnotationAlignment.Center => TextAlignmentV1.Center,
+        AnnotationAlignment.End => TextAlignmentV1.End,
+        _ => throw new InvalidOperationException("The Annotation alignment is undefined."),
+    };
 
     private static RectV1 EnsureMinimumInteractionExtent(
         RectV1 bounds,

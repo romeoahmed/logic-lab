@@ -10,7 +10,7 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
 {
     internal const string ModulePath = "./Components/Editor/CircuitSceneHost.razor.js";
     private const ulong MaximumMeasurementRecordBytes = 320;
-    private const string SymbolFontFamily = "Atkinson Hyperlegible Next";
+    private const string SymbolFontFamily = "Noto Sans SC";
     private readonly IJSObjectReference module;
     private readonly IJSObjectReference handle;
     private readonly BrowserPolicy policy;
@@ -173,6 +173,12 @@ internal sealed class BrowserSceneAdapter : IAsyncDisposable
                 patch,
                 SceneJsonSerializerContext.Strict.ScenePatchV1),
             cancellationToken);
+    }
+
+    public ValueTask RevealSelectionAsync(ulong sceneVersion, CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        return handle.InvokeVoidAsync("revealSelection", cancellationToken, sceneVersion);
     }
 
     public ValueTask SetConnectedAsync(bool isConnected, CancellationToken cancellationToken)

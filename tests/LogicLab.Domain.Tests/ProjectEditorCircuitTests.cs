@@ -527,6 +527,45 @@ internal sealed class ProjectEditorCircuitTests
     }
 
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Apply_DuplicateMoveWithConflictingOrientation_ValidatesFirstOccurrence(bool invalidFirst)
+    {
+        var circuit = await CreatePlacedCircuit();
+        var definition = circuit.Revision.Document.EntryCircuitDefinition;
+        var valid = new ComponentMove(circuit.Input.Id, new ComponentPlacement(new GridPoint(20, 20)));
+        var invalid = new ComponentMove(circuit.Input.Id,
+            new ComponentPlacement(new GridPoint(30, 30), (QuarterTurn)99));
+
+        var outcome = ProjectEditor.Apply(circuit.Revision, new MoveComponentInstancesIntent(
+            definition.Id, invalidFirst ? [invalid, valid] : [valid, invalid]));
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
+        string[] expected = invalidFirst
+            ? ["authoring_duplicate_id", "authoring_invalid_coordinate"]
+            : ["authoring_duplicate_id"];
+        await Assert.That(rejected.Diagnostics.Select(diagnostic => diagnostic.Code))
+            .IsEquivalentTo(expected, CollectionOrdering.Matching);
+        await Assert.That(definition.FindComponentInstance(circuit.Input.Id)!.Placement)
+            .IsEqualTo(circuit.Input.Placement);
+    }
+
+    [Test]
+    public async Task Apply_MissingMoveWithInvalidOrientation_ReportsOnlyMissingReference()
+    {
+        var circuit = await CreatePlacedCircuit();
+        var definition = circuit.Revision.Document.EntryCircuitDefinition;
+        var outcome = ProjectEditor.Apply(circuit.Revision, new MoveComponentInstancesIntent(
+            definition.Id,
+            [new ComponentMove(ComponentInstanceId.Create(),
+                new ComponentPlacement(new GridPoint(20, 20), (QuarterTurn)99))]));
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
+        await Assert.That(rejected.Diagnostics.Select(diagnostic => diagnostic.Code))
+            .IsEquivalentTo(["authoring_missing_reference"], CollectionOrdering.Matching);
+    }
+
+    [Test]
     public async Task Apply_MoveComponents_EmptySetRejectsWithoutRevision()
     {
         var circuit = await CreatePlacedCircuit();

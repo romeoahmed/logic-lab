@@ -298,7 +298,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         if (abandoned)
         {
             item.Complete(Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
-            item.Dispose();
+            item.ReleaseOwnership();
         }
     }
 
@@ -306,10 +306,12 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         WorkspaceId workspaceId,
         Func<SessionContinuation, CancellationToken, ValueTask<WorkspaceCommandOutcome>>
             operation,
+        Action releaseOwnership,
         [NotNullWhen(false)] out SchedulingRejection? rejection)
     {
         ArgumentNullException.ThrowIfNull(workspaceId);
         ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(releaseOwnership);
         lock (gate)
         {
             if (isDisposed)
@@ -330,6 +332,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             SessionWorkItem? item = SessionWorkItem.CreateContinuation(
                 token => operation(continuation, token),
                 continuation,
+                releaseOwnership,
                 stopping.Token);
             try
             {
@@ -349,10 +352,12 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
 
     private bool TryScheduleSessionContinuation(
         SessionContinuation continuation,
-        Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation)
+        Func<CancellationToken, ValueTask<WorkspaceCommandOutcome>> operation,
+        Action releaseOwnership)
     {
         ArgumentNullException.ThrowIfNull(continuation);
         ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(releaseOwnership);
         lock (gate)
         {
             if (isDisposed || !continuation.CanScheduleUnderLock())
@@ -363,6 +368,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             SessionWorkItem? item = SessionWorkItem.CreateContinuation(
                 operation,
                 continuation,
+                releaseOwnership,
                 stopping.Token);
             try
             {
@@ -431,7 +437,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         {
             item.CancelScheduledWork();
             item.Complete(Reject(WorkspaceOutcomeReasons.WorkspaceCancelled));
-            item.Dispose();
+            item.ReleaseOwnership();
         }
 
         await stopping.CancelAsync().ConfigureAwait(false);
@@ -670,7 +676,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
                     }
                 }
 
-                item.Dispose();
+                item.ReleaseOwnership();
             }
         }
     }
@@ -727,7 +733,7 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             ? WorkspaceOutcomeReasons.WorkspaceInfrastructureFailure
             : WorkspaceOutcomeReasons.WorkspaceInternalDefect;
         var correlation = ApplicationCorrelation.CurrentOrCreate();
-        LogWorkFailure(logger, exception, correlation, lane, code);
+        LogWorkFailure(logger, correlation, lane, code);
         return code;
     }
 
@@ -750,7 +756,6 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
         Message = "Workspace work failed with correlation {Correlation}, lane {Lane}, and outcome {OutcomeCode}.")]
     private static partial void LogWorkFailure(
         ILogger logger,
-        Exception exception,
         string correlation,
         string lane,
         string outcomeCode);

@@ -1,0 +1,18 @@
+@using LogicLab.Web.Scene
+
+<span class="probe-cue" data-probe-cue="@ProbeId"
+      data-probe-appearance="@(appearance.Ordinal % 4U)" data-probe-pattern="@appearance.Pattern">
+    <span class="cue-stroke" aria-hidden="true"></span><span class="cue-label">@Label</span>
+</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public string ProbeId { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = null!;
+
+    private ProbeAppearanceV1 appearance;
+
+    protected override void OnParametersSet() => appearance = ProbeAppearanceV1.From(ProbeId);
+}

@@ -5,6 +5,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="LogicLab.Application.Tests" />
+    <EmbeddedResource Include="Examples/Assets/*.logiclab" />
   </ItemGroup>
 
   <ItemGroup>

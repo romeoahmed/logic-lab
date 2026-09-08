@@ -276,7 +276,12 @@ internal static class BrowserSceneProjection
             Token(fill.Role),
             PathBounds(fill.Path, 0),
             Commands(fill.Path),
-            FillRule: Token(fill.FillRule)),
+            FillRule: fill.FillRule switch
+            {
+                FillRuleV1.NonZero => "nonzero",
+                FillRuleV1.EvenOdd => "evenodd",
+                _ => throw new InvalidOperationException("The Fill Rule variant is undefined."),
+            }),
         DrawTextV1 text => new SceneDrawOperationV1(
             "text",
             Token(text.FontRole),

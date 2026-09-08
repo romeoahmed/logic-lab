@@ -116,54 +116,54 @@ internal static class ComponentParameterValidator
         MemoryImageLookup? memoryImages,
         CancellationToken cancellationToken)
     {
-        return (schema.Kind, value) switch
+        return (schema, value) switch
         {
-            (ComponentParameterKind.PositiveWidth,
+            (WidthParameterSchema expected,
                 Unsigned32ParameterValue { Value: > 0 } width)
-                when width.Value >= schema.MinimumValue =>
-                GetInvalidWidthRule(schema, width, allParameters),
-            (ComponentParameterKind.PositiveWidth, Unsigned32ParameterValue) =>
-                schema.MinimumValue > 1 ? "minimumValue" : "positiveWidth",
-            (ComponentParameterKind.Choice, ChoiceParameterValue choice) =>
-                schema.AllowedValues.Contains(choice.Value, StringComparer.Ordinal)
+                when width.Value >= expected.MinimumValue =>
+                GetInvalidWidthRule(expected, width, allParameters),
+            (WidthParameterSchema expected, Unsigned32ParameterValue) =>
+                expected.MinimumValue > 1 ? "minimumValue" : "positiveWidth",
+            (ChoiceParameterSchema expected, ChoiceParameterValue choice) =>
+                expected.AllowedValues.Contains(choice.Value, StringComparer.Ordinal)
                     ? null
                     : "allowedValue",
-            (ComponentParameterKind.LogicVector, LogicVectorParameterValue vector) =>
+            (LogicVectorParameterSchema expected, LogicVectorParameterValue vector) =>
                 GetInvalidLogicVectorRule(
-                    schema,
+                    expected,
                     vector,
                     allParameters,
                     cancellationToken),
-            (ComponentParameterKind.Slices, SlicesParameterValue slices) =>
+            (SlicesParameterSchema expected, SlicesParameterValue slices) =>
                 GetInvalidSlicesRule(
-                    schema,
+                    expected,
                     slices,
                     allParameters,
                     cancellationToken),
-            (ComponentParameterKind.Widths, WidthsParameterValue widths) =>
-                GetInvalidWidthsRule(schema, widths, cancellationToken),
-            (ComponentParameterKind.MemoryImage, MemoryImageParameterValue image) =>
+            (WidthsParameterSchema expected, WidthsParameterValue widths) =>
+                GetInvalidWidthsRule(expected, widths, cancellationToken),
+            (MemoryImageParameterSchema expected, MemoryImageParameterValue image) =>
                 GetInvalidMemoryImageRule(
-                    schema,
+                    expected,
                     image,
                     allParameters,
                     memoryImages,
                     cancellationToken),
-            (ComponentParameterKind.BinaryLogicValue,
+            (BinaryLogicParameterSchema,
                 LogicVectorParameterValue binary) =>
                 binary.Values is [LogicValue.Zero or LogicValue.One]
                     ? null
                     : "binaryLogicValue",
-            (ComponentParameterKind.PositiveUnsigned64,
+            (PositiveUnsigned64ParameterSchema,
                 Unsigned64ParameterValue { Value: > 0 }) => null,
-            (ComponentParameterKind.PositiveUnsigned64, Unsigned64ParameterValue) =>
+            (PositiveUnsigned64ParameterSchema, Unsigned64ParameterValue) =>
                 "positiveUnsigned64",
             _ => "parameterKind",
         };
     }
 
     private static string? GetInvalidMemoryImageRule(
-        ComponentParameterSchema schema,
+        MemoryImageParameterSchema schema,
         MemoryImageParameterValue reference,
         IReadOnlyList<ComponentParameterBinding> allParameters,
         MemoryImageLookup? memoryImages,
@@ -183,10 +183,10 @@ internal static class ComponentParameterValidator
 
         var wordWidth = FindUnsignedWidth(
             allParameters,
-            schema.MemoryImageWidthParameterId);
+            schema.WordWidthParameterId);
         var addressWidth = FindUnsignedWidth(
             allParameters,
-            schema.MemoryImageAddressWidthParameterId);
+            schema.AddressWidthParameterId);
         if (wordWidth == 0 || addressWidth == 0)
         {
             return null;
@@ -225,7 +225,7 @@ internal static class ComponentParameterValidator
     }
 
     private static string? GetInvalidWidthRule(
-        ComponentParameterSchema schema,
+        WidthParameterSchema schema,
         Unsigned32ParameterValue width,
         ReadOnlyCollection<ComponentParameterBinding> allParameters)
     {
@@ -243,7 +243,7 @@ internal static class ComponentParameterValidator
     }
 
     private static string? GetInvalidLogicVectorRule(
-        ComponentParameterSchema schema,
+        LogicVectorParameterSchema schema,
         LogicVectorParameterValue vector,
         ReadOnlyCollection<ComponentParameterBinding> allParameters,
         CancellationToken cancellationToken)
@@ -262,8 +262,13 @@ internal static class ComponentParameterValidator
             }
         }
 
-        var width = schema.FixedWidth
-            ?? FindUnsignedWidth(allParameters, schema.WidthParameterId);
+        var width = schema switch
+        {
+            FixedLogicVectorParameterSchema fixedWidth => fixedWidth.Width,
+            VariableLogicVectorParameterSchema variableWidth =>
+                FindUnsignedWidth(allParameters, variableWidth.WidthParameterId),
+            _ => throw new InvalidOperationException("The Logic Vector width schema is undefined."),
+        };
 
         return width == 0 || vector.Values.Count != width
             ? "vectorWidth"
@@ -271,7 +276,7 @@ internal static class ComponentParameterValidator
     }
 
     private static string? GetInvalidSlicesRule(
-        ComponentParameterSchema schema,
+        SlicesParameterSchema schema,
         SlicesParameterValue slices,
         ReadOnlyCollection<ComponentParameterBinding> allParameters,
         CancellationToken cancellationToken)
@@ -300,7 +305,7 @@ internal static class ComponentParameterValidator
     }
 
     private static string? GetInvalidWidthsRule(
-        ComponentParameterSchema schema,
+        WidthsParameterSchema schema,
         WidthsParameterValue widths,
         CancellationToken cancellationToken)
     {
@@ -329,18 +334,19 @@ internal static class ComponentParameterValidator
     }
 
     private static uint FindUnsignedWidth(
-        IEnumerable<ComponentParameterBinding> parameters,
-        string? parameterId)
+        IReadOnlyList<ComponentParameterBinding> parameters,
+        string parameterId)
     {
-        return parameters
-            .Where(binding => string.Equals(
-                binding.ParameterId,
-                parameterId,
-                StringComparison.Ordinal))
-            .Select(binding => binding.Value)
-            .OfType<Unsigned32ParameterValue>()
-            .Select(value => value.Value)
-            .FirstOrDefault();
+        for (var index = 0; index < parameters.Count; index++)
+        {
+            if (parameters[index].ParameterId == parameterId
+                && parameters[index].Value is Unsigned32ParameterValue width)
+            {
+                return width.Value;
+            }
+        }
+
+        return 0;
     }
 
     private static AuthoringDiagnostic InvalidParameter(

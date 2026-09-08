@@ -125,6 +125,28 @@ internal sealed partial class CircuitSceneHostTests
     }
 
     [Test]
+    public async Task Reveal_RequestedAgainWhilePending_RevealsCurrentSceneWithoutRepublishing()
+    {
+        await using var context = WebTestContext.CreateBunitContext();
+        var browser = ConfigureBrowser(context);
+        var rendered = RenderInteractive(context);
+        rendered.WaitForState(() => RendererState(rendered) == "ready");
+        var pending = NewCompletion();
+        browser.RevealCompletion = pending.Task;
+        rendered.Render(parameters => parameters.Add(host => host.RevealVersion, 1UL));
+        rendered.WaitForState(() => browser.RevealedScenes.Count == 1);
+        rendered.Render(parameters => parameters.Add(host => host.RevealVersion, 2UL));
+
+        browser.RevealCompletion = Task.CompletedTask;
+        await rendered.InvokeAsync(() => pending.SetResult());
+        rendered.WaitForState(() => browser.RevealedScenes.Count == 2);
+
+        await Assert.That(browser.Transfers).Count().IsEqualTo(1);
+        var version = browser.Transfers[0].GetProperty("sceneVersion").GetUInt64();
+        await Assert.That(browser.RevealedScenes).IsEquivalentTo([version, version]);
+    }
+
+    [Test]
     public async Task Retry_RecoveryCapturePending_IgnoresRepeatedRetry()
     {
         await using var context = WebTestContext.CreateBunitContext();
@@ -190,6 +212,7 @@ internal sealed partial class CircuitSceneHostTests
         public Task ToolCompletion { get; set; } = Task.CompletedTask;
         public Task CommitCompletion { get; set; } = Task.CompletedTask;
         public Task RecoveryCompletion { get; set; } = Task.CompletedTask;
+        public Task RevealCompletion { get; set; } = Task.CompletedTask;
         public Exception? CommitFailure { get; set; }
         public BrowserSceneRecoveryStateV1 RecoveryState { get; set; } = new([]);
         public int MountCount { get; private set; }
@@ -198,6 +221,7 @@ internal sealed partial class CircuitSceneHostTests
         public TaskCompletionSource HandleDestroyed { get; } = NewCompletion();
         public List<SceneToolV1> Tools { get; } = [];
         public List<JsonElement> Transfers { get; } = [];
+        public List<ulong> RevealedScenes { get; } = [];
         public List<BrowserSceneRecoveryStateV1?> MountedRecovery { get; } = [];
 
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
@@ -221,6 +245,10 @@ internal sealed partial class CircuitSceneHostTests
                     break;
                 case "measureText":
                     return (TValue)(object)BrowserMeasurementFixture.CreateRecord(args!);
+                case "revealSelection":
+                    RevealedScenes.Add((ulong)args![0]!);
+                    await RevealCompletion;
+                    break;
                 case "captureRecoveryState":
                     CaptureCount++;
                     await RecoveryCompletion;

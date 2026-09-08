@@ -95,6 +95,10 @@
   line-height: 1.05;
 }
 
+.signal-path-heading ::deep fluent-badge {
+  flex: none;
+}
+
 .signal-path-list {
   display: grid;
   grid-template-columns: [stage] 2.25rem [content] minmax(0, 1fr);

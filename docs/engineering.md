@@ -142,8 +142,8 @@ recheck the comparison after runtime upgrades; remove a path whose gain disappea
 Native interop requires an ADR covering pinning through completion and cleanup on
 every failure path. Binary formats remain field-by-field encodings, never raw CLR
 layouts. The [memory evidence](./research/dotnet-memory-and-unsafe.md) explains these
-constraints; Engine measurements belong in
-[Engine Performance](./research/engine-performance.md).
+constraints; comparative module measurements belong in
+[Module Performance](./research/module-performance.md).
 
 The Web artifact is framework-dependent, untrimmed, and JIT-compiled. Trimming,
 single-file, ReadyToRun, self-contained, Native AOT, GC/ThreadPool tuning, or runtime

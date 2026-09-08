@@ -1,0 +1,67 @@
+.diagnostics {
+  min-inline-size: 0;
+  padding: 0.8rem 1rem;
+}
+
+.diagnostics header,
+.diagnostic-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.65rem;
+}
+
+.diagnostics h2,
+.diagnostics header p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.diagnostic-caption,
+.diagnostic-empty,
+.diagnostics header p {
+  color: var(--ll-muted);
+  font-size: 0.8rem;
+}
+
+.diagnostic-item {
+  min-inline-size: 0;
+  padding-block: 0.6rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.diagnostic-message {
+  margin: 0.3rem 0;
+  color: var(--ll-ink);
+  line-height: 1.55;
+}
+
+.diagnostic-severity {
+  font-weight: 750;
+}
+
+[data-diagnostic-severity="error"] .diagnostic-severity {
+  color: var(--ll-danger-strong);
+}
+
+.diagnostic-item details {
+  margin-block-start: 0.35rem;
+  font-size: 0.75rem;
+}
+
+.diagnostic-item summary {
+  cursor: pointer;
+  color: var(--ll-muted);
+}
+
+.diagnostic-item dl > div {
+  display: grid;
+  grid-template-columns: minmax(6rem, 1fr) minmax(0, 3fr);
+  gap: 0.5rem;
+}
+
+.diagnostic-item dd {
+  margin: 0;
+  font-family: var(--ll-font-mono);
+}

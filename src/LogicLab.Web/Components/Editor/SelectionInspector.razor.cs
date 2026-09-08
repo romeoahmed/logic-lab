@@ -31,6 +31,9 @@ public sealed partial class SelectionInspector
     [Parameter]
     public EventCallback<EditRequest> OnEdit { get; set; }
 
+    [Parameter]
+    public EventCallback<string> OnObserveProbe { get; set; }
+
     [Inject]
     private IStringLocalizer<EditorText> Text { get; set; } = null!;
 
@@ -56,6 +59,7 @@ public sealed partial class SelectionInspector
     private SelectionItem Describe(CircuitDefinition definition, SceneSourceRefV1 source)
     {
         var facts = new List<Fact>();
+        ProbeCue? cue = null;
         var title = Text["InspectorKind_" + source.EntityKind].Value;
         void Add(string key, object value) => facts.Add(new(Text[key], Convert.ToString(value, CultureInfo.CurrentCulture)!));
 
@@ -63,8 +67,8 @@ public sealed partial class SelectionInspector
         {
             case "componentInstance":
                 var component = definition.ComponentInstances.Single(item => item.Id.Value == source.EntityId);
-                title = ComponentName(component);
-                Add("InspectorType", ComponentType(component));
+                title = ComponentPresentationCatalog.DisplayName(Projection.ProjectRevision.Document, component, Text);
+                Add("InspectorType", ComponentPresentationCatalog.TypeName(Projection.ProjectRevision.Document, component, Text));
                 Add("InspectorPosition", Position(component.Placement.Origin));
                 foreach (var parameter in component.Parameters)
                 {
@@ -80,7 +84,7 @@ public sealed partial class SelectionInspector
             case "instancePort":
                 var instance = definition.ComponentInstances.Single(item => item.Id.Value == source.EntityId);
                 var contract = ResolvePort(instance, source.PortId!);
-                title = $"{ComponentName(instance)} · {contract?.Name ?? source.PortId}";
+                title = $"{ComponentPresentationCatalog.DisplayName(Projection.ProjectRevision.Document, instance, Text)} · {contract?.Name ?? source.PortId}";
                 if (contract is { } resolved)
                 {
                     Add("InspectorDirection", Text[resolved.Direction == PortDirection.Input ? "InspectorInput" : "InspectorOutput"]);
@@ -118,6 +122,11 @@ public sealed partial class SelectionInspector
             var probe = Projection.Simulation?.Probes.FirstOrDefault(candidate =>
                 candidate.Source.Identity == netSource && MatchesOccurrence(candidate.Source.HierarchyPath));
             Add("InspectorValue", probe is null ? Text["InspectorNotProbed"] : LogicVector(probe.Value));
+            if (probe is not null)
+            {
+                cue = new(probe.ProbeId.Value, ProbePresentation.Label(Projection.ProjectRevision,
+                    probe.Source, new(Text["ComponentInput"], Text["ComponentOutput"])));
+            }
             if (probe is not null && Projection.Simulation!.CompilationArtifactKey.ProjectRevisionId != revisionId)
             {
                 Add("InspectorValueRevision", Text["InspectorPreviousRevision"]);
@@ -129,19 +138,24 @@ public sealed partial class SelectionInspector
             Add("InspectorNet", Text["InspectorUnconnected"]);
         }
 
-        IReadOnlyList<CompilationDiagnosticProjection> diagnostics = Projection.Compilation switch
-        {
-            CompilationPublishedProjection published => published.Diagnostics,
-            CompilationRejectedProjection rejected => rejected.Diagnostics,
-            _ => [],
-        };
-        foreach (var diagnostic in diagnostics.Where(item => item.Source is { } location
+        var diagnostics = Projection.Compilation.Diagnostics;
+        foreach (var diagnostic in diagnostics.Where(item => item.Primary is CompilerCircuitLocation { Source: var location }
             && SceneSourceMap.TryFrom(location.Identity)?.Key == source.Key
             && (HierarchyPath is null || MatchesOccurrence(location.HierarchyPath))))
         {
-            Add("InspectorDiagnostic", diagnostic.Code);
+            Add("InspectorDiagnostic", DiagnosticPresentation.Message(Text, diagnostic.Code));
         }
-        return new(source.Key, title, facts);
+        if (Projection.Simulation is { } simulation
+            && simulation.CompilationArtifactKey.ProjectRevisionId == revisionId)
+        {
+            foreach (var diagnostic in simulation.Diagnostics.Where(item => item.Primary is { } location
+                && SceneSourceMap.TryFrom(location.Identity)?.Key == source.Key
+                && MatchesOccurrence(location.HierarchyPath)))
+            {
+                Add("InspectorDiagnostic", DiagnosticPresentation.Message(Text, diagnostic.Code));
+            }
+        }
+        return new(source.Key, title, facts, cue);
     }
 
     private bool MatchesOccurrence(HierarchyPath? path) => path is not null && HierarchyPath is { } current
@@ -176,18 +190,6 @@ public sealed partial class SelectionInspector
         }
         return null;
     }
-
-    private string ComponentName(ComponentInstance instance) => instance.DisplayName ?? ComponentType(instance);
-
-    private string ComponentType(ComponentInstance instance) => instance.Target switch
-    {
-        LibraryComponentTarget library => library.ContractKey.LibraryId == CoreLibrarySchema.LibraryId
-            && ComponentPresentationCatalog.Find(library.ContractKey.ContractId) is { } presentation
-            ? Text[presentation.Component.NameResourceKey] : library.ContractKey.ContractId,
-        CircuitDefinitionComponentTarget target => Projection.ProjectRevision.Document
-            .FindCircuitDefinition(target.CircuitDefinitionId)!.DisplayName,
-        _ => throw new InvalidOperationException("The component target is undefined."),
-    };
 
     private string ParameterLabel(string id) => id == "width"
         ? Text["InspectorWidth"] : LocalizedOrOriginal("InspectorParameter_", id);
@@ -233,5 +235,6 @@ public sealed partial class SelectionInspector
 
     public sealed record EditRequest(ProjectRevisionId RevisionId, CircuitDefinitionId DefinitionId, EditIntent Intent);
     private sealed record Fact(string Label, string Value);
-    private sealed record SelectionItem(string Key, string Title, IReadOnlyList<Fact> Facts);
+    private sealed record ProbeCue(string ProbeId, string Label);
+    private sealed record SelectionItem(string Key, string Title, IReadOnlyList<Fact> Facts, ProbeCue? Probe);
 }

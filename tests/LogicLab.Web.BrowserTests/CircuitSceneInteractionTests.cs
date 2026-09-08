@@ -443,16 +443,16 @@ internal sealed class CircuitSceneInteractionTests : PageTest
     [Test]
     public async Task FitViewport_LargeGridScale_RespectsPolicyMinimum()
     {
-        var scene = await ReadySceneAsync(gridStepPlanUnits: 10_000);
+        var scene = await ReadySceneAsync(gridStepPlanUnits: int.MaxValue);
         await scene.Canvas.ClickAsync(new LocatorClickOptions
         {
             Position = new Position { X = 300, Y = 200 },
         });
         var viewport = (await scene.CaptureRecoveryStateAsync()).Viewports.Single();
 
-        await Assert.That(viewport.Zoom).IsEqualTo(0.05).Within(0.000_001);
+        await Assert.That(viewport.Zoom).IsEqualTo(0.000_001).Within(0.000_000_001);
         await scene.RemountAsync(new BrowserSceneRecoveryStateV1([viewport]));
-        await scene.PublishAsync(gridStepPlanUnits: 10_000);
+        await scene.PublishAsync(gridStepPlanUnits: int.MaxValue);
         await Assert.That((await scene.CaptureRecoveryStateAsync()).Viewports.Single())
             .IsEqualTo(viewport);
     }

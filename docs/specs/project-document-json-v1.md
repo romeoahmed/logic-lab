@@ -189,7 +189,12 @@ Placements are map-like arrays sorted by referenced entity ID; each Component In
 
 `DisplayText` is nonempty NFC Unicode without NUL, isolated surrogate code points, or other C0 controls. `AnnotationText` is NFC Unicode and may contain LF but no other C0 controls. Length limits are explicit Package Policy dimensions measured in Unicode scalar values and UTF-8 bytes. Project Format rejects package text rather than silently trimming or normalizing it; an authoring UI may normalize before constructing an Edit Intent.
 
-All objects reject duplicate and unknown members. All properties are required unless their type explicitly includes null. JSON comments, trailing commas, non-finite numbers, exponent notation for integer fields, negative zero, and unknown enum/discriminator text are invalid. Recursion depth, tokens, string bytes, array counts, and total decoded entities are bounded before Domain allocation.
+All objects reject duplicate and unknown members. Every shown property must be
+present; a nullable type permits an explicit `null`, not omission. JSON comments,
+trailing commas, non-finite numbers, exponent notation for integer fields, negative
+zero, and unknown enum/discriminator text are invalid. Recursion depth, tokens,
+string bytes, array counts, and total decoded entities are bounded before Domain
+allocation.
 
 ## 8. Canonical bytes and ordering
 

@@ -11,6 +11,48 @@ namespace LogicLab.Application.Tests;
 internal sealed partial class EditorWorkspaceTests
 {
     [Test]
+    public async Task DispatchAsync_DiagnosticCauseChanges_PublishesCurrentEvidenceAndPreservesPriorSnapshots(
+        CancellationToken cancellationToken)
+    {
+        await using var workspace = TestEditorWorkspaceFactory.CreateForTesting(WorkspaceModuleOperations.Production);
+        var (opened, input) = await OpenInputOutputSession(workspace, cancellationToken);
+        var initial = await Read(workspace, opened);
+        await Assert.That(initial.Simulation!.Diagnostics).IsEmpty();
+
+        await Schedule(LogicValue.X, 1);
+        await workspace.DispatchAsync(Step(opened, await Read(workspace, opened)), cancellationToken);
+        var unknown = await Read(workspace, opened);
+        var diagnostic = unknown.Simulation!.Diagnostics.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(diagnostic.Code).IsEqualTo("simulation_unknown_driver");
+            await Assert.That(diagnostic.Severity).IsEqualTo(SimulationDiagnosticSeverity.Warning);
+            await Assert.That(diagnostic.Primary!.Identity).IsTypeOf<NetSourceIdentity>();
+            await Assert.That(diagnostic.Arguments.Single())
+                .IsEqualTo(new SimulationDiagnosticArgument("driverCount", new SimulationUnsignedDecimalValue(1)));
+        }
+
+        await Schedule(LogicValue.Zero, 2);
+        var scheduled = await Read(workspace, opened);
+        await Assert.That(scheduled.Simulation!.Diagnostics).IsSameReferenceAs(unknown.Simulation.Diagnostics);
+        await Assert.That(scheduled.Simulation.Probes).IsSameReferenceAs(unknown.Simulation.Probes);
+        await workspace.DispatchAsync(Step(opened, scheduled), cancellationToken);
+        var settled = await Read(workspace, opened);
+        await Assert.That(settled.Simulation!.Diagnostics).IsEmpty();
+        await Assert.That(unknown.Simulation.Diagnostics.Single()).IsSameReferenceAs(diagnostic);
+        await Assert.That(unknown.Simulation.Probes.Single().Value[0]).IsEqualTo(LogicValue.X);
+
+        async Task Schedule(LogicValue value, ulong time)
+        {
+            var before = await Read(workspace, opened);
+            var result = await workspace.DispatchAsync(EditorWorkspaceTestDriver.ScheduleInput(
+                Context(opened.WorkspaceId, opened.Attachment, $"diagnostic-input-{time}"),
+                EditorWorkspaceTestDriver.SessionMutation(before), time, input.Id, [value]), cancellationToken);
+            await Assert.That(result).IsTypeOf<StimulusScheduled>();
+        }
+    }
+
+    [Test]
     public async Task DispatchAsync_ExplicitInitialProbes_PreservesOrderAndIdempotency(
         CancellationToken cancellationToken)
     {

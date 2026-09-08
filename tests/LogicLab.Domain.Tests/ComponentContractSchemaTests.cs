@@ -43,7 +43,7 @@ internal sealed class ComponentContractSchemaTests
                 .IsEqualTo("logic-vector.parameter.width");
             await Assert.That(memory.StateShapeId)
                 .IsEqualTo("memory-image.parameter.wordWidth.addressWidth");
-            await Assert.That(CoreLibrarySchema.Contracts.Select(contract =>
+            await Assert.That(LibrarySnapshot.Core.Contracts.Select(contract =>
                     contract.SemanticRuleVersion).Distinct())
                 .IsEquivalentTo(["component-contract-catalog-v1"]);
         }
@@ -80,22 +80,24 @@ internal sealed class ComponentContractSchemaTests
     }
 
     [Test]
-    public async Task FindContract_SourceConstant_HasExactSchema()
+    public async Task ResolveContract_SourceConstant_HasExactSchema()
     {
         var contract = await FindCoreContract("source.constant");
 
         using (Assert.Multiple())
         {
             await Assert.That(contract.Key).IsEqualTo(
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, "source.constant"));
+                new ComponentContractKey(LibrarySnapshot.Core.LibraryId, "source.constant"));
             await Assert.That(contract.Parameters.Select(parameter =>
-                    (parameter.Id, parameter.Kind, parameter.WidthParameterId)))
+                    (parameter.Id, parameter.Kind)))
                 .IsEquivalentTo(
                     [
-                        ("width", ComponentParameterKind.PositiveWidth, null),
-                        ("value", ComponentParameterKind.LogicVector, "width"),
+                        ("width", ComponentParameterKind.PositiveWidth),
+                        ("value", ComponentParameterKind.LogicVector),
                     ],
                     CollectionOrdering.Matching);
+            await Assert.That(((VariableLogicVectorParameterSchema)contract.Parameters[1]).WidthParameterId)
+                .IsEqualTo("width");
             await Assert.That(contract.Ports.Select(port =>
                     (port.Id, port.Direction, port.ParameterId)))
                 .IsEquivalentTo(
@@ -182,7 +184,7 @@ internal sealed class ComponentContractSchemaTests
     }
 
     [Test]
-    public async Task FindContract_DynamicTopologyContracts_ExposeCanonicalTemplatesAndDigests()
+    public async Task ResolveContract_DynamicTopologyContracts_ExposeCanonicalTemplatesAndDigests()
     {
         var split = await FindCoreContract("topology.split");
         var concat = await FindCoreContract("topology.concat");
@@ -240,7 +242,7 @@ internal sealed class ComponentContractSchemaTests
                 .IsEqualTo("4fb2024fee7c219a65c39134167df2155484ec2c96d05e40ad89680c3a630ba4");
             await Assert.That(concat.SchemaDigest)
                 .IsEqualTo("80d474b8635ce186f41cd714c63215d8616e3de87c5227b6ff6c777a6d7679f2");
-            await Assert.That(CoreLibrarySchema.ContentDigest)
+            await Assert.That(LibrarySnapshot.Core.ContentDigest)
                 .IsEqualTo("6eaf4153bdf1ce088af3c2a71f8083fc6ea4aba1aadaaa73ec4136d52d2c60f8");
         }
     }
@@ -293,16 +295,16 @@ internal sealed class ComponentContractSchemaTests
 
     private static async Task<ComponentContractSchema> FindCoreContract(string contractId)
     {
-        var contract = CoreLibrarySchema.FindContract(
-            new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId));
+        var contract = LibrarySnapshot.Core.ResolveContract(
+            new ComponentContractKey(LibrarySnapshot.Core.LibraryId, contractId));
         var schema = (await Assert.That(contract).IsTypeOf<ComponentContractSchema>())!;
         return schema;
     }
 
     private static ComponentContractSchema RequireCoreContract(string contractId)
     {
-        return CoreLibrarySchema.FindContract(
-            new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId))
+        return LibrarySnapshot.Core.ResolveContract(
+            new ComponentContractKey(LibrarySnapshot.Core.LibraryId, contractId))
             ?? throw new InvalidOperationException($"Missing contract {contractId}.");
     }
 

@@ -493,7 +493,7 @@ internal sealed partial class EditorWorkspace
         catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
         {
             var correlation = ApplicationCorrelation.CurrentOrCreate();
-            LogSimulationCleanupFailure(logger, exception, correlation);
+            LogSimulationCleanupFailure(logger, correlation);
         }
     }
 
@@ -503,7 +503,6 @@ internal sealed partial class EditorWorkspace
         Message = "Simulation cleanup failed with correlation {Correlation}.")]
     private static partial void LogSimulationCleanupFailure(
         ILogger logger,
-        Exception exception,
         string correlation);
 
     private sealed class WorkspaceState(

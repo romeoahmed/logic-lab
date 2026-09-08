@@ -1,6 +1,7 @@
 using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
+using LogicLab.Engine.Compilation;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Scene;
 
@@ -188,6 +189,59 @@ public partial class Editor
         SelectedDefinitionId = last.ContainingCircuitDefinitionId;
         ProjectScene();
         Status = Text["HierarchyReturned", SelectedDefinition!.DisplayName];
+    }
+
+    private bool TryRevealSource(CompilationSource source)
+    {
+        if (Projection is not { } projection
+            || source.HierarchyPath.EntryCircuitDefinitionId
+                != projection.ProjectRevision.Document.EntryCircuitDefinitionId)
+        {
+            return false;
+        }
+
+        var entity = SceneSourceMap.TryFrom(source.Identity);
+        if (entity is not null && !SceneSourceMap.Contains(projection.ProjectRevision, entity))
+        {
+            return false;
+        }
+
+        var document = projection.ProjectRevision.Document;
+        var current = document.EntryCircuitDefinition;
+        var navigation = new List<HierarchyNavigationStep>(
+            source.HierarchyPath.Steps.Count);
+        foreach (var step in source.HierarchyPath.Steps)
+        {
+            var instance = step.ContainingCircuitDefinitionId == current.Id
+                ? current.FindComponentInstance(step.ComponentInstanceId)
+                : null;
+            if (instance?.Target is not CircuitDefinitionComponentTarget target
+                || document.FindCircuitDefinition(target.CircuitDefinitionId)
+                    is not { } child)
+            {
+                return false;
+            }
+
+            navigation.Add(new HierarchyNavigationStep(
+                current.Id,
+                instance.Id,
+                instance.DisplayName ?? child.DisplayName));
+            current = child;
+        }
+
+        if (current.Id != source.Identity.CircuitDefinitionId)
+        {
+            return false;
+        }
+
+        HierarchyNavigation.Clear();
+        HierarchyNavigation.AddRange(navigation);
+        SelectedDefinitionId = current.Id;
+        instrumentsExpanded = false;
+        ProjectScene();
+        SceneSelection = entity is null ? null : new SceneSelectionV1([entity], "replace");
+        sourceRevealVersion++;
+        return true;
     }
 
     private sealed record HierarchyNavigationStep(

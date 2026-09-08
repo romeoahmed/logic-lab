@@ -7,9 +7,14 @@ This catalog closes the V1 Component Contract surface. It owns common library ru
 
 ## 1. Contract identity and resolution
 
-A Component Contract Key is `(libraryId, contractId)`. A Project Document references exactly one version and digest for each `libraryId`; a Compilation resolves all keys against that immutable Library Snapshot. Duplicate library IDs, unresolved keys, and a digest/version mismatch are errors.
+A Component Contract Key is `(libraryId, contractId)`. A Project Document references exactly one version and digest for each `libraryId`; a Compilation resolves all keys against that immutable Library Snapshot. Duplicate library IDs, unresolved keys, and a digest/version mismatch are errors. The Library Snapshot is the single lookup and enumeration boundary; the built-in schema recipes remain internal to Domain.
 
 Contract IDs and Port IDs below are stable, case-sensitive ASCII. Display names are localized separately. Reusing a Contract ID in another compatible Library version never changes its Ports, parameter meaning, state shape, truth tables, or package encoding. An incompatible change receives a new Contract ID or Library major version; V1 never loads two versions of `logiclab.core` into one Library Snapshot.
+
+Parameter schemas are closed, kind-specific shapes. Only a choice carries allowed
+values; only a Memory Image carries both shape references; a Logic Vector has either
+a fixed width or one width parameter reference. Irrelevant fields are not part of
+the model.
 
 Every instance stores every parameter explicitly. Defaults are authoring conveniences applied before commit, never hidden Compiler inputs. Parameters are ordered by the catalog order below. A parameter that changes Ports or state shape makes Hot Swap incompatible unless both old and new resolved schemas are identical.
 

@@ -3,7 +3,7 @@
 
 <header class="site-header">
     <div class="site-header-inner">
-        <a class="brand" href="/">
+        <a class="brand" href="/" aria-label="Logic Lab">
             <span class="brand-mark" aria-hidden="true">
                 <span>LL</span>
                 <i></i>
@@ -14,7 +14,7 @@
             </span>
         </a>
         <nav class="primary-navigation">
-            <NavLink href="/editor">@Text["Workbench"]</NavLink>
+            <NavLink href="/editor" data-enhance-nav="false">@Text["Workbench"]</NavLink>
             <NavLink href="/help/getting-started">@Text["Help"]</NavLink>
             @if (IsHttps)
             {

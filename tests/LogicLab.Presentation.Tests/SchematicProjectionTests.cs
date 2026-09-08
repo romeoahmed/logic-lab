@@ -18,6 +18,49 @@ internal sealed class SchematicProjectionTests
         new ProjectionTextMeasurer(FontFingerprint);
 
     [Test]
+    public async Task CollectTextRequests_CompleteDefinition_CoversEveryProjectionMeasurement()
+    {
+        var fixture = CreateCompleteDefinition();
+        var requested = TeachingMixedSchematicProjector.CollectTextRequests(
+            fixture.Revision, fixture.Definition.Id, Fingerprint(), 64);
+        var measured = new RecordingTextMeasurer(TextMeasurer);
+
+        _ = Project(fixture.Revision, fixture.Definition.Id, Fingerprint(), measured);
+
+        await Assert.That(requested).IsEquivalentTo(measured.Requests.Distinct());
+        await Assert.That(requested.Distinct()).Count().IsEqualTo(requested.Count);
+    }
+
+    [Test]
+    public async Task CollectTextRequests_Cancelled_DoesNotReturnPartialRequests()
+    {
+        var fixture = CreateCompleteDefinition();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.That(() => TeachingMixedSchematicProjector.CollectTextRequests(
+            fixture.Revision, fixture.Definition.Id, Fingerprint(), 64, cancellation.Token))
+            .Throws<OperationCanceledException>();
+    }
+
+    private sealed class RecordingTextMeasurer(ISymbolTextMeasurerV1 inner) : ISymbolTextMeasurerV1
+    {
+        public FontFingerprintV1 FontFingerprint => inner.FontFingerprint;
+
+        public SymbolMetricSetV1 MetricSet => inner.MetricSet;
+
+        public List<SymbolTextMeasurementRequestV1> Requests { get; } = [];
+
+        public SymbolTextMeasurementV1 Measure(
+            SymbolTextMeasurementRequestV1 request,
+            CancellationToken cancellationToken = default)
+        {
+            Requests.Add(request);
+            return inner.Measure(request, cancellationToken);
+        }
+    }
+
+    [Test]
     public async Task Project_CompleteDefinition_PublishesCanonicalStaticScene()
     {
         var fixture = CreateCompleteDefinition();
@@ -630,7 +673,7 @@ internal sealed class SchematicProjectionTests
             revision,
             new PlaceComponentInstanceIntent(
                 definitionId,
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
+                new ComponentContractKey(LibrarySnapshot.Core.LibraryId, contractId),
                 parameters,
                 new ComponentPlacement(origin))));
 

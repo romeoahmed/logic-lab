@@ -37,37 +37,53 @@ internal static class ComponentContractSchemaDigest
     {
         foreach (var parameter in parameters)
         {
+            // Schema V2 uses fixed columns; fields owned by other kinds are empty.
+            var widthParameterId = parameter switch
+            {
+                VariableLogicVectorParameterSchema vector => vector.WidthParameterId,
+                SlicesParameterSchema slices => slices.WidthParameterId,
+                _ => string.Empty,
+            };
+            var minimumItemCount = parameter switch
+            {
+                SlicesParameterSchema slices => slices.MinimumItemCount,
+                WidthsParameterSchema widths => widths.MinimumItemCount,
+                _ => 0,
+            };
+            var greaterThanParameterId = (parameter as WidthParameterSchema)?.GreaterThanParameterId;
+            ReadOnlyCollection<string> allowedValues = parameter is ChoiceParameterSchema choice
+                ? choice.AllowedValues : [];
             canonical.Append("parameter\u001f")
                 .Append(parameter.Id).Append('\u001f')
                 .Append(ParameterKindToken(parameter.Kind)).Append('\u001f')
-                .Append(parameter.WidthParameterId ?? string.Empty).Append('\u001f')
-                .Append(parameter.MinimumItemCount.ToString(CultureInfo.InvariantCulture))
+                .Append(widthParameterId).Append('\u001f')
+                .Append(minimumItemCount.ToString(CultureInfo.InvariantCulture))
                 .Append('\u001f')
-                .Append(parameter.GreaterThanParameterId ?? string.Empty).Append('\u001f')
-                .AppendJoin('\u001e', parameter.AllowedValues)
+                .Append(greaterThanParameterId ?? string.Empty).Append('\u001f')
+                .AppendJoin('\u001e', allowedValues)
                 .Append('\n');
-            if (parameter.MinimumValue > 1)
+            if (parameter is WidthParameterSchema { MinimumValue: > 1 } width)
             {
                 canonical.Append("minimumValue\u001f")
                     .Append(parameter.Id).Append('\u001f')
-                    .Append(parameter.MinimumValue.ToString(CultureInfo.InvariantCulture))
+                    .Append(width.MinimumValue.ToString(CultureInfo.InvariantCulture))
                     .Append('\n');
             }
 
-            if (parameter.MemoryImageWidthParameterId is not null)
+            if (parameter is MemoryImageParameterSchema image)
             {
                 canonical.Append("memoryImageShape\u001f")
                     .Append(parameter.Id).Append('\u001f')
-                    .Append(parameter.MemoryImageWidthParameterId).Append('\u001f')
-                    .Append(parameter.MemoryImageAddressWidthParameterId)
+                    .Append(image.WordWidthParameterId).Append('\u001f')
+                    .Append(image.AddressWidthParameterId)
                     .Append('\n');
             }
 
-            if (parameter.FixedWidth is { } fixedWidth)
+            if (parameter is FixedLogicVectorParameterSchema fixedWidth)
             {
                 canonical.Append("fixedWidth\u001f")
                     .Append(parameter.Id).Append('\u001f')
-                    .Append(fixedWidth.ToString(CultureInfo.InvariantCulture))
+                    .Append(fixedWidth.Width.ToString(CultureInfo.InvariantCulture))
                     .Append('\n');
             }
         }

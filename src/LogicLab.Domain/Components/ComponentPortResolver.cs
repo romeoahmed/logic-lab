@@ -8,6 +8,39 @@ namespace LogicLab.Domain.Components;
 
 internal static class ComponentPortResolver
 {
+    internal static bool HaveSameShape(
+        ReadOnlyCollection<ComponentPortSchema> ports,
+        ReadOnlyCollection<ComponentParameterBinding> first,
+        ReadOnlyCollection<ComponentParameterBinding> second)
+    {
+        foreach (var port in ports)
+        {
+            var firstCount = ResolvePortCount(port, first);
+            if (firstCount != ResolvePortCount(port, second)
+                || (port.Cardinality == ComponentPortCardinality.PowerOfTwoParameterValue
+                    && GetValue<Unsigned32ParameterValue>(first, port.CardinalityParameterId!).Value
+                        != GetValue<Unsigned32ParameterValue>(second, port.CardinalityParameterId!).Value))
+            {
+                return false;
+            }
+
+            // Item widths are bounded by the authored parameter list. Uniform generated
+            // Ports need only one width comparison, irrespective of their cardinality.
+            var widthCount = port.Cardinality == ComponentPortCardinality.ParameterItems
+                ? firstCount.Count : 1;
+            for (ulong index = 0; index < widthCount; index++)
+            {
+                if (ResolvePortWidth(port, first, index, default)
+                    != ResolvePortWidth(port, second, index, default))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     public static ComponentPortMeasure Measure(
         ReadOnlyCollection<ComponentPortSchema> ports,
         ReadOnlyCollection<ComponentParameterBinding> parameters,

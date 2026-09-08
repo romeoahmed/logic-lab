@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using LogicLab.Application.Examples;
 using LogicLab.Application.Work;
 using LogicLab.Domain.Authoring;
+using LogicLab.ProjectFormat;
 using Microsoft.Extensions.Logging;
 
 namespace LogicLab.Application.Workspaces;
@@ -33,6 +35,23 @@ internal sealed partial class EditorWorkspace
         var stage = request is OpenDurable ? "load" : "authoring-admission";
         try
         {
+            if (request is OpenExample example)
+            {
+                stage = "example-package";
+                await using var source = ExampleProjects.Open(example.Example);
+                var read = await ProjectPackage.ReadAsync(
+                    new ProjectPackageReadRequest(source, packagePolicy),
+                    cancellationToken).ConfigureAwait(false);
+                if (read is PackageReadRejected rejectedPackage)
+                {
+                    return ProjectImportWorkflow.RejectPackage(rejectedPackage);
+                }
+
+                request = new ImportProject(
+                    ((PackageReadSucceeded)read).ImportCandidate,
+                    request.Caller);
+            }
+
             ProjectRevision revision;
             WorkspaceDurabilityState durability = SandboxWorkspaceState.Instance;
             switch (request)
@@ -187,11 +206,11 @@ internal sealed partial class EditorWorkspace
             var correlation = ApplicationCorrelation.CurrentOrCreate();
             if (request is OpenDurable)
             {
-                LogDurableOpenFailure(logger, exception, correlation, stage, code);
+                LogDurableOpenFailure(logger, correlation, stage, code);
             }
             else
             {
-                LogProjectImportFailure(logger, exception, correlation, stage, code);
+                LogProjectImportFailure(logger, correlation, stage, code);
             }
 
             return RejectOpen(code);
@@ -216,7 +235,6 @@ internal sealed partial class EditorWorkspace
         Message = "Project import failed with correlation {Correlation}, stage {Stage}, and outcome {OutcomeCode}.")]
     private static partial void LogProjectImportFailure(
         ILogger logger,
-        Exception exception,
         string correlation,
         string stage,
         string outcomeCode);
@@ -227,7 +245,6 @@ internal sealed partial class EditorWorkspace
         Message = "Durable Project open failed with correlation {Correlation}, stage {Stage}, and outcome {OutcomeCode}.")]
     private static partial void LogDurableOpenFailure(
         ILogger logger,
-        Exception exception,
         string correlation,
         string stage,
         string outcomeCode);

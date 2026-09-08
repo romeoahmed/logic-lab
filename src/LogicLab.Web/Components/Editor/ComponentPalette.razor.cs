@@ -1,3 +1,4 @@
+using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
 using LogicLab.Web.Scene;
 using Microsoft.AspNetCore.Components;
@@ -36,7 +37,7 @@ public sealed partial class ComponentPalette
                 option.Tool.Target is SceneLibraryComponentTargetV1 library
                     && string.Equals(
                         library.LibraryId,
-                        CoreLibrarySchema.LibraryId,
+                        LibrarySnapshot.Core.LibraryId,
                         StringComparison.Ordinal)
                     ? ComponentPresentationCatalog.Find(library.ContractId)
                     : null))

@@ -249,7 +249,7 @@ internal static class TopologyTestCircuit
             revision,
             new PlaceComponentInstanceIntent(
                 definitionId,
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
+                new ComponentContractKey(LibrarySnapshot.Core.LibraryId, contractId),
                 parameters,
                 new ComponentPlacement(new GridPoint(before.Count * 4, 0)))));
         var instance = committed.Document.FindCircuitDefinition(definitionId)!

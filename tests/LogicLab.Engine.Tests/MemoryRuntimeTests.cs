@@ -522,7 +522,7 @@ internal sealed class MemoryRuntimeTests
             definition.DisplayName == "Memory Cell");
         circuit.Apply(new PlaceComponentInstanceIntent(
             child.Id,
-            new ComponentContractKey(CoreLibrarySchema.LibraryId, "memory.ram_single_port"),
+            new ComponentContractKey(LibrarySnapshot.Core.LibraryId, "memory.ram_single_port"),
             MemoryTestCircuit.Memory(1, 1, image),
             new ComponentPlacement(new GridPoint(4, 0)),
             "RAM"));

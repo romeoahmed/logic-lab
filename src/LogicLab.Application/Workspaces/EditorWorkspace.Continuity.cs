@@ -194,8 +194,7 @@ internal sealed partial class EditorWorkspace
                         },
                     } simulation)
                 {
-                    state.Simulation = WithRun(
-                        simulation,
+                    state.Simulation = simulation.WithRun(
                         new RunPausedProjection(
                             runGeneration,
                             RunPauseReason.Detached));
@@ -390,8 +389,9 @@ internal sealed partial class EditorWorkspace
         if (admissionRejection is not null)
         {
             return command is CloseWorkspace
-                ? new WorkspaceClosed(command.WorkspaceId)
-                : Reject(admissionRejection);
+                && admissionRejection == WorkspaceOutcomeReasons.WorkspaceNotFound
+                    ? new WorkspaceClosed(command.WorkspaceId)
+                    : Reject(admissionRejection);
         }
 
         try
@@ -414,7 +414,9 @@ internal sealed partial class EditorWorkspace
                         replayIntent = replay;
                         break;
                     case ContextualIntentAccepted accepted:
-                        completed = RejectIfRunRequiresPause(state, command)
+                        completed = cancellationToken.IsCancellationRequested
+                            ? Reject(WorkspaceOutcomeReasons.WorkspaceCancelled)
+                            : RejectIfRunRequiresPause(state, command)
                             ?? command switch
                             {
                                 ApplyEdit apply => ApplyWithPrecondition(

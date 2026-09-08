@@ -37,7 +37,7 @@ internal sealed class EditIntentContractTests
 
         await Assert.That(() => new PlaceComponentInstanceIntent(
                 definitionId,
-                new ComponentContractKey(CoreLibrarySchema.LibraryId, "logic.not"),
+                new ComponentContractKey(LibrarySnapshot.Core.LibraryId, "logic.not"),
                 [(ComponentParameterBinding)null!],
                 new ComponentPlacement(new GridPoint(0, 0))))
             .ThrowsExactly<ArgumentException>();

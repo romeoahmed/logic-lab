@@ -326,7 +326,7 @@ internal sealed class EditorWorkspaceHierarchyTests
     {
         return new PlaceComponentInstanceIntent(
             definitionId,
-            new ComponentContractKey(CoreLibrarySchema.LibraryId, contractId),
+            new ComponentContractKey(LibrarySnapshot.Core.LibraryId, contractId),
             parameters,
             new ComponentPlacement(origin));
     }

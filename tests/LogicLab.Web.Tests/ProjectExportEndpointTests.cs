@@ -19,6 +19,27 @@ namespace LogicLab.Web.Tests;
 internal sealed class ProjectExportEndpointTests(LogicLabWebFactory factory)
 {
     [Test]
+    [Arguments("GET")]
+    [Arguments("POST")]
+    public async Task ExportProblem_TicketInRequestPath_DoesNotCopyTicketIntoResponse(string method)
+    {
+        const string ticket = "export-ticket-private-response";
+        var downloads = new OneTimeDownloads("unused"u8.ToArray());
+        using var host = CreateAnonymousHost(downloads);
+        using var client = host.CreateHttpsClient();
+        using var request = new HttpRequestMessage(new HttpMethod(method),
+            new Uri($"/downloads/{ticket}", UriKind.Relative));
+
+        using var response = await client.SendAsync(request);
+
+        await WebTestHttp.AssertProblemDetailsAsync(response,
+            method == "GET" ? HttpStatusCode.NotFound : HttpStatusCode.MethodNotAllowed,
+            method == "GET" ? "export_expired" : "export_download_method_not_allowed");
+        await Assert.That(await response.Content.ReadAsStringAsync()).DoesNotContain(ticket);
+        await Assert.That(downloads.Requests).IsEmpty();
+    }
+
+    [Test]
     public async Task HeadExport_DoesNotConsumeTicketAndReturnsMethodNotAllowed()
     {
         var downloads = new OneTimeDownloads("package-bytes"u8.ToArray());

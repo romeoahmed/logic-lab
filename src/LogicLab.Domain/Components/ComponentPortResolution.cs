@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using LogicLab.Domain.Authoring;
 
 namespace LogicLab.Domain.Components;
@@ -24,6 +25,20 @@ public sealed class ComponentPortResolution
         portCount = portMeasure.Count;
         return !portMeasure.ExceedsUInt64;
     }
+
+    public bool TryResolvePort(
+        string portId,
+        [NotNullWhen(true)] out ResolvedComponentPortSchema? port,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(portId);
+        cancellationToken.ThrowIfCancellationRequested();
+        return ComponentPortResolver.TryResolvePort(schemas, parameters, portId, out port, cancellationToken);
+    }
+
+    internal bool HasSameShape(ComponentPortResolution other) =>
+        schemas.SequenceEqual(other.schemas)
+        && ComponentPortResolver.HaveSameShape(schemas, parameters, other.parameters);
 
     public bool TryMaterialize(
         ulong maximumPortCount,

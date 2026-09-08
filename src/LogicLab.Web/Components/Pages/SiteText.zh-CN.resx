@@ -41,22 +41,22 @@
   <data name="NotFoundTitle" xml:space="preserve"><value>找不到页面</value></data>
   <data name="HelpFirstCircuitEyebrow" xml:space="preserve"><value>5 分钟上手</value></data>
   <data name="HelpFirstCircuitTitle" xml:space="preserve"><value>完成第一个可运行电路。</value></data>
-  <data name="HelpStepCreateTitle" xml:space="preserve"><value>创建沙盒</value></data>
-  <data name="HelpStepCreateDescription" xml:space="preserve"><value>沙盒是临时的内存项目，可以放心试验。</value></data>
-  <data name="HelpStepChooseTitle" xml:space="preserve"><value>选择“反相器入门”</value></data>
-  <data name="HelpStepChooseDescription" xml:space="preserve"><value>示例包含一个输入端、一个非门和一个输出端，并已用导线连接。</value></data>
-  <data name="HelpStepCompileTitle" xml:space="preserve"><value>编译电路</value></data>
-  <data name="HelpStepCompileDescription" xml:space="preserve"><value>编译会把编辑好的电路图转换为确定性的可执行电路。</value></data>
-  <data name="HelpStepRunTitle" xml:space="preserve"><value>开始仿真并步进</value></data>
-  <data name="HelpStepRunDescription" xml:space="preserve"><value>把输入设为 1，步进一次，再到信号监视区读取输出。</value></data>
+  <data name="HelpStepChooseTitle" xml:space="preserve"><value>打开“反相器入门”</value></data>
+  <data name="HelpStepChooseDescription" xml:space="preserve"><value>在工作台起始页选择示例，即可打开包含一个输入端、一个非门和一个输出端的完整沙盒；电路已编译。</value></data>
+  <data name="HelpStepStartTitle" xml:space="preserve"><value>启动仿真</value></data>
+  <data name="HelpStepStartDescription" xml:space="preserve"><value>启动仿真会话，逻辑分析仪会显示输出。修改电路后，需要重新编译再创建新会话。</value></data>
+  <data name="HelpStepInputsTitle" xml:space="preserve"><value>应用输入</value></data>
+  <data name="HelpStepInputsDescription" xml:space="preserve"><value>在检查器的输入框中填入 1，点击“应用输入”，将变化安排到下一个逻辑时间。</value></data>
+  <data name="HelpStepRunTitle" xml:space="preserve"><value>步进并观察</value></data>
+  <data name="HelpStepRunDescription" xml:space="preserve"><value>步进一次，反相器输出变为 0。再将输入改为 0、应用并步进，输出就会变为 1。</value></data>
   <data name="HelpExamplesEyebrow" xml:space="preserve"><value>选择合适的示例</value></data>
   <data name="HelpExamplesTitle" xml:space="preserve"><value>先从小电路开始，再逐步展开结构。</value></data>
   <data name="HelpInverterTitle" xml:space="preserve"><value>反相器入门</value></data>
-  <data name="HelpInverterDescription" xml:space="preserve"><value>建议从这里开始：一条清晰的信号路径即可完整体验编译与步进。</value></data>
+  <data name="HelpInverterDescription" xml:space="preserve"><value>通过一条清晰的信号路径体验应用输入、步进和读取输出。示例打开时已编译。</value></data>
   <data name="HelpCombinationalExamplesTitle" xml:space="preserve"><value>组合逻辑结构</value></data>
   <data name="HelpCombinationalExamplesDescription" xml:space="preserve"><value>二选一复用器保持精简；四位超前进位加法器则展开生成项、传播项与并行进位项。</value></data>
   <data name="HelpBitSerialTitle" xml:space="preserve"><value>位串行加法</value></data>
-  <data name="HelpBitSerialDescription" xml:space="preserve"><value>在多个时钟沿复用同一个全加器，并由操作数、结果与进位寄存器保存状态。</value></data>
+  <data name="HelpBitSerialDescription" xml:space="preserve"><value>默认的 11 + 6 在四个时钟上升沿后得到结果 0001、进位 1（步进七次）。重新计算时，填入二进制 A、B，将 Load operands 设为 1，应用并步进到下一个上升沿；随后将 Load operands 设为 0，应用并再推进四个上升沿。每次步进都会翻转时钟。</value></data>
   <data name="HelpCanvasEyebrow" xml:space="preserve"><value>画布操作</value></data>
   <data name="HelpCanvasTitle" xml:space="preserve"><value>选择、平移和缩放电路图。</value></data>
   <data name="HelpCanvasSelect" xml:space="preserve"><value>选择</value></data>
