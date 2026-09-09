@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using LogicLab.Domain;
+using LogicLab.Presentation.Geometry;
 
 namespace LogicLab.Web.Scene;
 
@@ -316,6 +317,9 @@ internal sealed record BrowserSceneOverlayInputV1
 
 internal abstract record SceneReplacementV1
 {
+    [JsonIgnore]
+    public IReadOnlyList<LayoutDiagnosticV1> PresentationDiagnostics { get; init; } = [];
+
     private protected SceneReplacementV1()
     {
     }

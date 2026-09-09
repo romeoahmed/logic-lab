@@ -1,6 +1,6 @@
 # Blazor Web Platform Evidence
 
-> Sources reviewed: 2026-09-07
+> Sources reviewed: 2026-09-09
 > Scope: hosting, render modes, browser/server ownership, lifecycle, and Interactive Server constraints
 > Authority: this note records external evidence; [Architecture](../architecture.md) and [Product](../product.md) own project decisions
 
@@ -32,6 +32,14 @@ intentionally leave an existing editor for the new-Workspace chooser set
 A component can be reentered after every incomplete `await`, including by disposal.
 Late results must verify component lifetime before publishing state, and late-created
 interop references still need cleanup ([synchronization context](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/synchronization-context?view=aspnetcore-10.0)).
+
+Adapter diagnostics follow the same lifetime fence. Their callbacks execute on the
+renderer context; parent components accept only evidence for their current revision.
+Full Diagram Presentation evidence stays in the server-side composition and is
+excluded from Canvas JSON. The Diagnostics tab and Inspector share one projection;
+unchanged immutable evidence avoids rebuilding the paged list. Microsoft recommends
+targeting expensive rendering subtrees rather than suppressing renders indiscriminately
+([rendering performance](https://learn.microsoft.com/en-us/aspnet/core/blazor/performance/rendering?view=aspnetcore-10.0)).
 
 The package picker uses the framework's `InputFile` and its native change event
 ([file uploads](https://learn.microsoft.com/en-us/aspnet/core/blazor/file-uploads?view=aspnetcore-10.0)).

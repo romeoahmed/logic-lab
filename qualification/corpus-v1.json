@@ -1,0 +1,1178 @@
+{
+  "revision": "qualification-v1",
+  "cases": [
+    {
+      "id": "browser.authoring-and-instruments-v1",
+      "tests": [
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "BitSerial_LoadAndRelease_ProducesSumAfterFourShiftEdges",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "CarryLookahead_IndependentInputs_UpdatesSumAndCarry",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "ClockCircuit_RunAndPause_UpdatesTimeAndKeepsControlsReachable",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "ComponentPalette_SearchAndPlace_FiltersAndEnablesCompilation",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "Diagnostics_ContextLost_ReportsRendererReasonAndClearsAfterRetry",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "Diagnostics_UnconnectedPort_SelectsItsSourceAndClearsAfterUndo",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "Diagnostics_UnknownInput_TracksCauseAndPreservesWaveformPreferences",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "Inspector_Annotation_CreateEditAndUndoPreserveText",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "Inspector_ChangeComponentContract_UndoRestoresOriginalType",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "Inspector_CircuitDefinition_CreateDeleteUndoAndSetEntry",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "Inspector_EditInputParameters_CommitsAndUndoRestoresValue",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "Inspector_IndicationConvention_ChangesProjectAndUndoRestoresConvention",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "Inspector_MemoryImage_EditRemoveAndUndoPreserveContent",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "Inspector_PublicPortContract_MigratesCallSiteAndUndoRestoresIdentity",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "Inspector_RenameCircuit_UndoAndRedoRestoreAuthoredName",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "Inspector_SymbolVariant_ChangesAppearanceAndUndoRestoresDefault",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "InverterStarter_StepRestartAndClose_PreservesCircuitAndResetsSimulation",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "LogicAnalyzer_HistorySummaryCursorAndLiveFollow_StayCoherent",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "LogicAnalyzer_NarrowViewport_CoreActionsRemainReachable",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "ProbeIdentity_ReorderAndReveal_PreservesSharedInspectorCue",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "ProjectImport_IncompleteCircuit_OpensDiagnosticsAndAllowsEditing",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "ProjectImport_InvalidCarrier_ShowsDiagnosticAndPreservesWorkspace",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "ProjectImport_NativePicker_OpensCompiledWorkspace",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "WorkbenchHistory_PlaceUndoRedoAndBranch_UpdatesCircuitAndCommandAvailability",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "WorkbenchNavigation_OpenExample_ReturnsToChooserAndPreservesPriorWorkspace",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchWorkflowTests",
+          "method": "WorkbenchRecovery_MissingWorkspace_StartsFreshSandbox",
+          "caseCount": 1
+        }
+      ]
+    },
+    {
+      "id": "browser.canvas-interaction-v1",
+      "tests": [
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "AuthoringGesture_Replacement_PreservesTheWorkingViewport",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "FitViewport_LargeGridScale_RespectsPolicyMinimum",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "MoveTerminal_ConnectedRoutes_PreserveBranchesAndIgnoreUnrelatedNets",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "PlaceTool_GridPointer_RoundsBeforeApplyingSnapAndConsumesTool",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "PointerSelection_Component_CommitsVersionedIntent",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "PolygonHitRegion_EdgesAndVertices_AreIncluded",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "ReconnectModal_DisconnectedScene_PansLocallyAndRestoresAuthoring",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "Replacement_AutomaticViewport_RefitsExpandedScene",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "TerminalRoutes_AllFacingPairs_PreserveAnchorsAndOutwardSegments",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "WireGesture_Escape_CancelsBeforeCommit",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "WireGesture_LostPointerCapture_CancelsBeforeCommit",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "WireTool_CoincidentGridAnchors_CommitsConnectivityWithoutGeometry",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "WireTool_JunctionDrag_CommitsThePreviewedOrthogonalRoute",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "WireTool_OverflowingTerminalRoute_CancelsBeforeCommit",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "WireTool_TerminalAndJunctionDrag_ConnectsToExistingNet",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "WireTool_TerminalDrag_EmitsOrthogonalRouteBetweenPortAnchors",
+          "caseCount": 4
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneInteractionTests",
+          "method": "ZoomControls_ManualZoom_PersistsRecoverableViewport",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "BusLabels_FourStateVectors_PreserveUnknownAndHighImpedance",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "ContextLost_PaintAndIntentsWaitForRestoration",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "ContextRestored_ReacquiresTheContextAndRemainsInteractive",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "CursorGesture_ReleaseCoordinate_UsesFinalClampedLogicalTime",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "CursorHitTest_FullUnsignedRange_PreservesIntegerPrecision",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "Destroy_DuringCursorGesture_ReleasesCaptureAndPendingFrame",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "DeviceDensityChange_ResizesBitmapAndRearmsTheMediaQuery",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "PageRemoval_WithoutDotNetDisposal_DestroysNestedHandle",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "PointerGesture_ForeignCancellation_DoesNotDiscardActiveCursorCommit",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "ProbeRows_DomPrecedesSnapshot_RemainsAvailableUntilReplacement",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "ProbeRows_DomReordersBeforeSnapshot_KeepsTraceWithItsProbe",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "ReconnectModal_LocalPanSurvivesReconnectAndNextGesturePublishes",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "Ruler_ShortOrLargeLogicalTimes_DrawsDistinctAccurateNonoverlappingLabels",
+          "caseCount": 5
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "Snapshot_ExactCoverage_CommitsWithOnePendingFrame",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "Snapshot_InvalidRecords_AreRejectedWithoutPoisoningNextCommit",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "Transfer_BorrowedBinaryView_OwnsBytesAfterAppendReturns",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "Transfer_CancelledDuringDigest_DoesNotPublish",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WaveformCanvasContractTests",
+          "method": "Transfer_ChunkBeyondDeclaredLength_IsRejectedBeforeCommit",
+          "caseCount": 1
+        }
+      ]
+    },
+    {
+      "id": "browser.localization-v1",
+      "tests": [
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchLocalizationTests",
+          "method": "ChineseChrome_BeforeCanvasMount_UsesPackagedFontForNativeAndFluentText",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchLocalizationTests",
+          "method": "CultureForm_ExampleWorkspace_RoundTripRetainsCircuitAndSession",
+          "caseCount": 1
+        }
+      ]
+    },
+    {
+      "id": "browser.responsive-layout-v1",
+      "tests": [
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchLayoutTests",
+          "method": "Instruments_DesktopSimulation_ShowsWaveformAndReturnsToCircuit",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchLayoutTests",
+          "method": "Instruments_LaptopSimulation_ExposesInputsAndKeyboardResizing",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchLayoutTests",
+          "method": "ProjectOptions_Viewport_KeepsActionsVisibleAndLightDismisses",
+          "caseCount": 4
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchLayoutTests",
+          "method": "ResponsiveWorkbench_ActiveProject_KeepsCanvasInstrumentsAndStatusInViewport",
+          "caseCount": 7
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchLayoutTests",
+          "method": "ResponsiveWorkbench_NarrowPanels_ToggleAndEscapeRestoreFocus",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchLayoutTests",
+          "method": "ResponsiveWorkbench_NarrowSimulation_KeepsCircuitAndControlsUsable",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchLayoutTests",
+          "method": "ResponsiveWorkbench_ShortSimulation_ScrollsWithoutClippingInstrumentsOrStatus",
+          "caseCount": 4
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchLayoutTests",
+          "method": "ResponsiveWorkbench_Welcome_ShowsEveryStartingChoice",
+          "caseCount": 2
+        }
+      ]
+    },
+    {
+      "id": "browser.scene-fonts-and-recovery-v1",
+      "tests": [
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneFontTests",
+          "method": "LoadFont_MissingOrCorruptedAsset_FailsClosedAndCanRetry",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneFontTests",
+          "method": "MeasureText_ChineseAndCoreSymbols_UsesVerifiedPackagedFace",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneFontTests",
+          "method": "MeasureText_UnmappedScalar_RejectsFallback",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneFontTests",
+          "method": "Project_AllCoreComponents_RealFontProducesCompleteCanvasScene",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneFontTests",
+          "method": "Project_NarrowTextNearCoordinateLimit_RealFontIncludesLaterLabels",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneFontTests",
+          "method": "Text_ExplicitLocale_MeasurementAndDrawingUseRequestedLanguage",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneRecoveryTests",
+          "method": "CanvasContextLossWithoutRestore_FailsClosedAfterRecoveryWindow",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneRecoveryTests",
+          "method": "CanvasContextLost_NewGestureWaitsForRestoration",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneRecoveryTests",
+          "method": "CanvasContextUnavailable_FailsClosedWithStableReason",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneRecoveryTests",
+          "method": "DuplicatePatch_IsRejectedAtomicallyAndRequestsSnapshot",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneRecoveryTests",
+          "method": "HostRemoval_DestroysHandleAtThePublicBoundary",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneRecoveryTests",
+          "method": "OutOfOrderTransfer_IsRejectedAndPublishedSceneRemainsUsable",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneRecoveryTests",
+          "method": "Remount_RecoveryState_RestoresViewportThroughInteropContract",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneRecoveryTests",
+          "method": "Transfer_CancelledDuringDigest_DoesNotPublish",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneSurfaceTests",
+          "method": "HighDensityDisplay_CanvasBitmapMatchesItsCssExtent",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneSurfaceTests",
+          "method": "SceneCanvas_ProductionStylesReservePointerGesturesForTheEditor",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.CircuitSceneSurfaceTests",
+          "method": "ZeroSize_ReplacementSuspendsPainting_AndShowingResumesIt",
+          "caseCount": 1
+        }
+      ]
+    },
+    {
+      "id": "host.authentication-v1",
+      "tests": [
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "ApplicationCookie_InvalidAbsoluteExpiry_RejectsHttpPrincipal",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "ApplicationCookie_SecurityStampRefresh_PreservesAbsoluteExpiryClaim",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "ApplicationCookie_SigningIn_EmbedsAbsoluteExpiryClaim",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Get_IdentityEntryWhileAuthenticated_RedirectsWithoutRenderingSwitchForm",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Get_IdentityEntry_RendersApplicationMaximumLength",
+          "caseCount": 5
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Post_IdentityEntryWhileAuthenticated_PreservesCurrentIdentity",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Post_LoginAtApplicationLimits_AuthenticatesIdentity",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Post_LoginWithInvalidCredentials_DoesNotEchoSubmittedPassword",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Post_LoginWithInvalidModel_DoesNotEchoSubmittedPassword",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Post_LoginWithOversizedEmail_UsesApplicationValidationBoundary",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Post_LoginWithOversizedPassword_DoesNotReachIdentityPasswordCheck",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Post_Logout_EstablishedCircuitPrincipal_IsRevoked",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Post_Logout_RateLimitRejectsBeforeAdditionalRevocation",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Post_Logout_RequestBodyLimitIsInclusiveAndPreventsAdditionalRevocation",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Post_Logout_RevocationInfrastructureFails_ClearsCookieAndReturnsProblemDetails",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Post_RegisterAtApplicationLimits_CreatesIdentity",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Post_RegisterWithDuplicateEmail_DoesNotEchoSubmittedPasswords",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Post_RegisterWithInvalidModel_DoesNotEchoSubmittedPasswords",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "Post_RegisterWithOversizedEmail_DoesNotCreateIdentity",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.AccountAuthenticationTests",
+          "method": "ValidateSessionAsync_ExpiryClaim_FailsClosedAtSessionBoundary",
+          "caseCount": 1
+        }
+      ]
+    },
+    {
+      "id": "host.readiness-v1",
+      "tests": [
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.WebHostReadinessTests",
+          "method": "Get_MigrationHistoryChanges_RejectsUntilExpectedSchemaIsRestored",
+          "caseCount": 4
+        }
+      ]
+    },
+    {
+      "id": "host.security-v1",
+      "tests": [
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.WebHostRequestBodyTests",
+          "method": "Post_ChunkedForm_MapsBodyOverflowToProblemDetails",
+          "caseCount": 6
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.WebHostSecurityTests",
+          "method": "AntiforgeryCookie_HttpsResponse_IncludesSecureAttribute",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.WebHostSecurityTests",
+          "method": "Connect_InteractiveServer_DoesNotNegotiateWebSocketCompression",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.WebHostSecurityTests",
+          "method": "Get_AnonymousBootstrapCookieRotation_RejectsBeforeIssuingAnotherIdentity",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.WebHostSecurityTests",
+          "method": "Get_AnonymousBootstrap_IssuesCallerCookieOnlyOnPrivateEditorResponse",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.WebHostSecurityTests",
+          "method": "Get_PageErrorAndStaticAsset_ApplyCentralSecurityHeaders",
+          "caseCount": 4
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.WebHostSecurityTests",
+          "method": "Get_ProjectsWithoutAuthentication_ChallengesToLocalLogin",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.WebHostSecurityTests",
+          "method": "Post_AuthenticationEntries_UseIndependentBoundedPoliciesWithProblemDetails",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.WebHostSecurityTests",
+          "method": "Post_AuthenticationEntry_RequestBodyLimitIsInclusiveAndUsesProblemDetails",
+          "caseCount": 2
+        }
+      ]
+    },
+    {
+      "id": "host.transfers-v1",
+      "tests": [
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Get_Open_ReturnsMethodNotAllowedProblemDetails",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Get_Projects_CatalogFailure_ReturnsUncacheableProblemDetails",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Get_Projects_SuccessDisablesSharedCaching",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Get_Projects_WithEmptyCursor_ReturnsCursorInvalidProblemDetailsWithoutCatalogAccess",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Get_Projects_WithOpaqueCursor_PassesTrustedContextAndRendersHtml",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Get_Projects_WithRepeatedCursor_ReturnsRequestInvalidProblemDetails",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Head_Open_ReturnsMethodNotAllowedProblemMetadata",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Post_OpenAdmissionRejected_ProjectsPolicyEvidence",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Post_OpenRateLimit_ExhaustedSubjectDoesNotConsumeAnotherSubjectAdmission",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Post_OpenRateLimit_RejectsWithDedicatedProblemDetailsWithoutAdditionalWorkspaceAccess",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Post_OpenRejected_ReturnsMappedProblemDetails",
+          "caseCount": 9
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Post_OpenRequestBodyLimit_IsInclusiveAndUsesProblemDetails",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Post_OpenWithAuthenticatedAntiforgeryForm_ReauthorizesAndRedirectsToWorkspace",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Post_OpenWithAuthenticatedPrincipalMissingSubject_BeyondPermitLimitAlwaysReturnsAuthenticationRequired",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Post_OpenWithInvalidAntiforgeryToken_ReturnsProblemDetailsWithoutWorkspaceAccess",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Post_OpenWithInvalidProjectId_ReturnsRequestInvalidProblemDetails",
+          "caseCount": 3
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Post_OpenWithInvalidUtf8FormBytes_ReturnsRequestInvalidProblemDetailsWithoutWorkspaceAccess",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Post_OpenWithMalformedMultipartBoundary_ReturnsRequestInvalidProblemDetailsWithoutWorkspaceAccess",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Post_OpenWithNonFormContentType_ReturnsRequestInvalidProblemDetails",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Post_OpenWithUnknownFormCharset_ReturnsRequestInvalidProblemDetailsWithoutWorkspaceAccess",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Post_OpenWithoutAntiforgeryToken_ReturnsProblemDetailsWithoutWorkspaceAccess",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.DurableProjectEndpointTests",
+          "method": "Post_OpenWithoutAuthentication_ReturnsAuthenticationRequiredProblemDetails",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.ProjectExportEndpointTests",
+          "method": "ExportProblem_TicketInRequestPath_DoesNotCopyTicketIntoResponse",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.ProjectExportEndpointTests",
+          "method": "GetExport_AuthenticatedPrincipal_PassesStableSubjectToRedemption",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.ProjectExportEndpointTests",
+          "method": "GetExport_DifferentAnonymousBrowsers_PassDistinctProtectedCallers",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.ProjectExportEndpointTests",
+          "method": "GetExport_FreshAnonymousTicket_StreamsPackageOnceWithPrivateHeaders",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.ProjectExportEndpointTests",
+          "method": "GetExport_MalformedTicket_ConcealsWithoutStoreAccess",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.ProjectExportEndpointTests",
+          "method": "GetExport_TransferLimitsExceeded_RejectBeforeRedemption",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.ProjectExportEndpointTests",
+          "method": "HeadExport_DoesNotConsumeTicketAndReturnsMethodNotAllowed",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Web.Tests",
+          "className": "LogicLab.Web.Tests.ProjectExportEndpointTests",
+          "method": "UnsupportedMethod_ReturnsContractProblemWithoutRedemption",
+          "caseCount": 3
+        }
+      ]
+    },
+    {
+      "id": "load.independent-workspaces-v1",
+      "tests": [
+        {
+          "assembly": "LogicLab.Web.BrowserTests",
+          "className": "LogicLab.Web.BrowserTests.WorkbenchConcurrencyTests",
+          "method": "IndependentWorkspaces_QualificationLoadV1_PreserveInputsProbesAndSessionLifetimes",
+          "caseCount": 2
+        }
+      ]
+    },
+    {
+      "id": "module.authoring-sequence-v1",
+      "tests": [
+        {
+          "assembly": "LogicLab.Domain.Tests",
+          "className": "LogicLab.Domain.Tests.ProjectEditorSequenceTests",
+          "method": "Apply_QualificationSequenceV1_PreservesModelAndRevisionInvariants",
+          "caseCount": 1
+        }
+      ]
+    },
+    {
+      "id": "module.contract-boundaries-and-state-v1",
+      "tests": [
+        {
+          "assembly": "LogicLab.Engine.Tests",
+          "className": "LogicLab.Engine.Tests.CoreContractRuntimeTests",
+          "method": "Compile_CoreContract_PolicyEdgeAcceptsExactShapeAndRejectsNextLowerLimit",
+          "caseCount": 35
+        },
+        {
+          "assembly": "LogicLab.Engine.Tests",
+          "className": "LogicLab.Engine.Tests.CoreContractRuntimeTests",
+          "method": "Execute_ChangedInitialState_PreservesEveryCompatibleStateContract",
+          "caseCount": 9
+        },
+        {
+          "assembly": "LogicLab.Engine.Tests",
+          "className": "LogicLab.Engine.Tests.CoreContractRuntimeTests",
+          "method": "Execute_ContractAndPortReplacement_RejectsStateLossAndAllowsStatelessChange",
+          "caseCount": 35
+        },
+        {
+          "assembly": "LogicLab.Engine.Tests",
+          "className": "LogicLab.Engine.Tests.CoreContractRuntimeTests",
+          "method": "Execute_CoreContract_CompilesAndPreservesObservationsAcrossCompatibleHotSwap",
+          "caseCount": 35
+        },
+        {
+          "assembly": "LogicLab.Engine.Tests",
+          "className": "LogicLab.Engine.Tests.CoreContractRuntimeTests",
+          "method": "Execute_StateWidthChange_RejectsWithoutPublishingReplacement",
+          "caseCount": 6
+        }
+      ]
+    },
+    {
+      "id": "storage.durable-projects-v1",
+      "tests": [
+        {
+          "assembly": "LogicLab.Infrastructure.Tests",
+          "className": "LogicLab.Infrastructure.Tests.DurableProjectCatalogRepositoryTests",
+          "method": "ListAuthorizedAsync_ClaimsBetweenPages_OnlyLaterKeysJoinContinuation",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Infrastructure.Tests",
+          "className": "LogicLab.Infrastructure.Tests.DurableProjectCatalogRepositoryTests",
+          "method": "ListAuthorizedAsync_MixedOwnershipAndDuplicateNames_FiltersBeforeLimitInCanonicalOrder",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Infrastructure.Tests",
+          "className": "LogicLab.Infrastructure.Tests.DurableProjectCatalogRepositoryTests",
+          "method": "ListAuthorizedAsync_UpgradedEqualNames_UsesUtf8IdOrderAcrossPages",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Infrastructure.Tests",
+          "className": "LogicLab.Infrastructure.Tests.DurableProjectRepositoryTests",
+          "method": "ClaimAsync_ExistingWorkspaceForDifferentSubject_ReturnsForbiddenWithoutMutation",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Infrastructure.Tests",
+          "className": "LogicLab.Infrastructure.Tests.DurableProjectRepositoryTests",
+          "method": "ClaimAsync_ReplayAndConflictingReceipt_PreservesAtomicInitialState",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Infrastructure.Tests",
+          "className": "LogicLab.Infrastructure.Tests.DurableProjectRepositoryTests",
+          "method": "Commit_ConcurrentReceiptOnlyCommands_EnforcesRetention",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Infrastructure.Tests",
+          "className": "LogicLab.Infrastructure.Tests.DurableProjectRepositoryTests",
+          "method": "LoadAsync_AbsentAndDifferentSubject_ReturnSameConcealedOutcome",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Infrastructure.Tests",
+          "className": "LogicLab.Infrastructure.Tests.DurableProjectRepositoryTests",
+          "method": "LoadAsync_MissingOrMismatchedRevision_RejectsCorruptStorage",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Infrastructure.Tests",
+          "className": "LogicLab.Infrastructure.Tests.DurableProjectRepositoryTests",
+          "method": "SaveAsync_DifferentSubject_ReturnsForbiddenWithoutMutation",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Infrastructure.Tests",
+          "className": "LogicLab.Infrastructure.Tests.DurableProjectRepositoryTests",
+          "method": "SaveAsync_OverlappingWrites_ResolveConflictOrReplayWithoutPartialRevision",
+          "caseCount": 2
+        },
+        {
+          "assembly": "LogicLab.Infrastructure.Tests",
+          "className": "LogicLab.Infrastructure.Tests.DurableProjectRepositoryTests",
+          "method": "SaveAsync_ReceiptRetentionLimit_KeepsOnlyNewestReceipts",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Infrastructure.Tests",
+          "className": "LogicLab.Infrastructure.Tests.DurableProjectRepositoryTests",
+          "method": "SaveAsync_StaleVersion_ReturnsConflictWithoutOverwritingWinner",
+          "caseCount": 1
+        }
+      ]
+    },
+    {
+      "id": "workspace.admission-and-retention-v1",
+      "tests": [
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.EditorWorkspaceLifecycleTests",
+          "method": "DispatchAsync_CloseWorkspace_ReleasesCapacityAndRemovesProjection",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.EditorWorkspaceLifecycleTests",
+          "method": "OpenAsync_AnonymousGlobalLimitReached_PreservesAuthenticatedCapacity",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.EditorWorkspaceLifecycleTests",
+          "method": "OpenAsync_ConcurrentCreation_AdmitsNoMoreThanGlobalLimit",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.EditorWorkspaceLifecycleTests",
+          "method": "OpenAsync_ConcurrentReclamation_AdmitsNoMoreThanGlobalLimit",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.EditorWorkspaceLifecycleTests",
+          "method": "OpenAsync_ExpiredWorkspace_ReclaimsCapacity",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.EditorWorkspaceLifecycleTests",
+          "method": "OpenAsync_GlobalLimitReached_RejectsAdditionalWorkspace",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.EditorWorkspaceLifecycleTests",
+          "method": "OpenAsync_PerSubjectLimitReached_RejectsWithPolicyEvidence",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.EditorWorkspaceLifecycleTests",
+          "method": "OpenAsync_RejectedGenesis_ReleasesReservedCapacity",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.EditorWorkspaceLifecycleTests",
+          "method": "ReadAsync_CurrentProjectionVersion_ReturnsUnchanged",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.EditorWorkspaceLifecycleTests",
+          "method": "ReadAsync_SandboxRetentionElapsed_ReturnsNotFound",
+          "caseCount": 1
+        }
+      ]
+    },
+    {
+      "id": "workspace.scheduling-and-telemetry-v1",
+      "tests": [
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.WorkCoordinatorTests",
+          "method": "DisposeAsync_CancellationCallbackFails_DrainsRunningWorkBeforeReportingFailure",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.WorkCoordinatorTests",
+          "method": "Schedule_GlobalFixedWindow_RejectsIdentityChurn",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.WorkCoordinatorTests",
+          "method": "Schedule_MultipleSessionWorkers_SerializeOneWorkspaceOnly",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.WorkCoordinatorTests",
+          "method": "Schedule_PartitionCapacity_RejectsChurnAndExpiresIdentityState",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.WorkCoordinatorTests",
+          "method": "Schedule_PerSubjectFixedWindow_UsesMonotonicElapsedTime",
+          "caseCount": 1
+        },
+        {
+          "assembly": "LogicLab.Application.Tests",
+          "className": "LogicLab.Application.Tests.WorkCoordinatorTests",
+          "method": "Schedule_WorkItemFailure_UsesSchedulingTrace",
+          "caseCount": 4
+        }
+      ]
+    }
+  ]
+}

@@ -502,10 +502,10 @@ internal sealed class ProjectEditorCircuitTests
         var expected = new[]
         {
             ("authoring_duplicate_id", AuthoringDiagnosticSeverity.Error,
-                (AuthoredSourceIdentity?)null,
+                (AuthoredSourceIdentity?)new CircuitRootSourceIdentity(definitionId),
                 new AuthoringDiagnosticArgument("entityKind", new StableTokenDiagnosticValue("componentInstance"))),
             ("authoring_missing_reference", AuthoringDiagnosticSeverity.Error,
-                (AuthoredSourceIdentity?)null,
+                (AuthoredSourceIdentity?)new CircuitRootSourceIdentity(definitionId),
                 new AuthoringDiagnosticArgument("referenceKind", new StableTokenDiagnosticValue("componentInstance"))),
         };
 

@@ -8,6 +8,30 @@ The [Delivery record](../delivery.md#production-qualification) remains
 the sole completion ledger. The [production runbook](./runbook.md) defines procedures;
 this document identifies the evidence those procedures must produce.
 
+## Local evidence and remaining acceptance
+
+The [versioned qualification corpus](../../qualification/README.md) and
+[component manifest](../../conformance/README.md) define repeatable local evidence.
+The [observability contract](../contracts/observability.md) fixes custom span and
+log names, fields, correlation, and redaction. Local results are recorded in
+[Delivery](../delivery.md#local-conformance-evidence); this table identifies what
+must be added before production acceptance.
+
+| Items | Available local evidence | Remaining qualification evidence |
+| --- | --- | --- |
+| `35` | exact component policy boundaries, package rejection, packed-vector and state oracles; comparative module benchmarks | accepted Module limits with repeatable CPU, allocation, retained-memory, and exhaustion measurements on the selected profile |
+| `36` | queue and identity admission, retention, per-Workspace serialization, PostgreSQL tests, 1/8 independent browser Workspaces, Hot Swap benchmark cases | sustained and saturated queue/storage load, fairness, history/idempotency retention cost, and accepted Workspace envelopes |
+| `37` | primary authoring, inspection, diagnostics, recovery, responsive layouts, schematic zoom, and screenshot fixtures | review and acceptance of the curated visual workflows on the selected supported-device matrix |
+| `38` | English/Chinese interaction and culture continuity, packaged-font checks, text zoom, density, and reconnect fixtures | accepted long-label and bidi visual matrix, actual browser zoom, and supported browser/device combinations |
+| `39` | bitmap and snapshot boundary enforcement, pending-frame and teardown invariants | retained frame/long-task/idle traces and measured cache, intent, and rendering envelopes under representative load |
+| `40` | local authentication, owner concealment, antiforgery, CSP, body/transfer limits, cookies, and custom telemetry redaction tests | deployed proxy/TLS trust, identity configuration, exported framework telemetry redaction, and environment security acceptance |
+| `41` | local database, readiness, authentication lifetime, coordinator drain, and cleanup integration tests | deployed migrations, restart and abandoned-lock drills, actual Data Protection continuity, and operational acceptance |
+
+Run `Dry` benchmark jobs only as execution checks. They cannot determine a policy
+limit. Local elapsed times cannot be transferred to a 0.5 CPU/1 GiB production
+container or presented as an accepted latency objective. No provisional value has
+been relabeled as a calibrated limit.
+
 ## Item 42 decision record
 
 Record an owner, review date, chosen value, and evidence link for every row before

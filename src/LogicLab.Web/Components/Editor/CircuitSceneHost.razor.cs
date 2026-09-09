@@ -34,6 +34,11 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     private ulong rendererGeneration;
     private ulong failureEpoch;
     private int isDisposed;
+    private EditorLocalDiagnostics? localDiagnostics;
+    private EditorLocalDiagnostics? pendingDiagnostics;
+
+    [Parameter]
+    public EventCallback<EditorLocalDiagnostics> OnDiagnosticsChanged { get; set; }
 
     [Parameter, EditorRequired]
     public ProjectRevision ProjectRevision { get; set; } = null!;
@@ -58,6 +63,9 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
 
     [Parameter]
     public SimulationProjection? Simulation { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<WorkspaceDiagnostic> OperationDiagnostics { get; set; } = [];
 
     [Parameter]
     public CompilationProjection? Compilation { get; set; }
@@ -120,8 +128,18 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     private bool CanUpdateRenderer => isDisposed == 0 && !retryInProgress
         && rendererState != RendererUnavailableState;
 
+    private bool CanInteract => rendererState == RendererReadyState && publishedTool == EffectiveTool
+        && publishedKey is { } key && key.RevisionId == ProjectRevision.RevisionId.Value
+        && key.DefinitionId == CircuitDefinitionId.Value && key.UiCulture == UiCulture;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (pendingDiagnostics is { } evidence && isDisposed == 0)
+        {
+            pendingDiagnostics = null;
+            await OnDiagnosticsChanged.InvokeAsync(evidence);
+        }
+
         if (!RendererInfo.IsInteractive || !CanUpdateRenderer || rendererUpdateInProgress)
         {
             return;
@@ -171,6 +189,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
                 }
 
                 publishedTool = tool;
+                renderRequired = true;
             }
 
             var key = CurrentKey();
@@ -544,7 +563,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             await publishingAdapter.ReplaceAsync(replacement, cancellationToken);
         }
 
-        if (IsCurrentRenderer(generation, observedFailureEpoch))
+        if (key == CurrentKey() && IsCurrentRenderer(generation, observedFailureEpoch))
         {
             UpdateRendererState(replacement);
             publishedKey = key;
@@ -664,7 +683,8 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
     {
         var selection = Selection?.Sources ?? [];
         var diagnostics = Compilation?.Diagnostics ?? [];
-        var sceneDiagnostics = diagnostics
+        var sceneDiagnostics = OperationOverlayDiagnostics().ToList();
+        sceneDiagnostics.AddRange(diagnostics
             .Where(diagnostic => diagnostic.Primary is CompilerCircuitLocation location
                 && (HierarchyPath is null
                     || IsSamePath(location.Source.HierarchyPath, HierarchyPath)))
@@ -674,8 +694,7 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             .Select(item => new BrowserSceneDiagnosticInputV1(
                 item.Source!,
                 item.Diagnostic.Code,
-                "error"))
-            .ToList();
+                "error")));
         if (Simulation is not { } simulation || HierarchyPath is not { } hierarchyPath)
         {
             return new BrowserSceneOverlayInputV1(
@@ -719,6 +738,14 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             sceneDiagnostics);
     }
 
+    private IEnumerable<BrowserSceneDiagnosticInputV1> OperationOverlayDiagnostics() =>
+        DiagnosticPresentation.Project(null, OperationDiagnostics)
+            .Where(item => item.RevisionId == ProjectRevision.RevisionId && item.Source is { } source
+                && (source.HierarchyPath is null || (HierarchyPath is { } path && IsSamePath(source.HierarchyPath, path))))
+            .Select(item => (Diagnostic: item, Source: SceneSourceMap.TryFrom(item.Source!.Identity)))
+            .Where(item => item.Source is not null && SceneSourceMap.Contains(ProjectRevision, item.Source))
+            .Select(item => new BrowserSceneDiagnosticInputV1(item.Source!, item.Diagnostic.Code, item.Diagnostic.Severity));
+
     private static bool IsSamePath(
         HierarchyPath path,
         SceneHierarchyPathV1 scenePath) =>
@@ -740,7 +767,9 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
             ? string.Empty
             : string.Join('/', HierarchyPath.Steps.Select(step =>
                 $"{step.ContainingCircuitDefinitionId}:{step.ComponentInstanceId}"));
-        return $"{selection}\n{simulation}\n{path}";
+        var diagnostics = string.Join('|', OperationOverlayDiagnostics().Select(item =>
+            $"{item.Source.Key}:{item.DiagnosticCode}:{item.Severity}"));
+        return $"{selection}\n{simulation}\n{path}\n{diagnostics}";
     }
 
     private PublicationKey CurrentKey() => new(
@@ -760,12 +789,26 @@ public sealed partial class CircuitSceneHost : IAsyncDisposable
         projectionDiagnostics = [];
         browserPolicyEvidence = policyEvidence;
         rendererState = RendererUnavailableState;
+        SetLocalDiagnostics(new(ProjectRevision.RevisionId, CircuitDefinitionId, [],
+            [EditorBrowserDiagnostic.FromFailure(code, policyEvidence)]));
+    }
+
+    private void SetLocalDiagnostics(EditorLocalDiagnostics evidence)
+    {
+        if (evidence.HasSameEvidence(localDiagnostics))
+        {
+            return;
+        }
+        localDiagnostics = evidence;
+        pendingDiagnostics = evidence;
     }
 
     internal void UpdateRendererState(SceneReplacementV1 replacement)
     {
         ArgumentNullException.ThrowIfNull(replacement);
         currentSnapshot = replacement as SceneSnapshotV1;
+        SetLocalDiagnostics(new(ProjectRevision.RevisionId, CircuitDefinitionId,
+            replacement.PresentationDiagnostics, []));
         if (replacement is SceneUnavailableV1 unavailable)
         {
             projectionDiagnostics = [.. unavailable.Diagnostics];

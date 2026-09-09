@@ -49,20 +49,22 @@ internal sealed partial class WorkbenchComponentTests
         await ClickAndWaitForState(rendered, "pause", () => RunState(rendered) == "Paused");
     }
 
-    [Test]
+    [Test, Timeout(30_000)]
     [Arguments(false)]
     [Arguments(true)]
-    public async Task Editor_FiniteRun_PausesWhenTheEventQueueIsEmpty(bool scheduleInput)
+    public async Task Editor_FiniteRun_PausesWhenTheEventQueueIsEmpty(bool scheduleInput, CancellationToken cancellationToken)
     {
         await using var context = CreateContext();
-        await using var workspace = new TrackingWorkspace();
+        await using var workspace = new FiniteRunObservationWorkspace();
         var rendered = await RenderSimulationEditor(context, workspace);
         if (scheduleInput)
         {
             await rendered.Find("[data-command='stimulus']").ClickAsync();
         }
 
-        await ClickAndWaitForState(rendered, "run", () => RunState(rendered) == "Paused");
+        await rendered.Find("[data-command='run']").ClickAsync();
+        await workspace.PausedProjectionRead.WaitAsync(cancellationToken);
+        await rendered.WaitForStateAsync(() => RunState(rendered) == "Paused");
         var after = await workspace.ReadCurrent();
 
         using (Assert.Multiple())
@@ -152,6 +154,25 @@ internal sealed partial class WorkbenchComponentTests
         await ClickAndWaitForState(rendered, "compile", () => !IsDisabled(rendered, "session"));
         await ClickAndWaitForState(rendered, "session", () => !IsDisabled(rendered, "stimulus"));
         return rendered;
+    }
+
+    private sealed class FiniteRunObservationWorkspace : TrackingWorkspace
+    {
+        private readonly TaskCompletionSource paused = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task PausedProjectionRead => paused.Task;
+
+        public override async Task<WorkspaceReadOutcome> ReadAsync(
+            WorkspaceQueryContext context, WorkspaceQuery query, CancellationToken cancellationToken)
+        {
+            var outcome = await base.ReadAsync(context, query, cancellationToken);
+            if (outcome is ProjectionSnapshot
+                { Projection.Simulation.Run: RunPausedProjection { PauseReason: RunPauseReason.NoScheduledEvents } })
+            {
+                paused.TrySetResult();
+            }
+            return outcome;
+        }
     }
 
     private sealed class BlockingRunObservationWorkspace : TrackingWorkspace

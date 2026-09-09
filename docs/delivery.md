@@ -2,7 +2,7 @@
 
 > **Status:** approved execution plan
 >
-> **Current frontier:** Workbench conformance (`26`, `27`), then Component evidence (`33`)
+> **Current frontier:** production policy calibration and environment qualification (`35`–`43`)
 >
 > **Qualification gate:** item `43`
 >
@@ -14,12 +14,11 @@ plan rather than treating it as a second specification.
 
 ## Delivery status
 
-Items `01`–`25` are complete. Items `26` and `27` have working Scene and waveform
-implementations, but remain open for the documented Workbench behavior. Item `33`
-closes V1 Component evidence.
-Items `34`–`43` qualify one concrete production deployment. Boolean explanation
-and proof-gated simplification are outside V1 and follow the separate future plan
-at items `F01`–`F05`.
+Items `01`–`27`, `33`, and `34` are complete. V1 Workbench behavior, the
+Component evidence manifest, and the representative local qualification corpus
+have executable evidence. Items `35`–`43` remain open for measured policy envelopes,
+supported-device acceptance, and one concrete production deployment. Boolean
+explanation and proof-gated simplification are outside V1 and follow items `F01`–`F05`.
 
 ### Completed
 
@@ -50,34 +49,33 @@ at items `F01`–`F05`.
 | `23` | basic TeachingMixed Geometry Plans                    |
 | `24` | complex and hierarchical symbol projection            |
 | `25` | sequential and memory symbols with conformance export |
+| `26` | Workbench authoring, inspection, and revision history  |
+| `27` | Instrument Bay observation and source-linked diagnostics |
+| `33` | validated evidence manifest for all 35 core contracts |
+| `34` | versioned qualification corpus and telemetry catalog |
 
 Completed-item detail belongs to the owning specification, executable tests, and
 Git history. This table intentionally keeps only the delivery record.
 
-## Active implementation frontier
+## Local conformance evidence
 
-|   ID | Slice                                      | Requires                           | Completion signal                                                                                                                            |
-| ---: | ------------------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `26` | Workbench authoring and inspection         | `12`, `18`, `25`                   | documented authoring and revision-history actions are reachable; selection facts and shared Probe identity cues pass interaction evidence    |
-| `27` | Instrument Bay observation and diagnostics | `18`, `26`                         | waveform observation and the complete ordered, source-linked Diagnostics list support navigation and recovery                                |
-| `33` | V1 Component evidence manifest             | `15`, `16`, `18`, `22`, `25`, `27` | every `logiclab.core` Contract ID has the required schema, oracle, lowering, serialization, symbol, property, Hot Swap, and browser evidence |
+The [component evidence procedure](../conformance/README.md) and
+[qualification corpus](../qualification/README.md) validate the core catalog and
+representative workflows against fresh, fully passing MTP reports in CI and before
+Release. Those artifacts own the exact test selectors and case counts. The
+compiler-admission and Hot Swap benchmark smoke checks use `Dry`, which establishes
+execution only, not performance acceptance.
 
-The current Workbench exposes revision-history controls and a Diagnostics tab for
-ordered compiler and current Session diagnostics, with source navigation and
-component/browser evidence. Diagnostics from other operation phases remain to be
-integrated. Inspector and Probe Spine share identity cues and bidirectional
-navigation; Inspector shows current selection-local compiler and Session diagnostics
-with the same localized explanations as the Diagnostics tab. Existing lower-layer
-commands and passing Scene/waveform tests do not close these integration gaps.
-Items `26` and `27` must satisfy their completion signals before V1 behavior is
-called implementation-complete. Item `33` and production qualification remain
-separate gates.
+Authoring, inspection, diagnostics, recovery, and Probe/waveform interactions have
+component and Chromium evidence, including desktop and narrow layouts. Local
+PostgreSQL and host tests cover their declared persistence and security boundaries.
+These results close implementation conformance; they do not establish a production
+capacity profile or replace the remaining qualification evidence below.
 
 ## Production qualification
 
 |   ID | Slice                                                      | Requires               | Completion signal                                                                                                                    |
 | ---: | ---------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `34` | freeze the representative corpus and observability catalog | `20`, `33`             | versioned circuit, browser, and load corpora plus a stable redacted telemetry catalog                                                |
 | `35` | calibrate core Module policies                             | `34`                   | Package, Project Scale, Simulation, and Trace limits have repeatable corpus and environment evidence                                 |
 | `36` | calibrate Scheduling and Workspace policies                | `20`, `34`             | queue, fairness, retention, history, idempotency, catalog, and Hot Swap envelopes have load and storage evidence                     |
 | `37` | qualify Workbench interaction and visual integrity         | `26`, `27`             | primary authoring, inspection, simulation, recovery, responsive, zoom, and curated visual workflows pass                             |
@@ -131,6 +129,6 @@ change. Future items never block items `33`–`43`.
 
 ## Dependency frontier
 
-Items `26` and `27` close the Workbench gaps before item `33` closes V1 Component
-evidence. Item `34` then starts deployment qualification. Items `F01`–`F05` have no
-dependency edge into this frontier.
+The completed implementation and frozen corpus feed items `35`–`41`. Their
+accepted envelopes and operational evidence determine item `42`; actual deployment
+drills close item `43`. Items `F01`–`F05` have no dependency edge into this frontier.

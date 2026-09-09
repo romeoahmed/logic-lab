@@ -8,7 +8,7 @@ namespace LogicLab.Application.Work;
 internal sealed partial class WorkCoordinator : IAsyncDisposable
 {
     private static readonly ActivitySource WorkActivitySource = new(
-        "LogicLab.Application.Work");
+        WorkTelemetry.ActivitySourceName);
 
     private readonly Lock gate = new();
     private readonly CancellationTokenSource stopping = new();
@@ -576,7 +576,8 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             }
             catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
             {
-                ReportFailure(exception, "compilation");
+                var code = ReportFailure(exception, "compilation");
+                activity?.SetStatus(ActivityStatusCode.Error, code);
             }
             finally
             {
@@ -661,7 +662,9 @@ internal sealed partial class WorkCoordinator : IAsyncDisposable
             }
             catch (Exception exception) when (!ExceptionClassifier.IsFatal(exception))
             {
-                item.Complete(FailureOutcome(exception, "session"));
+                var rejection = FailureOutcome(exception, "session");
+                activity?.SetStatus(ActivityStatusCode.Error, rejection.Code);
+                item.Complete(rejection);
             }
             finally
             {

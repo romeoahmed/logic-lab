@@ -12,6 +12,13 @@ internal sealed class ProjectEditorSequenceTests
     [Test, FsCheckProperty(MaxTest = 50)]
     public async Task Apply_GeneratedIntentSequence_PreservesModelAndRevisionInvariants(
         NonEmptyArray<byte> commandSequence)
+        => await VerifySequence(commandSequence.Get);
+
+    [Test]
+    public async Task Apply_QualificationSequenceV1_PreservesModelAndRevisionInvariants()
+        => await VerifySequence([0, 0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4, 6, 5, 7, 8, 10, 9, 11, 3, 3]);
+
+    private static async Task VerifySequence(byte[] commandSequence)
     {
         var revision = ((ProjectGenesisCommitted)ProjectEditor.Begin(
             new NewProjectSeed(
@@ -22,9 +29,9 @@ internal sealed class ProjectEditorSequenceTests
         var model = new EditorModel();
         var violations = new List<string>();
 
-        for (var step = 0; step < commandSequence.Get.Length; step++)
+        for (var step = 0; step < commandSequence.Length; step++)
         {
-            var command = commandSequence.Get[step];
+            var command = commandSequence[step];
             if (command % 12 == 11)
             {
                 VerifyExpectedRejection(revision, step, violations);
@@ -287,13 +294,13 @@ internal sealed class ProjectEditorSequenceTests
             {
                 Code: "authoring_missing_reference",
                 Severity: AuthoringDiagnosticSeverity.Error,
-                Primary: null,
+                Primary: CircuitRootSourceIdentity,
                 Arguments: [
                     {
                         Name: "referenceKind",
                         Value: StableTokenDiagnosticValue { Value: "componentInstance" }
                     }]
-            }])
+            }] || rejected.Diagnostics[0].Primary != new CircuitRootSourceIdentity(revision.Document.EntryCircuitDefinitionId))
         {
             violations.Add($"step {step}: rejection did not identify the missing component");
         }

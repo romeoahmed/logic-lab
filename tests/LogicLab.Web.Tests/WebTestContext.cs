@@ -12,6 +12,13 @@ namespace LogicLab.Web.Tests;
 
 internal static class WebTestContext
 {
+    static WebTestContext()
+    {
+        // Dispatcher scheduling shares the host with the concurrent solution tests.
+        // This is a bounded completion wait, not a renderer performance assertion.
+        BunitContext.DefaultWaitTimeout = TimeSpan.FromSeconds(5);
+    }
+
     public static BunitContext CreateBunitContext(
         bool configureAttachmentNavigation = false)
     {
@@ -40,6 +47,10 @@ internal static class WebTestContext
             .SetVoidResult();
         context.JSInterop.SetupVoid(
             "Microsoft.FluentUI.Blazor.Components.Tabs.ObserveTabsChanged",
+            static _ => true)
+            .SetVoidResult();
+        context.JSInterop.SetupVoid(
+            "Microsoft.FluentUI.Blazor.Components.Autocomplete.initialize",
             static _ => true)
             .SetVoidResult();
         context.JSInterop.SetupModule(BrowserSceneAdapter.ModulePath).Mode =

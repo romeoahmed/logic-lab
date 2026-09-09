@@ -1,0 +1,19 @@
+.port-editor {
+  display: grid;
+  gap: 0.65rem;
+  min-inline-size: 0;
+  padding-block: 0.5rem;
+}
+.port-editor p {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.port-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.port-error {
+  color: var(--ll-danger);
+}

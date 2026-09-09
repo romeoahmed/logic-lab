@@ -197,6 +197,17 @@ On graceful shutdown the host stops admission, marks readiness unhealthy, reques
 
 Activities span authenticated route handling, Workspace calls, repository operations, queued work, and transfer phases. Metrics use low-cardinality outcome, lane, and policy dimensions only. Logs record stable codes and correlations, not user content. Development diagnostics are never enabled in production.
 
+[Observability V1](../contracts/observability.md) owns the custom source names,
+structured event fields, correlation rules, and exporter qualification boundary.
+
+The Workbench records internal compiler, Simulation, presentation, and unexpected
+browser faults independently of whether the Diagnostics tab is open. The observation
+event carries the opaque correlation displayed to the user. Repeated observations of
+the same current fault produce one record, and closing the Workspace releases the
+observation state. Expected renderer unavailability and policy exhaustion remain
+structured recovery diagnostics. Logging uses
+[compile-time generated methods](https://learn.microsoft.com/en-us/dotnet/core/extensions/logger-message-generator).
+
 ## 9. Required evidence
 
 - route and render-mode integration snapshots proving only the `/editor` route family is Interactive Server;

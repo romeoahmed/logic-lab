@@ -195,7 +195,10 @@ An adapter maps these reasons to transport status and retry disposition without 
 Each Module defines a stable phase ordinal. Within a phase, diagnostics sort by canonical primary location, code, canonical argument encoding, then related-location sequence. Severity does not reorder evidence. Exact duplicates collapse; distinct related locations or arguments remain distinct. No order depends on dictionary traversal, task completion, allocation, Runtime ordinal, localized text, or log timestamp.
 
 Workspace preserves owning-Module order when composing authorization-safe Workspace
-evidence: Project Format, Circuit Authoring, Compiler, then Simulation. Web appends
+evidence: Project Format, Circuit Authoring, Compiler, Simulation, then Workspace
+notices, including current Web-view Probe recovery notices. The Workspace notice lifecycle is defined by the
+[Editor Workspace Contract](../contracts/editor-workspace.md#32-closed-query-catalog-and-projection).
+Web appends
 one Diagram Presentation phase only after the matching Schematic Projection attempt,
 then current browser-local Web diagnostics in adapter order `Scene`, `Waveform` and
 canonical Diagnostic order within each adapter. Browser-local Diagnostics are not

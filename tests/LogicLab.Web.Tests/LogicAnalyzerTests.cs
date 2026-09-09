@@ -15,6 +15,26 @@ namespace LogicLab.Web.Tests;
 
 internal sealed partial class LogicAnalyzerTests
 {
+    [Test]
+    public async Task RendererFailure_RetiredGeneration_CannotReplaceCurrentDiagnostics()
+    {
+        await using var context = WebTestContext.CreateBunitContext();
+        context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
+        var fixture = Fixture.Create();
+        EditorLocalDiagnostics? evidence = null;
+        var rendered = context.Render<LogicAnalyzer>(parameters => parameters
+            .Add(component => component.Projection, fixture.Projection)
+            .Add(component => component.TraceReader, ReadTrace)
+            .Add(component => component.OnDiagnosticsChanged, value => evidence = value));
+        await rendered.InvokeAsync(() => rendered.Instance.WaveformRendererFailedAsync(0, "contextLost"));
+        await rendered.WaitForStateAsync(() => evidence?.Browser.Count == 1);
+        var failure = evidence!;
+        await Assert.That(failure.Browser[0].Code).IsEqualTo("web_renderer_unavailable");
+        await Assert.That(failure.Browser[0].Arguments.Single()).IsEqualTo(new EditorDiagnosticArgument("reason", "contextLost"));
+        await rendered.InvokeAsync(() => rendered.Instance.WaveformRendererFailedAsync(0, "unsafe payload"));
+        await Assert.That(evidence).IsEqualTo(failure);
+    }
+
     private static readonly ProbePresentationLabels PresentationLabels =
         new("Input", "Output");
 
@@ -274,8 +294,10 @@ internal sealed partial class LogicAnalyzerTests
         await using var context = WebTestContext.CreateBunitContext();
         context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
         var fixture = Fixture.Create();
+        EditorLocalDiagnostics? evidence = null;
         var rendered = context.Render<LogicAnalyzer>(parameters => parameters
             .Add(component => component.Projection, fixture.Projection)
+            .Add(component => component.OnDiagnosticsChanged, value => evidence = value)
             .Add(component => component.TraceReader, ReadTrace));
         await rendered.WaitForStateAsync(() =>
             rendered.FindAll(".probe-spine li").Count == 2);
@@ -288,6 +310,7 @@ internal sealed partial class LogicAnalyzerTests
             .Add(component => component.TraceReader, ReadTrace));
         await rendered.WaitForStateAsync(() => rendered.FindAll(
             ".probe-spine li[data-probe-binding='unresolved']").Count == 2);
+        await rendered.WaitForStateAsync(() => evidence?.ProbeRecovery.Count == 2);
 
         using (Assert.Multiple())
         {
@@ -295,7 +318,38 @@ internal sealed partial class LogicAnalyzerTests
             await Assert.That(rendered.FindAll(
                     ".probe-spine li[data-probe-binding='unresolved']"))
                 .Count().IsEqualTo(2);
+            await Assert.That(evidence!.ProbeRecovery.Select(notice => notice.Source))
+                .IsEquivalentTo(fixture.Projection.Simulation!.Probes.Select(probe => probe.Source));
+            await Assert.That(evidence.ProbeRecovery.Select(notice => notice.Code).Distinct())
+                .IsEquivalentTo(["workspace_probe_unresolved"]);
         }
+
+        var beforeRemove = evidence!;
+        await rendered.Find(".probe-spine li[data-probe-binding='unresolved'] [title='Remove']").ClickAsync();
+        await rendered.WaitForStateAsync(() => evidence!.ProbeRecovery.Count == 1);
+        await Assert.That(beforeRemove.ProbeRecovery).Count().IsEqualTo(2);
+        rendered.Render(parameters => parameters.Add(component => component.Projection, fixture.Projection));
+        await rendered.WaitForStateAsync(() => evidence!.ProbeRecovery.Count == 0);
+    }
+
+    [Test]
+    public async Task HiddenAnalyzer_ProbeRemovedBeforeHotSwap_DoesNotRecoverRetiredSnapshotRow()
+    {
+        await using var context = WebTestContext.CreateBunitContext();
+        context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
+        var fixture = Fixture.Create();
+        EditorLocalDiagnostics? evidence = null;
+        var rendered = context.Render<LogicAnalyzer>(parameters => parameters
+            .Add(component => component.Projection, fixture.Projection)
+            .Add(component => component.OnDiagnosticsChanged, value => evidence = value)
+            .Add(component => component.TraceReader, ReadTrace));
+        await rendered.WaitForStateAsync(() => rendered.FindAll(".probe-spine li").Count == 2);
+        await rendered.Find(".close-analyzer").ClickAsync();
+        var empty = fixture.WithProbes([]);
+        rendered.Render(parameters => parameters.Add(component => component.Projection, empty.Projection));
+        rendered.Render(parameters => parameters.Add(component => component.Projection, empty.WithArtifact("compiler-v2", [])));
+        await rendered.WaitForStateAsync(() => evidence is not null);
+        await Assert.That(evidence!.ProbeRecovery).IsEmpty();
     }
 
     [Test]

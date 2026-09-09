@@ -159,7 +159,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
             {
                 return Task.FromResult<WorkspaceOpenOutcome>(RejectOpen(
                     rejected.Reason,
-                    [.. rejected.Diagnostics.Select(item => item.Code)]));
+                    [.. rejected.Diagnostics.Select(item => new WorkspaceAuthoringDiagnostic(null, item))]));
             }
 
             var committed = (ProjectGenesisCommitted)genesis;
@@ -366,7 +366,7 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
         {
             return Reject(
                 rejected.Reason,
-                rejected.Diagnostics.Select(item => item.Code));
+                rejected.Diagnostics.Select(item => new WorkspaceAuthoringDiagnostic(state.Revision.RevisionId, item)));
         }
 
         var committed = (EditCommitted)outcome;
@@ -406,17 +406,38 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
                 state.HistoryCursor > 0,
                 state.HistoryCursor < state.History.Count - 1,
                 state.History.Count),
-            ProjectDurability(state));
+            ProjectDurability(state),
+            ProjectNotices(state));
+    }
+
+    private static WorkspaceNotice[] ProjectNotices(WorkspaceState state)
+    {
+        var notices = new List<WorkspaceNotice>(3);
+        // Canonical code order is independent of occurrence time and severity.
+        if (state.AttachmentGeneration > 1)
+        {
+            notices.Add(WorkspaceAttachmentRecovered.Instance);
+        }
+        if (state.Simulation is { } simulation
+            && simulation.CompilationArtifactKey.ProjectRevisionId != state.Revision.RevisionId)
+        {
+            notices.Add(WorkspaceCompilationStale.Instance);
+        }
+        if (state.RemovedHistoryRevisionCount != 0)
+        {
+            notices.Add(new WorkspaceHistoryTruncated(state.RemovedHistoryRevisionCount));
+        }
+        return [.. notices];
     }
 
     private static WorkspaceCommandRejected Reject(
         string code,
-        IEnumerable<string>? diagnosticCodes = null,
+        IEnumerable<WorkspaceDiagnostic>? diagnostics = null,
         PolicyEvidenceProjection? policyEvidence = null)
     {
         return new WorkspaceCommandRejected(
             code,
-            diagnosticCodes?.ToArray() ?? [],
+            diagnostics?.ToArray() ?? [],
             WorkspaceOutcomeReasons.RetryFor(code),
             policyEvidence);
     }
@@ -432,12 +453,12 @@ internal sealed partial class EditorWorkspace : IEditorWorkspace, IEditorWorkspa
 
     private static WorkspaceOpenRejected RejectOpen(
         string code,
-        IEnumerable<string>? diagnosticCodes = null,
+        IEnumerable<WorkspaceDiagnostic>? diagnostics = null,
         PolicyEvidenceProjection? policyEvidence = null)
     {
         return new WorkspaceOpenRejected(
             code,
-            diagnosticCodes?.ToArray() ?? [],
+            diagnostics?.ToArray() ?? [],
             WorkspaceOutcomeReasons.RetryFor(code),
             policyEvidence);
     }

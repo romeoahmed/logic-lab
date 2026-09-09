@@ -110,7 +110,7 @@ internal sealed partial class EditorWorkspace
                     {
                         return RejectOpen(
                             rejectedGenesis.Reason,
-                            [.. rejectedGenesis.Diagnostics.Select(item => item.Code)]);
+                            [.. rejectedGenesis.Diagnostics.Select(item => new WorkspaceAuthoringDiagnostic(null, item))]);
                     }
 
                     revision = ((ProjectGenesisCommitted)genesis).Revision;
@@ -169,7 +169,7 @@ internal sealed partial class EditorWorkspace
                 return compilation is CompilationRejectedProjection rejected
                     ? RejectOpen(
                         rejected.RejectionCode,
-                        [.. rejected.Diagnostics.Select(diagnostic => diagnostic.Code)],
+                        [.. rejected.Diagnostics.Select(diagnostic => new WorkspaceCompilationDiagnostic(revision.RevisionId, diagnostic))],
                         rejected.PolicyEvidence)
                     : RejectOpen(WorkspaceOutcomeReasons.WorkspaceCancelled);
             }

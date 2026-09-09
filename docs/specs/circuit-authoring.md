@@ -195,6 +195,14 @@ locations, and canonical ordering. Web owns localization. Diagnostic witnesses,
 identity retention, and changed/removed identity sets are independent of input map
 order, process state, culture, and browser geometry.
 
+A rejected Edit Intent preserves every precise producer location. Diagnostics
+without such a location identify the existing operation scope: the single edited
+entity or Memory Image, the containing Circuit Definition for a compound edit or
+an entity not yet created, or the Project root when no single existing circuit or
+resource is available. Missing entities never receive newly allocated identities.
+These scoped diagnostics are canonicalized after source attachment. Rejected
+Genesis retains no Project location because no Project identity has been published.
+
 ## 8. Required evidence
 
 - model-based Edit Intent sequences preserving every Project Document invariant;

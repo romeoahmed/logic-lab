@@ -58,6 +58,7 @@ internal static class EngineBenchmarkCorpus
         new(CircuitBenchmarkShape.SinglePortRam, 16),
         new(CircuitBenchmarkShape.SinglePortRam, 256),
         new(CircuitBenchmarkShape.SinglePortRam, 4_096),
+        new(CircuitBenchmarkShape.SinglePortRam, 4_096, wordWidth: 65),
     ];
 
     public static IReadOnlyList<CircuitBenchmarkCase> SnapshotCases { get; } =
@@ -169,19 +170,19 @@ internal static class EngineBenchmarkCorpus
     public static SimulationOpened Open(OpenSimulationRequest request) =>
         (SimulationOpened)SimulationRuntime.Open(request, CancellationToken.None);
 
-    private static CompilationRequest CreateCompilationRequest(ProjectRevision revision) =>
+    public static CompilationRequest CreateCompilationRequest(ProjectRevision revision) =>
         new(
             revision,
             revision.Document.EntryCircuitDefinitionId,
             revision.Document.LibrarySnapshot,
             ProjectScale);
 
-    private static CompilationArtifact Compile(ProjectRevision revision) =>
+    public static CompilationArtifact Compile(ProjectRevision revision) =>
         ((CompilationSucceeded)Compiler.Compile(
             CreateCompilationRequest(revision),
             CancellationToken.None)).Artifact;
 
-    private static OpenSimulationRequest CreateOpenRequest(
+    public static OpenSimulationRequest CreateOpenRequest(
         CompilationArtifact artifact,
         IReadOnlyList<CompilationSource> probes) =>
         new(

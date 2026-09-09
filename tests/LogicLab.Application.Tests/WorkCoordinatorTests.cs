@@ -255,10 +255,13 @@ internal sealed class WorkCoordinatorTests
     }
 
     [Test, Timeout(30_000)]
-    [Arguments("compilation")]
-    [Arguments("session")]
+    [Arguments("compilation", false)]
+    [Arguments("session", false)]
+    [Arguments("compilation", true)]
+    [Arguments("session", true)]
     public async Task Schedule_WorkItemFailure_UsesSchedulingTrace(
         string lane,
+        bool collectTrace,
         CancellationToken cancellationToken)
     {
         using var logs = new FakeLoggerProvider();
@@ -268,6 +271,21 @@ internal sealed class WorkCoordinatorTests
             out var constructionTrace);
         await using var coordinatorLifetime = coordinator;
         var schedulingTrace = ActivityTraceId.CreateRandom();
+        var stopped = new TaskCompletionSource<Activity>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => collectTrace && source.Name == WorkTelemetry.ActivitySourceName,
+            Sample = (ref ActivityCreationOptions<ActivityContext> options) => options.Parent.TraceId == schedulingTrace
+                ? ActivitySamplingResult.AllDataAndRecorded : ActivitySamplingResult.None,
+            ActivityStopped = activity =>
+            {
+                if (activity.TraceId == schedulingTrace)
+                {
+                    stopped.TrySetResult(activity);
+                }
+            },
+        };
+        ActivitySource.AddActivityListener(listener);
         using var schedulingActivity = new Activity("scheduling-request");
         schedulingActivity.SetIdFormat(ActivityIdFormat.W3C);
         schedulingActivity.SetParentId(
@@ -305,6 +323,19 @@ internal sealed class WorkCoordinatorTests
         }
 
         var log = logs.Collector.GetSnapshot().Single(entry => entry.Id.Id == 1001);
+        if (collectTrace)
+        {
+            var activity = await stopped.Task.WaitAsync(cancellationToken);
+            await Assert.That(activity.OperationName).IsEqualTo($"LogicLab.Work.{lane}");
+            await Assert.That(activity.ParentSpanId).IsEqualTo(schedulingActivity.SpanId);
+            await Assert.That(activity.TraceId).IsEqualTo(schedulingTrace);
+            await Assert.That(activity.Kind).IsEqualTo(ActivityKind.Internal);
+            await Assert.That(activity.Status).IsEqualTo(ActivityStatusCode.Error);
+            await Assert.That(activity.StatusDescription).IsEqualTo(WorkspaceOutcomeReasons.WorkspaceInternalDefect);
+            await Assert.That(activity.TagObjects).IsEmpty();
+            await Assert.That(activity.Events).IsEmpty();
+            await Assert.That(activity.Baggage).IsEmpty();
+        }
         using (Assert.Multiple())
         {
             await Assert.That(rejection).IsNull();

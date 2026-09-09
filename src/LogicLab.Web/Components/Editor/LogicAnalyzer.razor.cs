@@ -17,7 +17,8 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
     private const int DefaultSummaryPointCount = 512;
     private const ulong InitialViewportSpan = 64;
     private readonly CancellationTokenSource componentLifetime = new();
-    private readonly HashSet<string> observedProbeIds = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, CompilationSource> observedProbeSources = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, CompilationSource> recoverySources = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> radixByProbeId = new(StringComparer.Ordinal);
     private readonly List<WaveformRowV1> recoveryRows = [];
     private ElementReference hostElement;
@@ -50,6 +51,11 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
     private TraceFailure? traceFailure;
     private BrowserPolicyEvidenceV1? browserPolicyEvidence;
     private int isDisposed;
+    private EditorLocalDiagnostics? localDiagnostics;
+    private EditorLocalDiagnostics? pendingDiagnostics;
+
+    [Parameter]
+    public EventCallback<EditorLocalDiagnostics> OnDiagnosticsChanged { get; set; }
 
     [Parameter]
     public WorkspaceProjection? Projection { get; set; }
@@ -122,7 +128,8 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             loadedKey = null;
             viewport = null;
             recoveryRows.Clear();
-            observedProbeIds.Clear();
+            recoverySources.Clear();
+            observedProbeSources.Clear();
             observedSessionId = null;
             observedArtifactKey = null;
             projectedUiCulture = null;
@@ -149,6 +156,12 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (pendingDiagnostics is { } evidence && isDisposed == 0)
+        {
+            pendingDiagnostics = null;
+            await OnDiagnosticsChanged.InvokeAsync(evidence);
+        }
+
         if (!RendererInfo.IsInteractive || !CanPublish || isPublishing)
         {
             return;
@@ -294,11 +307,11 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         }
     }
 
-    internal async Task WaveformRendererFailedAsync(ulong generation)
+    internal async Task WaveformRendererFailedAsync(ulong generation, string code = "web_interop_failure")
     {
         if (generation == rendererGeneration && Volatile.Read(ref isDisposed) == 0)
         {
-            await FailRendererAsync();
+            await FailRendererAsync(code: code);
         }
     }
 
@@ -360,7 +373,7 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
             .Select(probe => probe.ProbeId.Value)
             .ToHashSet(StringComparer.Ordinal);
         var gainedProbe = sameSession
-            && activeProbeIds.Any(probeId => !observedProbeIds.Contains(probeId));
+            && activeProbeIds.Any(probeId => !observedProbeSources.ContainsKey(probeId));
         if (!sameSession)
         {
             if (rendererUnavailable)
@@ -369,9 +382,11 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
                 rendererUnavailable = false;
                 traceFailure = null;
                 browserPolicyEvidence = null;
+                SetLocalDiagnostics(new(projection.ProjectRevision.RevisionId, null, [], []));
             }
 
             recoveryRows.Clear();
+            recoverySources.Clear();
             radixByProbeId.Clear();
             currentTrace = null;
             viewport = null;
@@ -386,12 +401,20 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         {
             currentTrace = null;
             var unresolved = snapshot.Rows
-                .Where(row => !activeProbeIds.Contains(row.ProbeId))
+                .Where(row => !activeProbeIds.Contains(row.ProbeId)
+                    && (observedProbeSources.ContainsKey(row.ProbeId) || recoverySources.ContainsKey(row.ProbeId)))
                 .Select(row => BrowserWaveformProjection.Recover(
                     projection.ProjectRevision,
                     row,
                     PresentationLabels))
                 .ToArray();
+            foreach (var row in unresolved)
+            {
+                if (observedProbeSources.TryGetValue(row.ProbeId, out var source))
+                {
+                    recoverySources[row.ProbeId] = source;
+                }
+            }
             recoveryRows.RemoveAll(row => unresolved.Any(candidate =>
                 candidate.ProbeId == row.ProbeId));
             recoveryRows.AddRange(unresolved);
@@ -399,8 +422,11 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
 
         observedSessionId = sessionId;
         observedArtifactKey = artifactKey;
-        observedProbeIds.Clear();
-        observedProbeIds.UnionWith(activeProbeIds);
+        observedProbeSources.Clear();
+        foreach (var probe in simulation.Probes)
+        {
+            observedProbeSources.Add(probe.ProbeId.Value, probe.Source);
+        }
         for (var index = 0; index < recoveryRows.Count; index++)
         {
             recoveryRows[index] = BrowserWaveformProjection.Recover(
@@ -409,8 +435,16 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
                 PresentationLabels);
         }
 
-        recoveryRows.RemoveAll(row => simulation.Probes.Any(probe =>
-            BrowserWaveformProjection.MatchesSource(row, probe.Source)));
+        recoveryRows.RemoveAll(row =>
+        {
+            if (!simulation.Probes.Any(probe => BrowserWaveformProjection.MatchesSource(row, probe.Source)))
+            {
+                return false;
+            }
+            recoverySources.Remove(row.ProbeId);
+            return true;
+        });
+        UpdateRecoveryDiagnostics();
         if (gainedProbe)
         {
             currentTrace = null;
@@ -820,6 +854,8 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         if (row.Binding == "unresolved")
         {
             recoveryRows.RemoveAll(candidate => candidate.ProbeId == row.ProbeId);
+            recoverySources.Remove(row.ProbeId);
+            UpdateRecoveryDiagnostics();
             if (Simulation?.Probes.Count == 0 && recoveryRows.Count == 0)
             {
                 await ReloadAsync();
@@ -1040,6 +1076,10 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
 
         rendererUnavailable = false;
         browserPolicyEvidence = null;
+        if (Projection is { } projection)
+        {
+            SetLocalDiagnostics(new(projection.ProjectRevision.RevisionId, null, [], []));
+        }
         await ReleaseAdapterAsync();
     }
 
@@ -1056,16 +1096,43 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
         traceLoading = false;
     }
 
-    private async Task FailRendererAsync(BrowserPolicyEvidenceV1? evidence = null)
+    private async Task FailRendererAsync(BrowserPolicyEvidenceV1? evidence = null, string code = "web_interop_failure")
     {
         rendererGeneration = checked(rendererGeneration + 1);
         rendererUnavailable = true;
         traceFailure = TraceFailure.Renderer;
         browserPolicyEvidence = evidence;
+        if (Projection is { } projection)
+        {
+            SetLocalDiagnostics(new(projection.ProjectRevision.RevisionId, null, [],
+                [EditorBrowserDiagnostic.FromFailure(code, evidence)]));
+        }
         await ReleaseAdapterAsync();
         if (Volatile.Read(ref isDisposed) == 0)
         {
             await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void SetLocalDiagnostics(EditorLocalDiagnostics evidence)
+    {
+        var recovery = recoveryRows.Select(row => new WorkspaceProbeUnresolved(recoverySources[row.ProbeId]))
+            .Distinct().OrderBy(notice => notice.Source, CompilationSourceComparer.Instance).ToArray();
+        evidence = new EditorLocalDiagnostics(evidence.RevisionId, evidence.DefinitionId,
+            evidence.Presentation, evidence.Browser, recovery);
+        if (evidence.HasSameEvidence(localDiagnostics))
+        {
+            return;
+        }
+        localDiagnostics = evidence;
+        pendingDiagnostics = evidence;
+    }
+
+    private void UpdateRecoveryDiagnostics()
+    {
+        if (Projection is { } projection)
+        {
+            SetLocalDiagnostics(new(projection.ProjectRevision.RevisionId, null, [], localDiagnostics?.Browser ?? []));
         }
     }
 
@@ -1099,9 +1166,9 @@ public sealed partial class LogicAnalyzer : IAsyncDisposable
                 owner.ReceiveWaveformIntentAsync(generation, record));
 
         [JSInvokable]
-        public Task WaveformRendererFailedAsync() =>
+        public Task WaveformRendererFailedAsync(string code) =>
             owner.InvokeBrowserCallbackAsync(() =>
-                owner.WaveformRendererFailedAsync(generation));
+                owner.WaveformRendererFailedAsync(generation, code));
 
         [JSInvokable]
         public Task WaveformBrowserPolicyExhaustedAsync(

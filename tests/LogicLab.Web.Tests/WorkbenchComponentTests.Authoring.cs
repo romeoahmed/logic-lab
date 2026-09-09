@@ -9,6 +9,39 @@ namespace LogicLab.Web.Tests;
 internal sealed partial class WorkbenchComponentTests
 {
     [Test]
+    public async Task Editor_SelectedNetsAndMembers_MergeSplitAndUndoThroughWorkspace()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = await RenderAuthoredEditor(context, workspace);
+        var before = (await workspace.ReadCurrent()).ProjectRevision;
+        var definition = before.Document.EntryCircuitDefinition;
+        var destination = definition.Nets[1];
+        var source = definition.Nets[0];
+        await Select(rendered, [SceneSourceMap.From(new NetSourceIdentity(definition.Id, destination.Id)),
+            SceneSourceMap.From(new NetSourceIdentity(definition.Id, source.Id))]);
+        await ClickAndWaitForState(rendered, "selection-merge", () => CurrentDefinition(rendered)!.Nets.Count == 1);
+        var mergedRevision = (await workspace.ReadCurrent()).ProjectRevision;
+        var merged = mergedRevision.Document.EntryCircuitDefinition;
+        await Assert.That(merged.Nets.Single().Id).IsEqualTo(destination.Id);
+        await Assert.That(merged.Nets.Single().Terminals).IsEquivalentTo(definition.Nets.SelectMany(net => net.Terminals));
+        await Assert.That(merged.WireGeometries.All(wire => wire.NetId == destination.Id)).IsTrue();
+
+        var selectedTerminal = source.Terminals[0];
+        await Select(rendered, [SceneSourceMap.From(definition.Id, selectedTerminal)]);
+        await ClickAndWaitForState(rendered, "selection-split", () => CurrentDefinition(rendered)!.Nets.Count == 2);
+        var split = (await workspace.ReadCurrent()).ProjectRevision.Document.EntryCircuitDefinition;
+        await Assert.That(split.Nets.Single(net => net.Terminals.Contains(selectedTerminal)).Terminals)
+            .IsEquivalentTo([selectedTerminal]);
+        await Assert.That(split.Nets.SelectMany(net => net.Terminals)).IsEquivalentTo(merged.Nets.Single().Terminals);
+        await Assert.That(split.WireGeometries.Select(wire => wire.Id)).IsEquivalentTo(merged.WireGeometries.Select(wire => wire.Id));
+        await ClickAndWaitForState(rendered, "undo", () => CurrentDefinition(rendered)!.Nets.Count == 1);
+        await Assert.That((await workspace.ReadCurrent()).ProjectRevision).IsSameReferenceAs(mergedRevision);
+        await ClickAndWaitForState(rendered, "undo", () => CurrentDefinition(rendered)!.Nets.Count == 2);
+        await Assert.That((await workspace.ReadCurrent()).ProjectRevision).IsSameReferenceAs(before);
+    }
+
+    [Test]
     [Arguments(false)]
     [Arguments(true)]
     public async Task Editor_InvalidSceneInput_DiscardsEditAndAcceptsNextGesture(bool stale)

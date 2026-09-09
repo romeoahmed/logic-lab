@@ -1,0 +1,1281 @@
+[
+  {
+    "id": "browser.core-keyboard",
+    "kind": "Browser",
+    "contractIds": [
+      "logic.adder",
+      "logic.and",
+      "logic.buffer",
+      "logic.decoder",
+      "logic.demux",
+      "logic.mux",
+      "logic.nand",
+      "logic.nor",
+      "logic.not",
+      "logic.or",
+      "logic.priority_encoder",
+      "logic.shift",
+      "logic.subtractor",
+      "logic.tristate",
+      "logic.unsigned_compare",
+      "logic.xnor",
+      "logic.xor",
+      "memory.ram_single_port",
+      "memory.rom",
+      "sequential.counter",
+      "sequential.d_latch",
+      "sequential.dff",
+      "sequential.jkff",
+      "sequential.register",
+      "sequential.shift_register",
+      "sequential.sr_latch",
+      "sequential.tff",
+      "sink.output",
+      "source.clock",
+      "source.constant",
+      "source.input",
+      "topology.concat",
+      "topology.sign_extend",
+      "topology.split",
+      "topology.zero_extend"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Web.BrowserTests",
+        "className": "LogicLab.Web.BrowserTests.CoreComponentBrowserTests",
+        "method": "Palette_CoreContract_KeyboardActivationPlacesInspectableSymbolAndSupportsHistory",
+        "caseCount": 35
+      },
+      {
+        "assembly": "LogicLab.Web.BrowserTests",
+        "className": "LogicLab.Web.BrowserTests.CircuitSceneFontTests",
+        "method": "Project_AllCoreComponents_RealFontProducesCompleteCanvasScene",
+        "caseCount": 2
+      }
+    ]
+  },
+  {
+    "id": "logiclab.teachingmixed.boundary",
+    "kind": "Symbol",
+    "contractIds": [
+      "sink.output",
+      "source.input"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Presentation.Tests",
+        "className": "LogicLab.Presentation.Tests.ComplexTeachingMixedGeometryPlannerTests",
+        "method": "Plan_BoundaryTerminalDefault_UsesCompactSignalTag",
+        "caseCount": 2
+      }
+    ]
+  },
+  {
+    "id": "logiclab.teachingmixed.distinctive",
+    "kind": "Symbol",
+    "contractIds": [
+      "logic.and",
+      "logic.buffer",
+      "logic.nand",
+      "logic.nor",
+      "logic.not",
+      "logic.or",
+      "logic.xnor",
+      "logic.xor"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Presentation.Tests",
+        "className": "LogicLab.Presentation.Tests.TeachingMixedGeometryPlannerTests",
+        "method": "Plan_DistinctiveBasicGate_PublishesRegisteredClaimAndQualifier",
+        "caseCount": 8
+      }
+    ]
+  },
+  {
+    "id": "logiclab.teachingmixed.rectangular",
+    "kind": "Symbol",
+    "contractIds": [
+      "logic.adder",
+      "logic.and",
+      "logic.buffer",
+      "logic.decoder",
+      "logic.demux",
+      "logic.mux",
+      "logic.nand",
+      "logic.nor",
+      "logic.not",
+      "logic.or",
+      "logic.priority_encoder",
+      "logic.shift",
+      "logic.subtractor",
+      "logic.tristate",
+      "logic.unsigned_compare",
+      "logic.xnor",
+      "logic.xor",
+      "memory.ram_single_port",
+      "memory.rom",
+      "sequential.counter",
+      "sequential.d_latch",
+      "sequential.dff",
+      "sequential.jkff",
+      "sequential.register",
+      "sequential.shift_register",
+      "sequential.sr_latch",
+      "sequential.tff",
+      "source.clock",
+      "source.constant",
+      "topology.concat",
+      "topology.sign_extend",
+      "topology.split",
+      "topology.zero_extend"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Presentation.Tests",
+        "className": "LogicLab.Presentation.Tests.TeachingMixedGeometryPlannerTests",
+        "method": "Plan_RectangularOverride_PreservesPortsAndStandardEvidence",
+        "caseCount": 8
+      },
+      {
+        "assembly": "LogicLab.Presentation.Tests",
+        "className": "LogicLab.Presentation.Tests.ComplexTeachingMixedGeometryPlannerTests",
+        "method": "Plan_RectangularLibrarySymbol_EmitsFunctionAndOrderedPorts",
+        "caseCount": 14
+      },
+      {
+        "assembly": "LogicLab.Presentation.Tests",
+        "className": "LogicLab.Presentation.Tests.ComplexTeachingMixedGeometryPlannerTests",
+        "method": "Plan_ScalarSequentialOrMemorySymbol_PublishesRegisteredNotationAndEvidence",
+        "caseCount": 9
+      },
+      {
+        "assembly": "LogicLab.Presentation.Tests",
+        "className": "LogicLab.Presentation.Tests.ComplexTeachingMixedGeometryPlannerTests",
+        "method": "Plan_AstableClock_PublishesStandardFunctionWithoutContractOutputId",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "lowering.core",
+    "kind": "Lowering",
+    "contractIds": [
+      "logic.adder",
+      "logic.and",
+      "logic.buffer",
+      "logic.decoder",
+      "logic.demux",
+      "logic.mux",
+      "logic.nand",
+      "logic.nor",
+      "logic.not",
+      "logic.or",
+      "logic.priority_encoder",
+      "logic.shift",
+      "logic.subtractor",
+      "logic.tristate",
+      "logic.unsigned_compare",
+      "logic.xnor",
+      "logic.xor",
+      "memory.ram_single_port",
+      "memory.rom",
+      "sequential.counter",
+      "sequential.d_latch",
+      "sequential.dff",
+      "sequential.jkff",
+      "sequential.register",
+      "sequential.shift_register",
+      "sequential.sr_latch",
+      "sequential.tff",
+      "sink.output",
+      "source.clock",
+      "source.constant",
+      "source.input",
+      "topology.concat",
+      "topology.sign_extend",
+      "topology.split",
+      "topology.zero_extend"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CoreContractRuntimeTests",
+        "method": "Execute_CoreContract_CompilesAndPreservesObservationsAcrossCompatibleHotSwap",
+        "caseCount": 35
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CompilerGraphTests",
+        "method": "CreatePlan_EveryThreeNodeGraph_MatchesReachabilityAndCanonicalOrder",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.adder",
+    "kind": "Oracle",
+    "contractIds": [
+      "logic.adder"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.ArithmeticEvaluationTests",
+        "method": "Add_FourStateOperands_MatchesPossibleCaseCarryOracle",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.buffer",
+    "kind": "Oracle",
+    "contractIds": [
+      "logic.buffer"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.VectorLogicTests",
+        "method": "NormalizeInput_ValidVector_MatchesScalarOracleAtEveryBit",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.clock",
+    "kind": "Oracle",
+    "contractIds": [
+      "source.clock"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialRuntimeTests",
+        "method": "Execute_ClockSourceAndDff_StepsLazyAlternatingEventCalendar",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialRuntimeTests",
+        "method": "Execute_ClockAtMaximumLogicalTime_CommitsAndExposesFinalTransition",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.d_latch",
+    "kind": "Oracle",
+    "contractIds": [
+      "sequential.d_latch"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialRuntimeTests",
+        "method": "Execute_DLatchUnknownEnable_MergesHoldAndCaptureCases",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "EdgeClassification_EveryFourStateTransition_MatchesContract",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "StorageAndEnable_PackedWidthsAndFourStateInputs_MatchScalarCaptureAndHoldModel",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.decoder",
+    "kind": "Oracle",
+    "contractIds": [
+      "logic.decoder"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SteeringLogicTests",
+        "method": "Decoder_EveryAddressEnableAndPolarity_MatchesPossibleWorlds",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.dff",
+    "kind": "Oracle",
+    "contractIds": [
+      "sequential.dff"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialRuntimeTests",
+        "method": "Execute_FallingEdgeDff_CapturesOnlyConfiguredEdge",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "EdgeClassification_EveryFourStateTransition_MatchesContract",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "StorageAndEnable_PackedWidthsAndFourStateInputs_MatchScalarCaptureAndHoldModel",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.gates",
+    "kind": "Oracle",
+    "contractIds": [
+      "logic.and",
+      "logic.nand",
+      "logic.nor",
+      "logic.or",
+      "logic.xnor",
+      "logic.xor"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SteeringLogicTests",
+        "method": "Gate_ThreeInputs_MatchesEveryPossibleBinaryWorld",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.input",
+    "kind": "Oracle",
+    "contractIds": [
+      "source.input"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SimulationRuntimeTests",
+        "method": "Execute_GeneratedStimuli_MatchStableTimeBucketModel",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.jkff",
+    "kind": "Oracle",
+    "contractIds": [
+      "sequential.jkff"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "JkFlipFlop_EveryFourStateInput_MatchesReachableControlWorlds",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "EdgeClassification_EveryFourStateTransition_MatchesContract",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.memory",
+    "kind": "Oracle",
+    "contractIds": [
+      "memory.ram_single_port",
+      "memory.rom"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.MemoryEvaluationTests",
+        "method": "Read_EveryTwoBitAddress_MatchesEnumeratedReachableWords",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.MemoryEvaluationTests",
+        "method": "Write_EveryTwoBitAddressAndEnable_MatchesEnumeratedPossibilities",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.mux-demux",
+    "kind": "Oracle",
+    "contractIds": [
+      "logic.demux",
+      "logic.mux"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SteeringLogicTests",
+        "method": "MuxAndDemux_TwoBitSelector_MatchPossibleWorldsAcrossPackedWidths",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.not",
+    "kind": "Oracle",
+    "contractIds": [
+      "logic.not"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.VectorLogicTests",
+        "method": "Not_ValidVector_MatchesScalarOracleAtEveryBit",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.priority_encoder",
+    "kind": "Oracle",
+    "contractIds": [
+      "logic.priority_encoder"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SteeringLogicTests",
+        "method": "PriorityEncoder_ShortInputsAndBothDirections_MatchPossibleWorlds",
+        "caseCount": 4
+      }
+    ]
+  },
+  {
+    "id": "oracle.register",
+    "kind": "Oracle",
+    "contractIds": [
+      "sequential.register"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialRuntimeTests",
+        "method": "Execute_RegisterEnableLow_HoldsOnDefiniteEdge",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "EdgeClassification_EveryFourStateTransition_MatchesContract",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "StorageAndEnable_PackedWidthsAndFourStateInputs_MatchScalarCaptureAndHoldModel",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.shift",
+    "kind": "Oracle",
+    "contractIds": [
+      "logic.shift"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.ArithmeticEvaluationTests",
+        "method": "LogicalShift_FourStateAmount_MatchesScalarOracle",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.shift-counter",
+    "kind": "Oracle",
+    "contractIds": [
+      "sequential.counter",
+      "sequential.shift_register"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "ShiftCounterAndTerminal_ReachableControls_MatchScalarOracle",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.sr_latch",
+    "kind": "Oracle",
+    "contractIds": [
+      "sequential.sr_latch"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "SrLatch_EveryFourStateInput_MatchesReachableControlWorlds",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "EdgeClassification_EveryFourStateTransition_MatchesContract",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.subtractor",
+    "kind": "Oracle",
+    "contractIds": [
+      "logic.subtractor"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.ArithmeticEvaluationTests",
+        "method": "Subtract_FourStateOperands_MatchesPossibleCaseBorrowOracle",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.tff",
+    "kind": "Oracle",
+    "contractIds": [
+      "sequential.tff"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "TFlipFlop_EveryFourStateInput_MatchesReachableControlWorlds",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "EdgeClassification_EveryFourStateTransition_MatchesContract",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.topology",
+    "kind": "Oracle",
+    "contractIds": [
+      "sink.output",
+      "source.constant",
+      "topology.concat",
+      "topology.sign_extend",
+      "topology.split",
+      "topology.zero_extend"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.TopologyRuntimeTests",
+        "method": "Open_ValidTopologyShape_MatchesScalarProjection",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.tristate",
+    "kind": "Oracle",
+    "contractIds": [
+      "logic.tristate"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SteeringLogicTests",
+        "method": "TriState_EveryDataEnableAndPolarity_MatchesPossibleWorldsAcrossPackedWidths",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "oracle.unsigned_compare",
+    "kind": "Oracle",
+    "contractIds": [
+      "logic.unsigned_compare"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.ArithmeticEvaluationTests",
+        "method": "UnsignedCompare_FourStateOperands_MatchesPossibleCaseOracle",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "parameters.core-envelopes",
+    "kind": "Parameters",
+    "contractIds": [
+      "logic.adder",
+      "logic.and",
+      "logic.buffer",
+      "logic.decoder",
+      "logic.demux",
+      "logic.mux",
+      "logic.nand",
+      "logic.nor",
+      "logic.not",
+      "logic.or",
+      "logic.priority_encoder",
+      "logic.shift",
+      "logic.subtractor",
+      "logic.tristate",
+      "logic.unsigned_compare",
+      "logic.xnor",
+      "logic.xor",
+      "memory.ram_single_port",
+      "memory.rom",
+      "sequential.counter",
+      "sequential.d_latch",
+      "sequential.dff",
+      "sequential.jkff",
+      "sequential.register",
+      "sequential.shift_register",
+      "sequential.sr_latch",
+      "sequential.tff",
+      "sink.output",
+      "source.clock",
+      "source.constant",
+      "source.input",
+      "topology.concat",
+      "topology.sign_extend",
+      "topology.split",
+      "topology.zero_extend"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Domain.Tests",
+        "className": "LogicLab.Domain.Tests.CoreContractParameterTests",
+        "method": "Apply_CoreContract_InvalidParameterEnvelopesPublishNoRevision",
+        "caseCount": 35
+      },
+      {
+        "assembly": "LogicLab.Domain.Tests",
+        "className": "LogicLab.Domain.Tests.CoreContractParameterTests",
+        "method": "ResolvePorts_CoreContract_MinimumOrdinaryAndPackedBoundaryMatchIndependentSnapshots",
+        "caseCount": 35
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CoreContractRuntimeTests",
+        "method": "Compile_CoreContract_PolicyEdgeAcceptsExactShapeAndRejectsNextLowerLimit",
+        "caseCount": 35
+      }
+    ]
+  },
+  {
+    "id": "properties.adder",
+    "kind": "Property",
+    "contractIds": [
+      "logic.adder"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.ArithmeticEvaluationTests",
+        "method": "Add_FourStateOperands_MatchesPossibleCaseCarryOracle",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CombinationalMonotonicityTests",
+        "method": "ArithmeticEvaluators_EveryComparableInputPair_AreMonotone",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.buffer",
+    "kind": "Property",
+    "contractIds": [
+      "logic.buffer"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.VectorLogicTests",
+        "method": "NormalizeInput_ValidVector_MatchesScalarOracleAtEveryBit",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.clock",
+    "kind": "Property",
+    "contractIds": [
+      "source.clock"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialRuntimeTests",
+        "method": "Execute_ClockSourceAndDff_StepsLazyAlternatingEventCalendar",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialRuntimeTests",
+        "method": "Execute_ClockAtMaximumLogicalTime_CommitsAndExposesFinalTransition",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.d_latch",
+    "kind": "Property",
+    "contractIds": [
+      "sequential.d_latch"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.VectorConservativeMergeTests",
+        "method": "Merge_NonemptySameWidthVectors_MatchesScalarOracleAtEveryBit",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.VectorLogicTests",
+        "method": "NormalizeInput_ValidVector_MatchesScalarOracleAtEveryBit",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "StorageAndEnable_PackedWidthsAndFourStateInputs_MatchScalarCaptureAndHoldModel",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.decoder",
+    "kind": "Property",
+    "contractIds": [
+      "logic.decoder"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CombinationalMonotonicityTests",
+        "method": "SteeringEvaluators_EveryComparableInputPair_AreMonotone",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.dff",
+    "kind": "Property",
+    "contractIds": [
+      "sequential.dff"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.VectorConservativeMergeTests",
+        "method": "Merge_NonemptySameWidthVectors_MatchesScalarOracleAtEveryBit",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.VectorLogicTests",
+        "method": "NormalizeInput_ValidVector_MatchesScalarOracleAtEveryBit",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "StorageAndEnable_PackedWidthsAndFourStateInputs_MatchScalarCaptureAndHoldModel",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.gates",
+    "kind": "Property",
+    "contractIds": [
+      "logic.and",
+      "logic.nand",
+      "logic.nor",
+      "logic.or",
+      "logic.xnor",
+      "logic.xor"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.VectorLogicTests",
+        "method": "And_ValidSameWidthVectors_MatchesScalarOracleAtEveryBit",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.VectorLogicTests",
+        "method": "Or_ValidSameWidthVectors_MatchesScalarOracleAtEveryBit",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.VectorLogicTests",
+        "method": "Xor_ValidSameWidthVectors_MatchesScalarOracleAtEveryBit",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CombinationalMonotonicityTests",
+        "method": "LogicEvaluators_EveryComparableInputPair_AreMonotone",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.hotswap",
+    "kind": "Property",
+    "contractIds": [
+      "logic.adder",
+      "logic.and",
+      "logic.buffer",
+      "logic.decoder",
+      "logic.demux",
+      "logic.mux",
+      "logic.nand",
+      "logic.nor",
+      "logic.not",
+      "logic.or",
+      "logic.priority_encoder",
+      "logic.shift",
+      "logic.subtractor",
+      "logic.tristate",
+      "logic.unsigned_compare",
+      "logic.xnor",
+      "logic.xor",
+      "memory.ram_single_port",
+      "memory.rom",
+      "sequential.counter",
+      "sequential.d_latch",
+      "sequential.dff",
+      "sequential.jkff",
+      "sequential.register",
+      "sequential.shift_register",
+      "sequential.sr_latch",
+      "sequential.tff",
+      "sink.output",
+      "source.clock",
+      "source.constant",
+      "source.input",
+      "topology.concat",
+      "topology.sign_extend",
+      "topology.split",
+      "topology.zero_extend"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CoreContractRuntimeTests",
+        "method": "Execute_ContractAndPortReplacement_RejectsStateLossAndAllowsStatelessChange",
+        "caseCount": 35
+      }
+    ]
+  },
+  {
+    "id": "properties.input",
+    "kind": "Property",
+    "contractIds": [
+      "source.input"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SimulationRuntimeTests",
+        "method": "Execute_GeneratedStimuli_MatchStableTimeBucketModel",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.jkff",
+    "kind": "Property",
+    "contractIds": [
+      "sequential.jkff"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "JkFlipFlop_EveryFourStateInput_MatchesReachableControlWorlds",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "EdgeClassification_EveryFourStateTransition_MatchesContract",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.memory",
+    "kind": "Property",
+    "contractIds": [
+      "memory.ram_single_port",
+      "memory.rom"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.MemoryEvaluationTests",
+        "method": "ReadWrite_PackedWidthsAndFourStateControls_MatchIndependentWordModel",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CombinationalMonotonicityTests",
+        "method": "MemoryRead_EveryComparableAddressPair_IsMonotone",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.mux-demux",
+    "kind": "Property",
+    "contractIds": [
+      "logic.demux",
+      "logic.mux"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CombinationalMonotonicityTests",
+        "method": "SteeringEvaluators_EveryComparableInputPair_AreMonotone",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.not",
+    "kind": "Property",
+    "contractIds": [
+      "logic.not"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.VectorLogicTests",
+        "method": "Not_ValidVector_MatchesScalarOracleAtEveryBit",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.priority_encoder",
+    "kind": "Property",
+    "contractIds": [
+      "logic.priority_encoder"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CombinationalMonotonicityTests",
+        "method": "SteeringEvaluators_EveryComparableInputPair_AreMonotone",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.register",
+    "kind": "Property",
+    "contractIds": [
+      "sequential.register"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.VectorConservativeMergeTests",
+        "method": "Merge_NonemptySameWidthVectors_MatchesScalarOracleAtEveryBit",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.VectorLogicTests",
+        "method": "NormalizeInput_ValidVector_MatchesScalarOracleAtEveryBit",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "StorageAndEnable_PackedWidthsAndFourStateInputs_MatchScalarCaptureAndHoldModel",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.shift",
+    "kind": "Property",
+    "contractIds": [
+      "logic.shift"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.ArithmeticEvaluationTests",
+        "method": "LogicalShift_FourStateAmount_MatchesScalarOracle",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CombinationalMonotonicityTests",
+        "method": "ArithmeticEvaluators_EveryComparableInputPair_AreMonotone",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.shift-counter",
+    "kind": "Property",
+    "contractIds": [
+      "sequential.counter",
+      "sequential.shift_register"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "ShiftCounterAndTerminal_ReachableControls_MatchScalarOracle",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.sr_latch",
+    "kind": "Property",
+    "contractIds": [
+      "sequential.sr_latch"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "SrLatch_EveryFourStateInput_MatchesReachableControlWorlds",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "EdgeClassification_EveryFourStateTransition_MatchesContract",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.state-migration",
+    "kind": "Property",
+    "contractIds": [
+      "memory.ram_single_port",
+      "sequential.counter",
+      "sequential.d_latch",
+      "sequential.dff",
+      "sequential.jkff",
+      "sequential.register",
+      "sequential.shift_register",
+      "sequential.sr_latch",
+      "sequential.tff"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CoreContractRuntimeTests",
+        "method": "Execute_ChangedInitialState_PreservesEveryCompatibleStateContract",
+        "caseCount": 9
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CoreContractRuntimeTests",
+        "method": "Execute_StateWidthChange_RejectsWithoutPublishingReplacement",
+        "caseCount": 6
+      }
+    ]
+  },
+  {
+    "id": "properties.subtractor",
+    "kind": "Property",
+    "contractIds": [
+      "logic.subtractor"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.ArithmeticEvaluationTests",
+        "method": "Subtract_FourStateOperands_MatchesPossibleCaseBorrowOracle",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CombinationalMonotonicityTests",
+        "method": "ArithmeticEvaluators_EveryComparableInputPair_AreMonotone",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.tff",
+    "kind": "Property",
+    "contractIds": [
+      "sequential.tff"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "TFlipFlop_EveryFourStateInput_MatchesReachableControlWorlds",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.SequentialEvaluationTests",
+        "method": "EdgeClassification_EveryFourStateTransition_MatchesContract",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.topology",
+    "kind": "Property",
+    "contractIds": [
+      "sink.output",
+      "source.constant",
+      "topology.concat",
+      "topology.sign_extend",
+      "topology.split",
+      "topology.zero_extend"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.TopologyRuntimeTests",
+        "method": "Open_ValidTopologyShape_MatchesScalarProjection",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CombinationalMonotonicityTests",
+        "method": "TopologyEvaluators_EveryComparableInputPair_AreMonotone",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.tristate",
+    "kind": "Property",
+    "contractIds": [
+      "logic.tristate"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CombinationalMonotonicityTests",
+        "method": "SteeringEvaluators_EveryComparableInputPair_AreMonotone",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "properties.unsigned_compare",
+    "kind": "Property",
+    "contractIds": [
+      "logic.unsigned_compare"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.ArithmeticEvaluationTests",
+        "method": "UnsignedCompare_FourStateOperands_MatchesPossibleCaseOracle",
+        "caseCount": 1
+      },
+      {
+        "assembly": "LogicLab.Engine.Tests",
+        "className": "LogicLab.Engine.Tests.CombinationalMonotonicityTests",
+        "method": "ArithmeticEvaluators_EveryComparableInputPair_AreMonotone",
+        "caseCount": 1
+      }
+    ]
+  },
+  {
+    "id": "serialization.core-package",
+    "kind": "Serialization",
+    "contractIds": [
+      "logic.adder",
+      "logic.and",
+      "logic.buffer",
+      "logic.decoder",
+      "logic.demux",
+      "logic.mux",
+      "logic.nand",
+      "logic.nor",
+      "logic.not",
+      "logic.or",
+      "logic.priority_encoder",
+      "logic.shift",
+      "logic.subtractor",
+      "logic.tristate",
+      "logic.unsigned_compare",
+      "logic.xnor",
+      "logic.xor",
+      "memory.ram_single_port",
+      "memory.rom",
+      "sequential.counter",
+      "sequential.d_latch",
+      "sequential.dff",
+      "sequential.jkff",
+      "sequential.register",
+      "sequential.shift_register",
+      "sequential.sr_latch",
+      "sequential.tff",
+      "sink.output",
+      "source.clock",
+      "source.constant",
+      "source.input",
+      "topology.concat",
+      "topology.sign_extend",
+      "topology.split",
+      "topology.zero_extend"
+    ],
+    "tests": [
+      {
+        "assembly": "LogicLab.ProjectFormat.Tests",
+        "className": "LogicLab.ProjectFormat.Tests.CoreContractPackageTests",
+        "method": "Package_CoreContract_RoundTripsExactKeyParametersAndCanonicalBytes",
+        "caseCount": 35
+      },
+      {
+        "assembly": "LogicLab.ProjectFormat.Tests",
+        "className": "LogicLab.ProjectFormat.Tests.ProjectPackageReaderTests",
+        "method": "ReadAsync_CoreContractWithChangedLibraryIdentity_RejectsBeforeImportPublication",
+        "caseCount": 35
+      },
+      {
+        "assembly": "LogicLab.ProjectFormat.Tests",
+        "className": "LogicLab.ProjectFormat.Tests.ProjectPackageReaderTests",
+        "method": "ReadAsync_LegalJsonPermutations_ProduceIdenticalCanonicalBytes",
+        "caseCount": 1
+      }
+    ]
+  }
+]

@@ -142,14 +142,14 @@ internal sealed partial class EditorWorkspace
         {
             return Reject(
                 WorkspaceOutcomeReasons.SessionPreconditionFailed,
-                invalid.Diagnostics.Select(item => item.Code));
+                invalid.Diagnostics.Select(item => new WorkspaceSimulationDiagnostic(artifact.Key.ProjectRevisionId, item)));
         }
 
         if (outcome is SimulationOpenRejected rejected)
         {
             return Reject(
                 WorkspaceOutcomeReasons.FromSimulation(rejected.Reason),
-                rejected.Diagnostics.Select(item => item.Code),
+                rejected.Diagnostics.Select(item => new WorkspaceSimulationDiagnostic(artifact.Key.ProjectRevisionId, item)),
                 PolicyEvidenceFrom(rejected.WorkEvidence));
         }
 
@@ -163,6 +163,7 @@ internal sealed partial class EditorWorkspace
         {
             var readFailure = TryReadSimulation(
                 opened.Handle,
+                artifact.Key.ProjectRevisionId,
                 cancellationToken,
                 out var simulation);
             if (readFailure is not null)
@@ -226,7 +227,7 @@ internal sealed partial class EditorWorkspace
         {
             return Reject(
                 WorkspaceOutcomeReasons.FromSimulation(failed.Reason),
-                failed.Diagnostics.Select(item => item.Code),
+                failed.Diagnostics.Select(item => new WorkspaceSimulationDiagnostic(simulation.CompilationArtifactKey.ProjectRevisionId, item)),
                 PolicyEvidenceFrom(failed.PolicyEvidence));
         }
 
@@ -301,7 +302,7 @@ internal sealed partial class EditorWorkspace
                 failed.LogicalTime,
                 new AdvanceFailureProjection(
                     AdvanceFailureReasonFrom(failed.Reason),
-                    [.. failed.Diagnostics.Select(item => item.Code)],
+                    failed.Diagnostics,
                     PolicyEvidenceFrom(failed.PolicyEvidence)),
                 state.ProjectionVersion);
         }
@@ -365,7 +366,7 @@ internal sealed partial class EditorWorkspace
         {
             return Reject(
                 WorkspaceOutcomeReasons.FromSimulation(failed.Reason),
-                failed.Diagnostics.Select(item => item.Code),
+                failed.Diagnostics.Select(item => new WorkspaceSimulationDiagnostic(priorSimulation.CompilationArtifactKey.ProjectRevisionId, item)),
                 PolicyEvidenceFrom(failed.PolicyEvidence));
         }
 
@@ -393,14 +394,14 @@ internal sealed partial class EditorWorkspace
     private static SessionAdvanceFailed AdvanceFailure(
         SimulationProjection simulation,
         AdvanceFailureReason reason,
-        IReadOnlyList<string> diagnosticCodes,
+        IReadOnlyList<SimulationDiagnostic> diagnostics,
         PolicyEvidenceProjection? policyEvidence,
         ulong projectionVersion)
     {
         return new SessionAdvanceFailed(
             simulation.SessionVersion,
             simulation.LogicalTime,
-            new AdvanceFailureProjection(reason, diagnosticCodes, policyEvidence),
+            new AdvanceFailureProjection(reason, diagnostics, policyEvidence),
             projectionVersion);
     }
 
@@ -534,6 +535,7 @@ internal sealed partial class EditorWorkspace
 
     private WorkspaceCommandRejected? TryReadSimulation(
         SimulationSessionHandle handle,
+        ProjectRevisionId revisionId,
         CancellationToken cancellationToken,
         out SimulationProjection? simulation)
     {
@@ -548,7 +550,7 @@ internal sealed partial class EditorWorkspace
                 failed.Reason is SimulationFailureReason.SimulationCancelled
                     ? WorkspaceOutcomeReasons.WorkspaceCancelled
                     : WorkspaceOutcomeReasons.FromSimulation(failed.Reason),
-                failed.Diagnostics.Select(item => item.Code));
+                failed.Diagnostics.Select(item => new WorkspaceSimulationDiagnostic(revisionId, item)));
         }
 
         if (outcome is not SessionSnapshotRead snapshot)
@@ -612,7 +614,7 @@ internal sealed partial class EditorWorkspace
         {
             return Reject(
                 WorkspaceOutcomeReasons.FromSimulation(failed.Reason),
-                failed.Diagnostics.Select(item => item.Code),
+                failed.Diagnostics.Select(item => new WorkspaceSimulationDiagnostic(replacement.Key.ProjectRevisionId, item)),
                 PolicyEvidenceFrom(failed.PolicyEvidence));
         }
 

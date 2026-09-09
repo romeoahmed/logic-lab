@@ -100,7 +100,7 @@ class WaveformHandle {
     this.installRemovalObserver();
 
     if (!this.canvas || !this.context) {
-      this.failClosed();
+      this.failClosed(null, "contextUnavailable");
       return;
     }
 
@@ -215,7 +215,7 @@ class WaveformHandle {
         this.pendingFrame = 0;
         this.dirty = false;
         this.contextRestoreTimer = window.setTimeout(
-          () => this.failClosed(),
+          () => this.failClosed(null, "contextLost"),
           contextRestoreTimeoutMilliseconds,
         );
       },
@@ -228,7 +228,7 @@ class WaveformHandle {
         this.cancelContextRestore();
         this.context = this.canvas.getContext("2d", { alpha: false });
         if (!this.context) {
-          this.failClosed();
+          this.failClosed(null, "contextLost");
           return;
         }
         this.contextIsLost = false;
@@ -320,7 +320,7 @@ class WaveformHandle {
         return;
       }
       if (!this.context) {
-        this.failClosed();
+        this.failClosed(null, "contextUnavailable");
         return;
       }
     }
@@ -700,7 +700,7 @@ class WaveformHandle {
     return this.rowLayoutCache;
   }
 
-  failClosed(policyEvidence = null) {
+  failClosed(policyEvidence = null, reason = "web_interop_failure") {
     if (this.destroyed || this.failed) return;
     this.failed = true;
     this.cancelGesture();
@@ -721,10 +721,10 @@ class WaveformHandle {
       this.context.setTransform(1, 0, 0, 1, 0, 0);
       this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
     }
-    this.notifyRendererFailure(policyEvidence);
+    this.notifyRendererFailure(policyEvidence, reason);
   }
 
-  async notifyRendererFailure(policyEvidence) {
+  async notifyRendererFailure(policyEvidence, reason) {
     try {
       if (policyEvidence) {
         await this.dotnetSink?.invokeMethodAsync(
@@ -735,7 +735,7 @@ class WaveformHandle {
           policyEvidence.observed,
         );
       } else {
-        await this.dotnetSink?.invokeMethodAsync("WaveformRendererFailedAsync");
+        await this.dotnetSink?.invokeMethodAsync("WaveformRendererFailedAsync", reason);
       }
     } catch {
       // The owning component may already be gone; the renderer is closed either way.

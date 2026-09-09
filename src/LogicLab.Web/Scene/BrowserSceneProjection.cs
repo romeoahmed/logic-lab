@@ -59,7 +59,8 @@ internal static class BrowserSceneProjection
                 projectionVersion,
                 circuitDefinitionId,
                 uiCulture,
-                [.. rejected.Diagnostics.Select(diagnostic => diagnostic.Code)]);
+                [.. rejected.Diagnostics.Select(diagnostic => diagnostic.Code)]) with
+            { PresentationDiagnostics = rejected.Diagnostics };
         }
 
         var projection = ((SchematicProjectionSucceededV1)outcome).Projection;

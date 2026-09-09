@@ -234,6 +234,9 @@ internal sealed partial class EditorWorkspaceTests
 
         using (Assert.Multiple())
         {
+            await Assert.That(initial.Notices).IsEmpty();
+            await Assert.That(before.Notices).IsEquivalentTo([(WorkspaceNotice)WorkspaceCompilationStale.Instance]);
+            await Assert.That(after.Notices).IsEmpty();
             await Assert.That(before.Simulation.LogicalTime).IsEqualTo(1UL);
             await Assert.That(before.Simulation.Probes.Single().Value.Single()).IsEqualTo(LogicValue.One);
             await Assert.That(restarted.PreviousSessionId).IsEqualTo(initial.Simulation!.SessionId);

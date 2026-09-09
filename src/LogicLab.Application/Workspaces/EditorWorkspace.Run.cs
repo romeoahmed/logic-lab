@@ -266,7 +266,8 @@ internal sealed partial class EditorWorkspace
                 new AdvanceFailureProjection(
                     AdvanceFailureReason.SimulationInternalDefect,
                     outcome is WorkspaceCommandRejected unexpectedRejection
-                        ? unexpectedRejection.DiagnosticCodes
+                        ? unexpectedRejection.Diagnostics.OfType<WorkspaceSimulationDiagnostic>()
+                            .Select(item => item.Diagnostic).ToArray()
                         : [],
                     policyEvidence: null));
     }

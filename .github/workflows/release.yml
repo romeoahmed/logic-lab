@@ -30,7 +30,13 @@ env:
   JOBS_DEPLOYMENT: jobs-${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
+  verify:
+    uses: ./.github/workflows/verify.yml
+    with:
+      ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+
   deploy:
+    needs: verify
     name: Release to production
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 90
@@ -46,7 +52,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+          ref: ${{ needs.verify.outputs.source-commit }}
 
       - name: Validate release tag
         id: release

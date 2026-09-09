@@ -247,6 +247,11 @@ internal sealed partial class EditorWorkspace
                     Reject(WorkspaceOutcomeReasons.StaleWorkspaceAttachment));
             }
 
+            if (state.AttachmentGeneration == 1)
+            {
+                // The first recovery adds an observable Workspace notice.
+                state.ProjectionVersion++;
+            }
             state.AttachmentId = WorkspaceAttachmentId.Create();
             state.AttachmentGeneration = generation;
             state.IsAttached = true;
@@ -640,6 +645,7 @@ internal sealed partial class EditorWorkspace
         {
             state.History.RemoveRange(0, excess);
             state.HistoryCursor -= excess;
+            state.RemovedHistoryRevisionCount += (ulong)excess;
         }
 
         state.Revision = revision;

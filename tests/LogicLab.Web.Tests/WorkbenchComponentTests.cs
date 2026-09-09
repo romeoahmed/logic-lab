@@ -158,6 +158,10 @@ internal sealed partial class WorkbenchComponentTests
             .Any(status => status.TextContent.Contains(
                 "package_invalid",
                 StringComparison.Ordinal)));
+        _ = await rendered.WaitForElementAsync("[data-diagnostic-code='package_illegal_entry']");
+        await Assert.That(rendered.Find(".diagnostic-message").TextContent)
+            .Contains("not a supported project package");
+        await Assert.That(rendered.Find(".diagnostic-item dd").TextContent).IsEqualTo("carrier");
         using (Assert.Multiple())
         {
             await Assert.That(navigation.Uri).IsEqualTo(currentWorkspaceUri);

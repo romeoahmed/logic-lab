@@ -2,7 +2,8 @@ using LogicLab.Domain.Authoring;
 
 namespace LogicLab.Engine.Compilation;
 
-internal sealed class CompilationSourceComparer : IComparer<CompilationSource>
+/// <summary>Canonical ordering shared by module evidence and its consumers.</summary>
+public sealed class CompilationSourceComparer : IComparer<CompilationSource>
 {
     public static CompilationSourceComparer Instance { get; } = new();
 

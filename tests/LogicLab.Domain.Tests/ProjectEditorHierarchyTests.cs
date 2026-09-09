@@ -289,9 +289,9 @@ internal sealed class ProjectEditorHierarchyTests
                 .IsEquivalentTo(
                 [
                     ("authoring_missing_reference", new AuthoringDiagnosticArgument(
-                        "referenceKind", new StableTokenDiagnosticValue("definitionPort")), (AuthoredSourceIdentity?)null),
+                        "referenceKind", new StableTokenDiagnosticValue("definitionPort")), (AuthoredSourceIdentity?)new ProjectRootSourceIdentity(withChild.Document.ProjectId)),
                     ("authoring_missing_reference", new AuthoringDiagnosticArgument(
-                        "referenceKind", new StableTokenDiagnosticValue("terminalScope")), (AuthoredSourceIdentity?)null),
+                        "referenceKind", new StableTokenDiagnosticValue("terminalScope")), (AuthoredSourceIdentity?)new ProjectRootSourceIdentity(withChild.Document.ProjectId)),
                 ],
                 CollectionOrdering.Matching);
             await Assert.That(((EditRejected)wrongWidth).Diagnostics.Single().Code)

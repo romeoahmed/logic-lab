@@ -107,6 +107,10 @@
                 {
                     <StarterGuide BusyCommand="@ActiveCommand" OnSelect="OpenExampleAsync" />
                 }
+                @if (Projection is null && operationDiagnostics.Count != 0)
+                {
+                    <DiagnosticList OperationDiagnostics="operationDiagnostics" />
+                }
                 @if (Projection is not null && SelectedDefinitionId is not null)
                 {
                     <WorkbenchDock @ref="workbenchDock">
@@ -125,6 +129,8 @@
                                                   ActiveTool="SceneTool"
                                                   Simulation="Projection.Simulation"
                                                   Compilation="Projection.Compilation"
+                                                  OperationDiagnostics="operationDiagnostics"
+                                                  OnDiagnosticsChanged="UpdateSceneDiagnostics"
                                                   HierarchyPath="CurrentSceneHierarchyPath"
                                                   OnSelect="HandleSceneSelectionAsync"
                                                   OnIntent="HandleSceneIntentAsync"
@@ -138,10 +144,14 @@
                                               ActiveToolChanged="ChangePaletteToolAsync" />
                         </Library>
                         <Inspector>
-                            <aside aria-labelledby="inspector-title">
-                                <header class="inspector-heading">
-                                    <h2 id="inspector-title">@Text["Inspector"]</h2>
-                                </header>
+                            <aside aria-label="@Text["Inspector"]">
+                                <div class="inspector-views">
+                                    <FluentButton data-inspector-view="selection" Appearance="ButtonAppearance.Subtle"
+                                                  OnClick="@(() => showMemoryImages = false)">@Text["MemoryImageSelectionView"]</FluentButton>
+                                    <FluentButton data-inspector-view="memory" Appearance="ButtonAppearance.Subtle"
+                                                  OnClick="@(() => showMemoryImages = true)">@Text["MemoryImages"]</FluentButton>
+                                </div>
+                                <div hidden="@showMemoryImages">
                                 @if (Projection.Simulation is { } simulation && InputHierarchyPath is { } inputPath)
                                 {
                                     <InputStimulusPanel @key="simulation.SessionId" Revision="Projection.ProjectRevision"
@@ -151,12 +161,21 @@
                                                         OnSchedule="ScheduleInputsAsync" />
                                 }
                                 <SelectionInspector Projection="Projection"
+                                                    SceneDiagnostics="sceneDiagnostics" WaveformDiagnostics="waveformDiagnostics"
+                                                    OperationDiagnostics="operationDiagnostics"
                                                     DefinitionId="SelectedDefinitionId"
                                                     Selection="SceneSelection"
                                                     HierarchyPath="CurrentSceneHierarchyPath"
-                                                    CanEdit="@(CanMutateWorkspace && ActiveCommand is null)"
+                                                    CanEdit="@(!showMemoryImages && CanMutateWorkspace && ActiveCommand is null)"
                                                     OnObserveProbe="ObserveProbeAsync"
                                                     OnEdit="HandleInspectorEditAsync" />
+                                </div>
+                                <div hidden="@(!showMemoryImages)">
+                                    <MemoryImageEditor Revision="Projection.ProjectRevision" SelectedImageId="selectedMemoryImageId"
+                                                       SelectedImageIdChanged="@(id => selectedMemoryImageId = id)"
+                                                       CanEdit="@(showMemoryImages && CanMutateWorkspace && ActiveCommand is null)"
+                                                       OnEdit="HandleMemoryEditAsync" OnReveal="RevealDiagnosticAsync" />
+                                </div>
                             </aside>
                         </Inspector>
                     </WorkbenchDock>
@@ -179,6 +198,7 @@
                             <FluentTab Id="waveform" Header="@Text["WaveformTab"]" DeferredLoading="false">
                                 <LogicAnalyzer @ref="logicAnalyzer" Projection="Projection"
                                                TraceReader="ReadTraceWindowAsync"
+                                               OnDiagnosticsChanged="UpdateWaveformDiagnostics"
                                                IsConnected="@CommandsAvailable"
                                                OnProbeOrderChanged="ReorderProbesAsync"
                                                OnRevealProbe="RevealProbeSourceAsync"
@@ -186,7 +206,9 @@
                                                OnRebindProbe="RebindProbeAsync" />
                             </FluentTab>
                             <FluentTab Id="diagnostics" Header="@Text["Diagnostics"]" DeferredLoading="true">
-                                <DiagnosticList Projection="Projection" OnReveal="RevealDiagnosticAsync" />
+                                <DiagnosticList Projection="Projection" OperationDiagnostics="operationDiagnostics"
+                                                SceneDiagnostics="sceneDiagnostics" WaveformDiagnostics="waveformDiagnostics"
+                                                OnReveal="RevealDiagnosticAsync" />
                             </FluentTab>
                         </FluentTabs>
                     </div>

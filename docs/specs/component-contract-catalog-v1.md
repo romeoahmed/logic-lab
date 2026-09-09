@@ -120,6 +120,9 @@ browserScenarioIds[]
 
 Rows are sorted by Contract ID and reject unknown or duplicate evidence keys. `contractSchemaDigest` covers ordered Ports, parameter schemas, state shape, and referenced semantic rule version—not implementation types. Release fails when any catalog entry or required evidence reference is absent. The complete diagnostic codes and argument schemas are owned by [Diagnostics V1](./diagnostics-v1.md).
 
+The [canonical artifacts and verification procedure](../../conformance/README.md)
+bind these rows to reviewed test selectors and fresh reports from the release checkout.
+
 ## 8. Required cross-contract evidence
 
 - exact parameter and generated-Port snapshots for minimum, ordinary, and policy-edge shapes;

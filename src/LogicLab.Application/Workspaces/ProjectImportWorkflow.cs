@@ -63,7 +63,7 @@ public sealed class ProjectImportWorkflow
 
         return new WorkspaceOpenRejected(
             rejectedPackage.Reason,
-            [.. rejectedPackage.Diagnostics.Select(item => item.Code)],
+            [.. rejectedPackage.Diagnostics.Select(item => new WorkspacePackageDiagnostic(item))],
             RetryDisposition.DoNotRetry,
             policyEvidence);
     }

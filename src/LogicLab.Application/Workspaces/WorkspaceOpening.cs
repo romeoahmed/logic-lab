@@ -93,19 +93,22 @@ public sealed record WorkspaceOpenRejected : WorkspaceOpenOutcome
 {
     public WorkspaceOpenRejected(
         string code,
-        IReadOnlyList<string> diagnosticCodes,
+        IReadOnlyList<WorkspaceDiagnostic> diagnostics,
         RetryDisposition retryDisposition,
         PolicyEvidenceProjection? policyEvidence = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(code);
-        ArgumentNullException.ThrowIfNull(diagnosticCodes);
+        ArgumentNullException.ThrowIfNull(diagnostics);
         Code = code;
-        DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
+        Diagnostics = Array.AsReadOnly(diagnostics.ToArray());
+        DiagnosticCodes = Array.AsReadOnly(Diagnostics.Select(item => item.Code).ToArray());
         RetryDisposition = retryDisposition;
         PolicyEvidence = policyEvidence;
     }
 
     public string Code { get; }
+
+    public ReadOnlyCollection<WorkspaceDiagnostic> Diagnostics { get; }
 
     public ReadOnlyCollection<string> DiagnosticCodes { get; }
 

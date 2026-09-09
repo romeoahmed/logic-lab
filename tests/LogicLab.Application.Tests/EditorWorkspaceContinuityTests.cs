@@ -37,10 +37,49 @@ internal sealed class EditorWorkspaceContinuityTests
         var rejection = await IsType<WorkspaceCommandRejected>(stale);
         using (Assert.Multiple())
         {
+            await Assert.That(first.Projection.Notices).IsEmpty();
+            await Assert.That(second.Projection.Notices).IsEquivalentTo(
+                [(WorkspaceNotice)WorkspaceAttachmentRecovered.Instance]);
+            await Assert.That(second.Projection.ProjectionVersion)
+                .IsEqualTo(first.Projection.ProjectionVersion + 1);
             await Assert.That(second.Generation).IsEqualTo(first.Generation + 1);
             await Assert.That(second.AttachmentId).IsNotEqualTo(first.AttachmentId);
             await Assert.That(rejection.Code).IsEqualTo("stale_workspace_attachment");
         }
+    }
+
+    [Test]
+    public async Task DispatchAsync_HistoryRetention_CountsEvictionOnceAndExcludesDiscardedRedo()
+    {
+        await using var workspace = TestEditorWorkspaceFactory.Create(
+            workspacePolicy: Policy(historyRevisionCount: 2), buildFingerprint: BuildFingerprint);
+        var opened = await Open(workspace);
+        var attached = await Attach(workspace, opened.WorkspaceId);
+        var current = attached.Projection;
+        for (var index = 0; index < 4; index++)
+        {
+            var command = new ApplyEdit(Context(opened.WorkspaceId, attached, $"rename-{index}"),
+                new AuthoringPrecondition(current.ProjectRevision.RevisionId),
+                new RenameCircuitDefinitionIntent(current.ProjectRevision.Document.EntryCircuitDefinitionId, $"Name {index}"));
+            var committed = await workspace.DispatchAsync(command, CancellationToken.None);
+            await Assert.That(committed).IsTypeOf<AuthoringCommitted>();
+            await Assert.That(await workspace.DispatchAsync(command, CancellationToken.None)).IsEqualTo(committed);
+            current = await Read(workspace, opened.WorkspaceId, attached);
+        }
+        var trimmed = current;
+        await Assert.That(trimmed.Notices.OfType<WorkspaceHistoryTruncated>().Single().RemovedRevisions).IsEqualTo(3UL);
+        await Assert.That(trimmed.History.RetainedRevisionCount).IsEqualTo(2);
+        await workspace.DispatchAsync(new Undo(Context(opened.WorkspaceId, attached, "undo"),
+            new AuthoringPrecondition(current.ProjectRevision.RevisionId)), CancellationToken.None);
+        current = await Read(workspace, opened.WorkspaceId, attached);
+        await workspace.DispatchAsync(new ApplyEdit(Context(opened.WorkspaceId, attached, "branch"),
+            new AuthoringPrecondition(current.ProjectRevision.RevisionId),
+            new RenameCircuitDefinitionIntent(current.ProjectRevision.Document.EntryCircuitDefinitionId, "New branch")), CancellationToken.None);
+        current = await Read(workspace, opened.WorkspaceId, attached);
+        await Assert.That(current.Notices.OfType<WorkspaceHistoryTruncated>().Single().RemovedRevisions).IsEqualTo(3UL);
+        await Assert.That(trimmed.Notices).IsEquivalentTo(current.Notices);
+        await Assert.That(current.History.CanRedo).IsFalse();
+        await Assert.That(attached.Projection.Notices).IsEmpty();
     }
 
     [Test]
@@ -938,7 +977,8 @@ internal sealed class EditorWorkspaceContinuityTests
 
     private static WorkspacePolicy Policy(
         int idempotencyRecordCount = 32,
-        TimeSpan? detachedRetention = null)
+        TimeSpan? detachedRetention = null,
+        int historyRevisionCount = 16)
     {
         return new WorkspacePolicy(
             policyId: "test-workspace",
@@ -948,7 +988,7 @@ internal sealed class EditorWorkspaceContinuityTests
             workspaceCountPerSubject: 16,
             sandboxRetention: TimeSpan.FromHours(1),
             authoringLimits: WorkspaceAuthoringLimits.Default,
-            historyRevisionCount: 16,
+            historyRevisionCount,
             idempotencyRecordCount,
             detachedRetention ?? TimeSpan.FromMinutes(30),
             hotSwapPeakBytes: ulong.MaxValue,

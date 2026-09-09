@@ -242,7 +242,7 @@ internal sealed partial class EditorWorkspace
 
         return Reject(
             rejected.Reason,
-            rejected.Diagnostics.Select(diagnostic => diagnostic.Code),
+            rejected.Diagnostics.Select(diagnostic => new WorkspacePackageDiagnostic(diagnostic)),
             policyEvidence);
     }
 

@@ -20,7 +20,7 @@ As implementation expands, preserve the project seams named in `docs/architectur
 
 - `dotnet build logic-lab.slnx --nologo` validates the solution.
 - `dotnet test --solution logic-lab.slnx` is the whole-solution test command. In .NET 10 MTP mode, do not pass `--nologo`; it is forwarded to the test applications and rejected as an unknown option.
-- TUnit filters use MTP tree-node syntax, for example `dotnet test --solution logic-lab.slnx --treenode-filter "/*/*/ScalarLogicTests/*"`; pass ordinary TUnit/MTP options directly. A literal `--` is reserved for the .NET 10 CLI's documented parameter-binding ambiguity after driver options, not required by the normal repository commands.
+- TUnit filters use MTP tree-node syntax, for example `dotnet test --project tests/LogicLab.Engine.Tests/LogicLab.Engine.Tests.csproj --treenode-filter "/*/*/ScalarLogicTests/*"`; select the owning project for a focused run because other test applications with no matching tests exit with code 8. Pass ordinary TUnit/MTP options directly. A literal `--` is reserved for the .NET 10 CLI's documented parameter-binding ambiguity after driver options, not required by the normal repository commands.
 - `dotnet format logic-lab.slnx --verify-no-changes` is the formatting gate.
 - `git diff --check` catches whitespace errors.
 

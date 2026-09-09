@@ -11,6 +11,38 @@ namespace LogicLab.Application.Tests;
 internal sealed partial class EditorWorkspaceTests
 {
     [Test]
+    public async Task DispatchAsync_InvalidEdit_PreservesSourceArgumentsAndReplayWithoutPublishingRevision(
+        CancellationToken cancellationToken)
+    {
+        await using var workspace = TestEditorWorkspaceFactory.Create(WorkspaceBuild.TestFingerprint);
+        var (opened, input) = await OpenInputOutputSession(workspace, cancellationToken);
+        var before = await Read(workspace, opened);
+        var intent = new SetInstanceParametersIntent(
+            before.ProjectRevision.Document.EntryCircuitDefinitionId, input.Id, []);
+        var expected = (EditRejected)ProjectEditor.Apply(before.ProjectRevision, intent);
+        var command = new ApplyEdit(Context(opened.WorkspaceId, opened.Attachment, "invalid-parameters"),
+            new AuthoringPrecondition(before.ProjectRevision.RevisionId), intent);
+
+        var rejected = (WorkspaceCommandRejected)await workspace.DispatchAsync(command, cancellationToken);
+        var replay = (WorkspaceCommandRejected)await workspace.DispatchAsync(command, cancellationToken);
+        var after = await Read(workspace, opened);
+
+        await Assert.That(rejected.Diagnostics.Count).IsEqualTo(expected.Diagnostics.Count);
+        for (var index = 0; index < expected.Diagnostics.Count; index++)
+        {
+            var evidence = (WorkspaceAuthoringDiagnostic)rejected.Diagnostics[index];
+            await Assert.That(evidence.ProjectRevisionId).IsEqualTo(before.ProjectRevision.RevisionId);
+            await Assert.That(evidence.Diagnostic.Primary).IsEqualTo(expected.Diagnostics[index].Primary);
+            await Assert.That(evidence.Diagnostic.Arguments).IsEquivalentTo(
+                expected.Diagnostics[index].Arguments, CollectionOrdering.Matching);
+            await Assert.That(replay.Diagnostics[index]).IsEqualTo(evidence);
+        }
+        await Assert.That(after.ProjectRevision).IsEqualTo(before.ProjectRevision);
+        await Assert.That(after.ProjectionVersion).IsEqualTo(before.ProjectionVersion);
+        await Assert.That(after.Simulation).IsEqualTo(before.Simulation);
+    }
+
+    [Test]
     public async Task DispatchAsync_CompilationPolicyExhausted_PreservesPolicyEvidence(
         CancellationToken cancellationToken)
     {

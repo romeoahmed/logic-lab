@@ -40,6 +40,12 @@
 
     private void Toggle(Panel panel) => openPanel = openPanel == panel ? Panel.None : panel;
 
+    public void OpenInspector()
+    {
+        openPanel = Panel.Inspector;
+        StateHasChanged();
+    }
+
     public async Task CloseAsync()
     {
         var previous = openPanel;

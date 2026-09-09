@@ -1,10 +1,36 @@
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
+using LogicLab.Engine.Compilation;
 
 namespace LogicLab.Web.Scene;
 
 internal static class SceneSourceMap
 {
+    public static bool Contains(ProjectRevision revision, CompilationSource source)
+    {
+        ArgumentNullException.ThrowIfNull(revision);
+        ArgumentNullException.ThrowIfNull(source);
+        var definition = revision.Document.EntryCircuitDefinition;
+        if (source.HierarchyPath.EntryCircuitDefinitionId != definition.Id)
+        {
+            return false;
+        }
+        foreach (var step in source.HierarchyPath.Steps)
+        {
+            if (step.ContainingCircuitDefinitionId != definition.Id
+                || definition.FindComponentInstance(step.ComponentInstanceId)?.Target
+                    is not CircuitDefinitionComponentTarget target
+                || revision.Document.FindCircuitDefinition(target.CircuitDefinitionId) is not { } next)
+            {
+                return false;
+            }
+            definition = next;
+        }
+        return definition.Id == source.Identity.CircuitDefinitionId
+            && (source.Identity is CircuitRootSourceIdentity
+                || TryFrom(source.Identity) is { } entity && Contains(revision, entity));
+    }
+
     public static bool Contains(ProjectRevision revision, SceneSourceRefV1 source)
     {
         ArgumentNullException.ThrowIfNull(revision);

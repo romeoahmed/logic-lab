@@ -309,6 +309,52 @@
   <data name="InspectorSplitMembers" xml:space="preserve"><value>Separate selected members</value></data>
   <data name="InspectorSplitMembersDescription" xml:space="preserve"><value>Moves the selected terminals, junctions, and routes into a separate net from the unselected members.</value></data>
   <data name="InspectorEditApplied" xml:space="preserve"><value>Selection edit applied.</value></data>
+  <data name="InspectorDisplayName" xml:space="preserve"><value>Display name</value></data>
+  <data name="InspectorParameters" xml:space="preserve"><value>Parameters</value></data>
+  <data name="MemoryImages" xml:space="preserve"><value>Memory images</value></data>
+  <data name="MemoryImageNew" xml:space="preserve"><value>New memory image</value></data>
+  <data name="MemoryImageName" xml:space="preserve"><value>Memory image name</value></data>
+  <data name="MemoryImageWidth" xml:space="preserve"><value>Word width (bits)</value></data>
+  <data name="MemoryImageDepth" xml:space="preserve"><value>Word count</value></data>
+  <data name="MemoryImageAddressWidth" xml:space="preserve"><value>Address width (bits)</value></data>
+  <data name="MemoryImageWords" xml:space="preserve"><value>Initial memory words</value></data>
+  <data name="MemoryImageWordsHint" xml:space="preserve"><value>One word per line, starting at address 0. Use 0, 1 or X, with the most significant bit first.</value></data>
+  <data name="MemoryImageReferences" xml:space="preserve"><value>Referenced by {0} components</value></data>
+  <data name="MemoryImageAdoptDimensions" xml:space="preserve"><value>Use new dimensions in references</value></data>
+  <data name="MemoryImageMigrationHint" xml:space="preserve"><value>All references update together. Connected ports must keep their direction and width; use contract migration first if connections need to change.</value></data>
+  <data name="MemoryImageInvalidText" xml:space="preserve"><value>Enter decimal dimensions and complete words using 0, 1 or X.</value></data>
+  <data name="MemoryImageCommandLimit" xml:space="preserve"><value>This replacement exceeds the Workspace command item budget.</value></data>
+  <data name="MemoryImageNotLoaded" xml:space="preserve"><value>The existing words exceed the Workspace command item budget and have not been loaded into this form. Enter a complete smaller replacement to edit this image.</value></data>
+  <data name="MemoryImageCreate" xml:space="preserve"><value>Create memory image</value></data>
+  <data name="MemoryImageApply" xml:space="preserve"><value>Apply image and references</value></data>
+  <data name="MemoryImageRemove" xml:space="preserve"><value>Delete memory image</value></data>
+  <data name="MemoryImageRemoveHint" xml:space="preserve"><value>Rebind every referencing component before deleting this image.</value></data>
+  <data name="MemoryImageEditApplied" xml:space="preserve"><value>Memory image edit applied.</value></data>
+  <data name="MemoryImageSelectionView" xml:space="preserve"><value>Selection</value></data>
+  <data name="InspectorTarget" xml:space="preserve"><value>Component type / circuit</value></data>
+  <data name="InspectorReviewMigration" xml:space="preserve"><value>Review port changes</value></data>
+  <data name="InspectorApplyMigration" xml:space="preserve"><value>Apply contract and connections</value></data>
+  <data name="InspectorMigrationHint" xml:space="preserve"><value>Choose a compatible destination or explicitly disconnect each old port. Every destination can be used only once.</value></data>
+  <data name="InspectorNewPorts" xml:space="preserve"><value>New ports</value></data>
+  <data name="InspectorConnectionAction" xml:space="preserve"><value>Connection action</value></data>
+  <data name="InspectorChooseConnection" xml:space="preserve"><value>Choose an action</value></data>
+  <data name="InspectorMapPort" xml:space="preserve"><value>Map to new port</value></data>
+  <data name="InspectorDisconnectPort" xml:space="preserve"><value>Disconnect</value></data>
+  <data name="InspectorDestinationPort" xml:space="preserve"><value>Destination port</value></data>
+  <data name="InspectorDuplicateDestination" xml:space="preserve"><value>Two old ports cannot map to the same destination.</value></data>
+  <data name="InspectorPortMappingInvalid" xml:space="preserve"><value>Choose a port with the same direction and width, or disconnect.</value></data>
+  <data name="InspectorMigrationInvalid" xml:space="preserve"><value>The parameters do not form a valid port contract. Correct them before reviewing connections.</value></data>
+  <data name="InspectorMigrationLimit" xml:space="preserve"><value>The port count exceeds this Workspace's authoring budget.</value></data>
+  <data name="InspectorMigrationSymbolHint" xml:space="preserve"><value>The selected symbol variant is applied with the target, parameters and port mappings.</value></data>
+  <data name="InspectorApplyParameters" xml:space="preserve"><value>Apply parameters</value></data>
+  <data name="InspectorParameterInvalid" xml:space="preserve"><value>Enter a value in the indicated format.</value></data>
+  <data name="InspectorUnsignedHint" xml:space="preserve"><value>Use decimal digits without separators.</value></data>
+  <data name="InspectorVectorHint" xml:space="preserve"><value>Use 0, 1, X or Z, with the most significant bit first.</value></data>
+  <data name="InspectorWidthsHint" xml:space="preserve"><value>Separate decimal widths with commas, for example 2, 4.</value></data>
+  <data name="InspectorSlicesHint" xml:space="preserve"><value>Separate offset:length pairs with commas, for example 0:2, 2:4.</value></data>
+  <data name="InspectorParameterShapeHint" xml:space="preserve"><value>Parameter edits must preserve the component's ports. Port changes require a contract migration.</value></data>
+  <data name="InspectorRename" xml:space="preserve"><value>Apply name</value></data>
+  <data name="InspectorNameOptional" xml:space="preserve"><value>Leave empty to use the component type name.</value></data>
   <data name="InspectorComponents" xml:space="preserve"><value>Components</value></data>
   <data name="InspectorNets" xml:space="preserve"><value>Nets</value></data>
   <data name="InspectorPorts" xml:space="preserve"><value>Definition ports</value></data>
@@ -403,4 +449,99 @@
   <data name="InstrumentHeight" xml:space="preserve">
     <value>Instrument height</value>
   </data>
+  <data name="DiagnosticAuthoring" xml:space="preserve"><value>Circuit editing</value></data>
+  <data name="DiagnosticPackage" xml:space="preserve"><value>Project package</value></data>
+  <data name="DiagnosticSimulationOperation" xml:space="preserve"><value>Simulation operation</value></data>
+  <data name="Diagnostic_authoring_duplicate_id" xml:space="preserve"><value>An identifier is already used in this project.</value></data>
+  <data name="Diagnostic_authoring_missing_reference" xml:space="preserve"><value>The edit refers to an item that is no longer available.</value></data>
+  <data name="Diagnostic_authoring_invalid_width" xml:space="preserve"><value>The signal width is outside the supported range.</value></data>
+  <data name="Diagnostic_authoring_width_mismatch" xml:space="preserve"><value>The connected signal widths do not match.</value></data>
+  <data name="Diagnostic_authoring_terminal_already_connected" xml:space="preserve"><value>This terminal already belongs to a net.</value></data>
+  <data name="Diagnostic_authoring_invalid_parameter" xml:space="preserve"><value>A component parameter does not match its contract.</value></data>
+  <data name="Diagnostic_authoring_invalid_text" xml:space="preserve"><value>The text contains unsupported characters or exceeds the length limit.</value></data>
+  <data name="Diagnostic_authoring_invalid_coordinate" xml:space="preserve"><value>A coordinate is outside the supported grid.</value></data>
+  <data name="Diagnostic_authoring_invalid_memory_image" xml:space="preserve"><value>The memory image does not match its required shape or contents.</value></data>
+  <data name="Diagnostic_authoring_invalid_route" xml:space="preserve"><value>The wire route is invalid. Check its endpoints and orthogonal segments.</value></data>
+  <data name="Diagnostic_authoring_delete_has_dependents" xml:space="preserve"><value>Other project items still depend on the item being deleted.</value></data>
+  <data name="Diagnostic_authoring_invalid_split" xml:space="preserve"><value>The net partitions do not form a valid split.</value></data>
+  <data name="Diagnostic_authoring_symbol_variant_incompatible" xml:space="preserve"><value>The selected symbol variant is incompatible with this component.</value></data>
+  <data name="Diagnostic_authoring_symbol_profile_unresolved" xml:space="preserve"><value>The requested symbol profile is unavailable.</value></data>
+  <data name="Diagnostic_package_illegal_entry" xml:space="preserve"><value>The file is not a supported project package or contains an invalid entry.</value></data>
+  <data name="Diagnostic_package_duplicate_entry" xml:space="preserve"><value>The project package contains a duplicate entry.</value></data>
+  <data name="Diagnostic_package_unsupported_feature" xml:space="preserve"><value>The project package uses an unsupported feature.</value></data>
+  <data name="Diagnostic_package_limit_exceeded" xml:space="preserve"><value>The project package exceeds a resource limit.</value></data>
+  <data name="Diagnostic_package_integrity_mismatch" xml:space="preserve"><value>The project package failed its integrity check.</value></data>
+  <data name="Diagnostic_package_schema_version_unsupported" xml:space="preserve"><value>This project package version is not supported.</value></data>
+  <data name="Diagnostic_package_json_invalid" xml:space="preserve"><value>The project data is not valid JSON in the required format.</value></data>
+  <data name="Diagnostic_package_unknown_member" xml:space="preserve"><value>The project data contains an unknown field.</value></data>
+  <data name="Diagnostic_package_unknown_discriminator" xml:space="preserve"><value>The project data contains an unknown record type.</value></data>
+  <data name="Diagnostic_package_memory_invalid" xml:space="preserve"><value>A packaged memory image is invalid.</value></data>
+  <data name="Diagnostic_package_domain_invalid" xml:space="preserve"><value>The packaged circuit does not satisfy the authoring rules.</value></data>
+  <data name="DiagnosticPresentation" xml:space="preserve"><value>Schematic projection</value></data>
+  <data name="DiagnosticScene" xml:space="preserve"><value>Circuit canvas</value></data>
+  <data name="DiagnosticWaveform" xml:space="preserve"><value>Waveform canvas</value></data>
+  <data name="Diagnostic_web_renderer_unavailable" xml:space="preserve"><value>The canvas renderer is unavailable. Retry to recreate it.</value></data>
+  <data name="Diagnostic_web_browser_policy_exhausted" xml:space="preserve"><value>The browser renderer exceeded a resource limit. Reduce the view or project size and retry.</value></data>
+  <data name="Diagnostic_web_browser_contract_rejected" xml:space="preserve"><value>The browser rejected an invalid update. Retry to load a complete snapshot.</value></data>
+  <data name="Diagnostic_web_interop_failure" xml:space="preserve"><value>Communication with the renderer failed. Retry or reload the page.</value></data>
+  <data name="Diagnostic_presentation_variant_unresolved" xml:space="preserve"><value>The requested symbol variant is unavailable.</value></data>
+  <data name="Diagnostic_presentation_constraint_unsatisfied" xml:space="preserve"><value>The circuit cannot be drawn within the required geometry constraints.</value></data>
+  <data name="Diagnostic_presentation_unverified_fallback" xml:space="preserve"><value>This symbol uses geometry whose conformance has not been verified.</value></data>
+  <data name="Diagnostic_presentation_font_fingerprint_mismatch" xml:space="preserve"><value>The drawing font does not match the expected asset.</value></data>
+  <data name="Diagnostic_presentation_metric_fingerprint_mismatch" xml:space="preserve"><value>The symbol metrics do not match the expected profile.</value></data>
+  <data name="Diagnostic_presentation_internal_invariant" xml:space="preserve"><value>The schematic projection could not be completed. Use the correlation code when reporting the failure.</value></data>
+  <data name="DiagnosticWorkspace" xml:space="preserve"><value>Workspace</value></data>
+  <data name="Diagnostic_workspace_attachment_recovered" xml:space="preserve"><value>The workspace attachment has been recovered. Unacknowledged commands were not replayed.</value></data>
+  <data name="Diagnostic_workspace_compilation_stale" xml:space="preserve"><value>The simulation uses an earlier project revision. Compile the current revision, then apply changes or restart simulation.</value></data>
+  <data name="Diagnostic_workspace_history_truncated" xml:space="preserve"><value>Older revisions were removed from undo history to stay within the workspace limit.</value></data>
+  <data name="Diagnostic_workspace_probe_unresolved" xml:space="preserve"><value>This Probe no longer has a compatible simulation binding. Rebind it to an available Net or remove its unresolved row.</value></data>
+  <data name="InspectorCreateAnnotation" xml:space="preserve"><value>Add annotation</value></data>
+  <data name="InspectorEditAnnotation" xml:space="preserve"><value>Edit annotation</value></data>
+  <data name="InspectorApplyAnnotation" xml:space="preserve"><value>Apply annotation</value></data>
+  <data name="InspectorAnnotationX" xml:space="preserve"><value>Horizontal grid position</value></data>
+  <data name="InspectorAnnotationY" xml:space="preserve"><value>Vertical grid position</value></data>
+  <data name="InspectorAnnotationAlignment" xml:space="preserve"><value>Text alignment</value></data>
+  <data name="InspectorAlignmentStart" xml:space="preserve"><value>Start</value></data>
+  <data name="InspectorAlignmentCenter" xml:space="preserve"><value>Center</value></data>
+  <data name="InspectorAlignmentEnd" xml:space="preserve"><value>End</value></data>
+  <data name="InspectorAnnotationInvalid" xml:space="preserve"><value>Enter whole-number grid coordinates within the signed 32-bit range.</value></data>
+  <data name="InspectorDefinitionActions" xml:space="preserve"><value>Circuit definitions</value></data>
+  <data name="InspectorNewDefinitionName" xml:space="preserve"><value>New circuit name</value></data>
+  <data name="InspectorCreateDefinition" xml:space="preserve"><value>Create circuit</value></data>
+  <data name="InspectorRemoveDefinition" xml:space="preserve"><value>Delete current circuit</value></data>
+  <data name="InspectorRemoveDefinitionHint" xml:space="preserve"><value>Only a non-entry circuit with no component references can be deleted.</value></data>
+  <data name="PublicPorts" xml:space="preserve"><value>Public ports</value></data>
+  <data name="PublicPortsHint" xml:space="preserve"><value>Retained ports keep their identity, direction and width. Replacing or removing a port disconnects its old definition boundary. Review every call site before applying.</value></data>
+  <data name="PublicPortIdentity" xml:space="preserve"><value>Port identity</value></data>
+  <data name="PublicPortRetain" xml:space="preserve"><value>Retain identity</value></data>
+  <data name="PublicPortReplace" xml:space="preserve"><value>Replace with new identity</value></data>
+  <data name="PublicPortRemove" xml:space="preserve"><value>Remove port</value></data>
+  <data name="PublicPortFacing" xml:space="preserve"><value>Facing direction</value></data>
+  <data name="PublicPortFacingNorth" xml:space="preserve"><value>North</value></data>
+  <data name="PublicPortFacingEast" xml:space="preserve"><value>East</value></data>
+  <data name="PublicPortFacingSouth" xml:space="preserve"><value>South</value></data>
+  <data name="PublicPortFacingWest" xml:space="preserve"><value>West</value></data>
+  <data name="PublicPortUp" xml:space="preserve"><value>Move up</value></data>
+  <data name="PublicPortDown" xml:space="preserve"><value>Move down</value></data>
+  <data name="PublicPortAdd" xml:space="preserve"><value>Add port</value></data>
+  <data name="PublicPortsReview" xml:space="preserve"><value>Review port contract</value></data>
+  <data name="PublicPortsInvalid" xml:space="preserve"><value>Enter valid decimal widths, signed grid coordinates and directions.</value></data>
+  <data name="PublicPortsBudget" xml:space="preserve"><value>The complete port migration exceeds this Workspace’s command budget.</value></data>
+  <data name="PublicPortsMigrationHint" xml:space="preserve"><value>Affected call sites: {0}. Each old port needs a distinct compatible destination or an explicit disconnection.</value></data>
+  <data name="PublicPortsMappingInvalid" xml:space="preserve"><value>Choose a compatible destination or disconnect every old port; destinations must be distinct within each call site.</value></data>
+  <data name="PublicPortsApply" xml:space="preserve"><value>Apply ports and call sites</value></data>
+  <data name="PublicPortNumber" xml:space="preserve"><value>Port {0}</value></data>
+  <data name="InspectorSymbols" xml:space="preserve"><value>Symbol appearance</value></data>
+  <data name="InspectorIndicationConvention" xml:space="preserve"><value>Project indication convention</value></data>
+  <data name="InspectorConventionNegation" xml:space="preserve"><value>Logic negation</value></data>
+  <data name="InspectorConventionDirectPolarity" xml:space="preserve"><value>Direct polarity</value></data>
+  <data name="InspectorConventionHint" xml:space="preserve"><value>This convention applies to the whole project and preserves component behavior.</value></data>
+  <data name="InspectorSymbolVariant" xml:space="preserve"><value>Symbol variant</value></data>
+  <data name="InspectorSymbolDefault" xml:space="preserve"><value>Profile default</value></data>
+  <data name="InspectorSymbolBoundary" xml:space="preserve"><value>Boundary</value></data>
+  <data name="InspectorSymbolDistinctive" xml:space="preserve"><value>Distinctive gate</value></data>
+  <data name="InspectorSymbolRectangular" xml:space="preserve"><value>Rectangular</value></data>
+  <data name="InspectorApplySymbol" xml:space="preserve"><value>Apply appearance</value></data>
+  <data name="InspectorSymbolIncompatible" xml:space="preserve"><value>Incompatible current override</value></data>
+  <data name="InspectorSymbolMigrationRequired" xml:space="preserve"><value>Choose the profile default or a compatible variant for the new contract.</value></data>
 </root>

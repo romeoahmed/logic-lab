@@ -5,7 +5,7 @@
     </header>
     @if (count == 0)
     {
-        <p class="diagnostic-empty">@Text[Projection.Compilation is CompilationNotRequestedProjection
+        <p class="diagnostic-empty">@Text[Projection?.Compilation is CompilationNotRequestedProjection
             ? "DiagnosticCompileFirst" : "DiagnosticEmpty"]</p>
     }
     else
@@ -16,7 +16,7 @@
                 <article class="diagnostic-item" data-diagnostic-code="@row.Code" data-diagnostic-severity="@row.Severity">
                     <div class="diagnostic-caption">
                         <span class="diagnostic-severity">@Text["DiagnosticSeverity_" + row.Severity]</span>
-                        <span>@row.Origin</span>
+                        <span>@Text[row.Origin]</span>
                     </div>
                     <p class="diagnostic-message">@DiagnosticPresentation.Message(Text, row.Code)</p>
                     @if (row.Source is { } source)
@@ -28,7 +28,10 @@
                     <details>
                         <summary>@Text["DiagnosticDetails"]</summary>
                         <code>@row.Code</code>
-                        <p>@Text["DiagnosticRevision"]: <code>@row.RevisionId.Value</code></p>
+                        @if (row.RevisionId is { } revision)
+                        {
+                            <p>@Text["DiagnosticRevision"]: <code>@revision.Value</code></p>
+                        }
                         @if (row.Arguments.Count != 0)
                         {
                             <dl>

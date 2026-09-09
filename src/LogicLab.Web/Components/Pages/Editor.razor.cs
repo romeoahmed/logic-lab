@@ -242,7 +242,9 @@ public sealed partial class Editor : IAsyncDisposable
 
             Attachment = attached;
             AttachmentFailure = null;
+            operationDiagnostics = [];
             Projection = attached.Projection;
+            ObserveDiagnosticFaults();
             ClaimDisplayName = attached.Projection.ProjectRevision.Document.DisplayName;
             SelectedDefinitionId = attached.Projection.ProjectRevision.Document
                 .EntryCircuitDefinitionId;
@@ -314,7 +316,9 @@ public sealed partial class Editor : IAsyncDisposable
 
         Attachment = attached;
         AttachmentFailure = null;
+        operationDiagnostics = [];
         Projection = attached.Projection;
+        ObserveDiagnosticFaults();
         ClaimDisplayName = attached.Projection.ProjectRevision.Document.DisplayName;
         SelectedDefinitionId = attached.Projection.ProjectRevision.Document
             .EntryCircuitDefinitionId;
@@ -343,6 +347,8 @@ public sealed partial class Editor : IAsyncDisposable
         CancellationToken observationCancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(createCommand);
+        var requestedProjection = Projection;
+        var requestedCaller = CurrentCaller;
         var outcome = await workspace.DispatchAsync(
             createCommand(CommandContext(CreateClientIntentId())),
             commandCancellationToken);
@@ -358,6 +364,18 @@ public sealed partial class Editor : IAsyncDisposable
         }
 
         await Refresh(observationCancellationToken);
+        if (requestedCaller == CurrentCaller
+            && Projection?.WorkspaceId == requestedProjection?.WorkspaceId && Projection is not null)
+        {
+            ShowOperationDiagnostics(outcome switch
+            {
+                WorkspaceCommandRejected rejected => rejected.Diagnostics,
+                SessionAdvanceFailed failed when requestedProjection?.Simulation is { } simulation =>
+                    failed.Failure.Diagnostics.Select(diagnostic => (WorkspaceDiagnostic)new WorkspaceSimulationDiagnostic(
+                        simulation.CompilationArtifactKey.ProjectRevisionId, diagnostic)).ToArray(),
+                _ => [],
+            });
+        }
         return outcome;
     }
 
@@ -500,6 +518,12 @@ public sealed partial class Editor : IAsyncDisposable
     private void ClearWorkspaceState()
     {
         Projection = null;
+        diagnosticLog.Reset();
+        operationDiagnostics = [];
+        sceneDiagnostics = null;
+        waveformDiagnostics = null;
+        showMemoryImages = false;
+        selectedMemoryImageId = null;
         Attachment = null;
         SelectedDefinitionId = null;
         HierarchyNavigation.Clear();
@@ -533,11 +557,15 @@ public sealed partial class Editor : IAsyncDisposable
         Projection = projection;
         if (projectRevisionChanged)
         {
+            sceneDiagnostics = null;
+            waveformDiagnostics = null;
+            ObserveDiagnosticFaults();
             PreparedExportUrl = null;
             ProjectScene();
             return;
         }
 
+        ObserveDiagnosticFaults();
         EnsureSceneToolAvailable();
     }
 

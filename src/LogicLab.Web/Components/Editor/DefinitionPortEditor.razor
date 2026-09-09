@@ -1,0 +1,106 @@
+@{ var current = draft; }
+<details data-public-ports open="@(SelectedPortId is not null)">
+    <summary>@Text["PublicPorts"]</summary>
+    <div class="port-editor">
+        <p>@Text["PublicPortsHint"]</p>
+        <FluentDataGrid @key="current" Items="@current.Ports.AsQueryable()" Pagination="@current.Pagination" MultiLine="true"
+                        GridTemplateColumns="minmax(0, 1fr)" GenerateHeader="DataGridGeneratedHeaderType.None">
+            <TemplateColumn Context="port">
+                <div class="port-editor" data-public-port="@(port.Source?.Id.Value ?? "new")">
+                    <strong>@Text["PublicPortNumber", current.Ports.IndexOf(port) + 1]</strong>
+                    @if (port.Source is not null)
+                    {
+                        <FluentSelect TOption="string" TValue="string" Label="@Text["PublicPortIdentity"]" data-port-mode
+                                      Value="@port.Mode" Disabled="@(!CanEdit)" ValueChanged="@(value => ChangeMode(current, port, value))">
+                            <FluentOptionString Value="retain">@Text["PublicPortRetain"]</FluentOptionString>
+                            <FluentOptionString Value="replace">@Text["PublicPortReplace"]</FluentOptionString>
+                            <FluentOptionString Value="remove">@Text["PublicPortRemove"]</FluentOptionString>
+                        </FluentSelect>
+                    }
+                    @if (port.Mode != "remove")
+                    {
+                        <FluentTextInput Label="@Text["InspectorDisplayName"]" data-port-name Value="@port.Name" Immediate="true" Width="100%"
+                                         Disabled="@(!CanEdit)" ValueChanged="@(value => Change(current, port, () => port.Name = value ?? string.Empty))" />
+                        <FluentTextInput Label="@Text["InspectorWidth"]" data-port-width Value="@port.Width" Immediate="true" Width="100%"
+                                         Disabled="@(!CanEdit || port.Mode == "retain")" ValueChanged="@(value => Change(current, port, () => port.Width = value ?? string.Empty))" />
+                        <FluentSelect TOption="string" TValue="string" Label="@Text["InspectorDirection"]" data-port-direction Value="@port.Direction"
+                                      Disabled="@(!CanEdit || port.Mode == "retain")" ValueChanged="@(value => Change(current, port, () => port.Direction = value ?? string.Empty))">
+                            @foreach (var direction in Enum.GetValues<PortDirection>())
+                            {
+                                <FluentOptionString Value="@direction.ToString()">@Text[direction == PortDirection.Input ? "InspectorInput" : "InspectorOutput"]</FluentOptionString>
+                            }
+                        </FluentSelect>
+                        <FluentTextInput Label="@Text["InspectorAnnotationX"]" data-port-x Value="@port.X" Immediate="true" Width="100%"
+                                         Disabled="@(!CanEdit)" ValueChanged="@(value => Change(current, port, () => port.X = value ?? string.Empty))" />
+                        <FluentTextInput Label="@Text["InspectorAnnotationY"]" data-port-y Value="@port.Y" Immediate="true" Width="100%"
+                                         Disabled="@(!CanEdit)" ValueChanged="@(value => Change(current, port, () => port.Y = value ?? string.Empty))" />
+                        <FluentSelect TOption="string" TValue="string" Label="@Text["PublicPortFacing"]" data-port-facing Value="@port.Facing"
+                                      Disabled="@(!CanEdit)" ValueChanged="@(value => Change(current, port, () => port.Facing = value ?? string.Empty))">
+                            @foreach (var facing in Enum.GetValues<CardinalDirection>())
+                            {
+                                <FluentOptionString Value="@facing.ToString()">@Text["PublicPortFacing" + facing]</FluentOptionString>
+                            }
+                        </FluentSelect>
+                    }
+                    <div class="port-actions">
+                        <FluentButton data-command="port-up" Disabled="@(!CanEdit || current.Ports.IndexOf(port) == 0)"
+                                      OnClick="@(() => Move(current, port, -1))">@Text["PublicPortUp"]</FluentButton>
+                        <FluentButton data-command="port-down" Disabled="@(!CanEdit || current.Ports.IndexOf(port) == current.Ports.Count - 1)"
+                                      OnClick="@(() => Move(current, port, 1))">@Text["PublicPortDown"]</FluentButton>
+                        @if (port.Source is null)
+                        {
+                            <FluentButton data-command="port-discard" Disabled="@(!CanEdit)"
+                                          OnClick="@(() => Change(current, port, () => current.Ports.Remove(port)))">@Text["PublicPortRemove"]</FluentButton>
+                        }
+                    </div>
+                </div>
+            </TemplateColumn>
+        </FluentDataGrid>
+        @if (current.Ports.Count > 25)
+        {
+            <FluentPaginator State="@current.Pagination" />
+        }
+        <FluentButton data-command="port-add" Disabled="@(!CanEdit || current.Ports.Count >= Policy.AuthoringLimits.EntityCount)"
+                      OnClick="@(() => Add(current))">@Text["PublicPortAdd"]</FluentButton>
+        <FluentButton data-command="ports-review" Disabled="@(!CanEdit)" OnClick="@(() => Review(current))">@Text["PublicPortsReview"]</FluentButton>
+        @if (current.Error is { } error)
+        {
+            <p class="port-error">@Text[error]</p>
+        }
+        @if (current.Preview is { } preview)
+        {
+            <p>@Text["PublicPortsMigrationHint", preview.Calls.Length]</p>
+            <FluentDataGrid @key="preview" Items="@preview.Rows.AsQueryable()" Pagination="@preview.Pagination" MultiLine="true"
+                            GridTemplateColumns="minmax(0, 1fr)" GenerateHeader="DataGridGeneratedHeaderType.None">
+                <TemplateColumn Context="row">
+                    <div class="port-editor" data-callsite-port="@row.Old.Id.Value" data-callsite="@row.Instance.Id.Value">
+                        <p>@row.Definition.DisplayName / @(row.Instance.DisplayName ?? current.Definition.DisplayName) (@row.Instance.Placement.Origin.X, @row.Instance.Placement.Origin.Y) / @row.Old.DisplayName</p>
+                        <FluentSelect TOption="string" TValue="string" Label="@Text["InspectorDestinationPort"]" data-callsite-destination
+                                      Disabled="@(!CanEdit)" Value="@row.Destination" ValueChanged="@(value => row.Destination = value ?? string.Empty)">
+                            <FluentOptionString Value="">@Text["InspectorChooseConnection"]</FluentOptionString>
+                            <FluentOptionString Value="disconnect">@Text["InspectorDisconnectPort"]</FluentOptionString>
+                            @for (var index = 0; index < preview.Contracts.Length; index++)
+                            {
+                                var port = preview.Contracts[index].Declaration;
+                                @if (ContractPreview.Compatible(row, port))
+                                {
+                                    <FluentOptionString Value="@index.ToString(System.Globalization.CultureInfo.InvariantCulture)">@Text["PublicPortNumber", index + 1] · @PortLabel(port)</FluentOptionString>
+                                }
+                            }
+                        </FluentSelect>
+                    </div>
+                </TemplateColumn>
+            </FluentDataGrid>
+            @if (preview.Rows.Length > 25)
+            {
+                <FluentPaginator State="@preview.Pagination" />
+            }
+            @if (!preview.Valid)
+            {
+                <p class="port-error">@Text["PublicPortsMappingInvalid"]</p>
+            }
+            <FluentButton data-command="ports-apply" Appearance="ButtonAppearance.Primary" Disabled="@(!CanEdit || !preview.Valid || !preview.Changed)"
+                          OnClick="@(() => ApplyAsync(current, preview))">@Text["PublicPortsApply"]</FluentButton>
+        }
+    </div>
+</details>
