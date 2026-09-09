@@ -309,6 +309,52 @@
   <data name="InspectorSplitMembers" xml:space="preserve"><value>分离选中成员</value></data>
   <data name="InspectorSplitMembersDescription" xml:space="preserve"><value>将选中的端口、接点和线路与未选成员分成两个网络。</value></data>
   <data name="InspectorEditApplied" xml:space="preserve"><value>已应用选区编辑。</value></data>
+  <data name="InspectorDisplayName" xml:space="preserve"><value>显示名称</value></data>
+  <data name="InspectorParameters" xml:space="preserve"><value>参数</value></data>
+  <data name="MemoryImages" xml:space="preserve"><value>存储映像</value></data>
+  <data name="MemoryImageNew" xml:space="preserve"><value>新建存储映像</value></data>
+  <data name="MemoryImageName" xml:space="preserve"><value>存储映像名称</value></data>
+  <data name="MemoryImageWidth" xml:space="preserve"><value>字位宽</value></data>
+  <data name="MemoryImageDepth" xml:space="preserve"><value>字数</value></data>
+  <data name="MemoryImageAddressWidth" xml:space="preserve"><value>地址位宽</value></data>
+  <data name="MemoryImageWords" xml:space="preserve"><value>初始存储字</value></data>
+  <data name="MemoryImageWordsHint" xml:space="preserve"><value>每行一个字，从地址 0 开始。使用 0、1 或 X，最高有效位在前。</value></data>
+  <data name="MemoryImageReferences" xml:space="preserve"><value>被 {0} 个元件引用</value></data>
+  <data name="MemoryImageAdoptDimensions" xml:space="preserve"><value>让引用采用新尺寸</value></data>
+  <data name="MemoryImageMigrationHint" xml:space="preserve"><value>所有引用一起更新。已连接端口必须保持方向和位宽；如需改变连接，请先迁移元件契约。</value></data>
+  <data name="MemoryImageInvalidText" xml:space="preserve"><value>请使用十进制尺寸，并用 0、1 或 X 输入完整的存储字。</value></data>
+  <data name="MemoryImageCommandLimit" xml:space="preserve"><value>此替换超过工作区的命令项预算。</value></data>
+  <data name="MemoryImageNotLoaded" xml:space="preserve"><value>已有存储字超过工作区命令项预算，未载入此表单。若要修改，请输入一份完整且更小的替换内容。</value></data>
+  <data name="MemoryImageCreate" xml:space="preserve"><value>创建存储映像</value></data>
+  <data name="MemoryImageApply" xml:space="preserve"><value>应用映像与引用</value></data>
+  <data name="MemoryImageRemove" xml:space="preserve"><value>删除存储映像</value></data>
+  <data name="MemoryImageRemoveHint" xml:space="preserve"><value>删除映像前，请为所有引用元件重新绑定映像。</value></data>
+  <data name="MemoryImageEditApplied" xml:space="preserve"><value>已应用存储映像编辑。</value></data>
+  <data name="MemoryImageSelectionView" xml:space="preserve"><value>选区</value></data>
+  <data name="InspectorTarget" xml:space="preserve"><value>元件类型 / 电路</value></data>
+  <data name="InspectorReviewMigration" xml:space="preserve"><value>检查端口变更</value></data>
+  <data name="InspectorApplyMigration" xml:space="preserve"><value>应用契约与连接</value></data>
+  <data name="InspectorMigrationHint" xml:space="preserve"><value>为每个旧端口选择兼容的新端口，或明确断开连接。每个新端口只能对应一个旧端口。</value></data>
+  <data name="InspectorNewPorts" xml:space="preserve"><value>新端口</value></data>
+  <data name="InspectorConnectionAction" xml:space="preserve"><value>连接处理</value></data>
+  <data name="InspectorChooseConnection" xml:space="preserve"><value>选择处理方式</value></data>
+  <data name="InspectorMapPort" xml:space="preserve"><value>对应到新端口</value></data>
+  <data name="InspectorDisconnectPort" xml:space="preserve"><value>断开连接</value></data>
+  <data name="InspectorDestinationPort" xml:space="preserve"><value>目标端口</value></data>
+  <data name="InspectorDuplicateDestination" xml:space="preserve"><value>两个旧端口不能对应同一个新端口。</value></data>
+  <data name="InspectorPortMappingInvalid" xml:space="preserve"><value>请选择方向、位宽相同的端口，或断开连接。</value></data>
+  <data name="InspectorMigrationInvalid" xml:space="preserve"><value>这些参数不能构成有效的端口契约，请修改后再检查连接。</value></data>
+  <data name="InspectorMigrationLimit" xml:space="preserve"><value>端口数量超过此工作区的编辑预算。</value></data>
+  <data name="InspectorMigrationSymbolHint" xml:space="preserve"><value>所选符号变体将与目标、参数和端口映射一并应用。</value></data>
+  <data name="InspectorApplyParameters" xml:space="preserve"><value>应用参数</value></data>
+  <data name="InspectorParameterInvalid" xml:space="preserve"><value>请按所示格式输入参数值。</value></data>
+  <data name="InspectorUnsignedHint" xml:space="preserve"><value>使用十进制数字，不加分隔符。</value></data>
+  <data name="InspectorVectorHint" xml:space="preserve"><value>使用 0、1、X 或 Z，最高有效位在前。</value></data>
+  <data name="InspectorWidthsHint" xml:space="preserve"><value>用逗号分隔十进制位宽，例如 2, 4。</value></data>
+  <data name="InspectorSlicesHint" xml:space="preserve"><value>用逗号分隔“偏移:长度”，例如 0:2, 2:4。</value></data>
+  <data name="InspectorParameterShapeHint" xml:space="preserve"><value>参数编辑必须保留元件端口。改变端口需要迁移契约。</value></data>
+  <data name="InspectorRename" xml:space="preserve"><value>应用名称</value></data>
+  <data name="InspectorNameOptional" xml:space="preserve"><value>留空时使用元件类型名称。</value></data>
   <data name="InspectorComponents" xml:space="preserve"><value>组件</value></data>
   <data name="InspectorNets" xml:space="preserve"><value>网络</value></data>
   <data name="InspectorPorts" xml:space="preserve"><value>定义端口</value></data>
@@ -403,4 +449,99 @@
   <data name="InstrumentHeight" xml:space="preserve">
     <value>仪器区高度</value>
   </data>
+  <data name="DiagnosticAuthoring" xml:space="preserve"><value>电路编辑</value></data>
+  <data name="DiagnosticPackage" xml:space="preserve"><value>项目包</value></data>
+  <data name="DiagnosticSimulationOperation" xml:space="preserve"><value>仿真操作</value></data>
+  <data name="Diagnostic_authoring_duplicate_id" xml:space="preserve"><value>项目中已存在此标识符。</value></data>
+  <data name="Diagnostic_authoring_missing_reference" xml:space="preserve"><value>编辑引用的对象已不可用。</value></data>
+  <data name="Diagnostic_authoring_invalid_width" xml:space="preserve"><value>信号位宽超出支持范围。</value></data>
+  <data name="Diagnostic_authoring_width_mismatch" xml:space="preserve"><value>连接的信号位宽不匹配。</value></data>
+  <data name="Diagnostic_authoring_terminal_already_connected" xml:space="preserve"><value>此端口已连接到网络。</value></data>
+  <data name="Diagnostic_authoring_invalid_parameter" xml:space="preserve"><value>元件参数不符合其契约。</value></data>
+  <data name="Diagnostic_authoring_invalid_text" xml:space="preserve"><value>文本含有不支持的字符或超出长度限制。</value></data>
+  <data name="Diagnostic_authoring_invalid_coordinate" xml:space="preserve"><value>坐标超出支持的网格范围。</value></data>
+  <data name="Diagnostic_authoring_invalid_memory_image" xml:space="preserve"><value>存储器映像的结构或内容不符合要求。</value></data>
+  <data name="Diagnostic_authoring_invalid_route" xml:space="preserve"><value>导线路径无效，请检查端点和正交线段。</value></data>
+  <data name="Diagnostic_authoring_delete_has_dependents" xml:space="preserve"><value>项目中的其他对象仍依赖待删除对象。</value></data>
+  <data name="Diagnostic_authoring_invalid_split" xml:space="preserve"><value>网络分区无法构成有效拆分。</value></data>
+  <data name="Diagnostic_authoring_symbol_variant_incompatible" xml:space="preserve"><value>所选符号变体与此元件不兼容。</value></data>
+  <data name="Diagnostic_authoring_symbol_profile_unresolved" xml:space="preserve"><value>请求的符号配置不可用。</value></data>
+  <data name="Diagnostic_package_illegal_entry" xml:space="preserve"><value>文件不是支持的项目包，或包含无效条目。</value></data>
+  <data name="Diagnostic_package_duplicate_entry" xml:space="preserve"><value>项目包包含重复条目。</value></data>
+  <data name="Diagnostic_package_unsupported_feature" xml:space="preserve"><value>项目包使用了不支持的功能。</value></data>
+  <data name="Diagnostic_package_limit_exceeded" xml:space="preserve"><value>项目包超出资源限制。</value></data>
+  <data name="Diagnostic_package_integrity_mismatch" xml:space="preserve"><value>项目包未通过完整性检查。</value></data>
+  <data name="Diagnostic_package_schema_version_unsupported" xml:space="preserve"><value>不支持此项目包版本。</value></data>
+  <data name="Diagnostic_package_json_invalid" xml:space="preserve"><value>项目数据不是符合要求的 JSON。</value></data>
+  <data name="Diagnostic_package_unknown_member" xml:space="preserve"><value>项目数据包含未知字段。</value></data>
+  <data name="Diagnostic_package_unknown_discriminator" xml:space="preserve"><value>项目数据包含未知记录类型。</value></data>
+  <data name="Diagnostic_package_memory_invalid" xml:space="preserve"><value>项目包中的存储器映像无效。</value></data>
+  <data name="Diagnostic_package_domain_invalid" xml:space="preserve"><value>项目包中的电路不符合编辑规则。</value></data>
+  <data name="DiagnosticPresentation" xml:space="preserve"><value>原理图投影</value></data>
+  <data name="DiagnosticScene" xml:space="preserve"><value>电路画布</value></data>
+  <data name="DiagnosticWaveform" xml:space="preserve"><value>波形画布</value></data>
+  <data name="Diagnostic_web_renderer_unavailable" xml:space="preserve"><value>画布渲染器不可用，请重试以重新创建。</value></data>
+  <data name="Diagnostic_web_browser_policy_exhausted" xml:space="preserve"><value>浏览器渲染器超出资源限制，请缩小视图或项目规模后重试。</value></data>
+  <data name="Diagnostic_web_browser_contract_rejected" xml:space="preserve"><value>浏览器拒绝了无效更新，请重试以载入完整快照。</value></data>
+  <data name="Diagnostic_web_interop_failure" xml:space="preserve"><value>与渲染器的通信失败，请重试或重新载入页面。</value></data>
+  <data name="Diagnostic_presentation_variant_unresolved" xml:space="preserve"><value>请求的符号变体不可用。</value></data>
+  <data name="Diagnostic_presentation_constraint_unsatisfied" xml:space="preserve"><value>无法在要求的几何约束内绘制电路。</value></data>
+  <data name="Diagnostic_presentation_unverified_fallback" xml:space="preserve"><value>此符号使用的几何形状尚未通过一致性验证。</value></data>
+  <data name="Diagnostic_presentation_font_fingerprint_mismatch" xml:space="preserve"><value>绘图字体与预期资源不匹配。</value></data>
+  <data name="Diagnostic_presentation_metric_fingerprint_mismatch" xml:space="preserve"><value>符号度量与预期配置不匹配。</value></data>
+  <data name="Diagnostic_presentation_internal_invariant" xml:space="preserve"><value>原理图投影未能完成，报告问题时请提供关联代码。</value></data>
+  <data name="DiagnosticWorkspace" xml:space="preserve"><value>工作区</value></data>
+  <data name="Diagnostic_workspace_attachment_recovered" xml:space="preserve"><value>工作区连接已恢复，未确认的命令不会自动重放。</value></data>
+  <data name="Diagnostic_workspace_compilation_stale" xml:space="preserve"><value>仿真仍使用较早的项目修订。请编译当前修订，再应用更改或重新启动仿真。</value></data>
+  <data name="Diagnostic_workspace_history_truncated" xml:space="preserve"><value>为保持在工作区限制内，较早的修订已从撤销历史中移除。</value></data>
+  <data name="Diagnostic_workspace_probe_unresolved" xml:space="preserve"><value>此探针已失去兼容的仿真绑定。请重新绑定到可用的网络，或移除未解析的行。</value></data>
+  <data name="InspectorCreateAnnotation" xml:space="preserve"><value>添加注释</value></data>
+  <data name="InspectorEditAnnotation" xml:space="preserve"><value>编辑注释</value></data>
+  <data name="InspectorApplyAnnotation" xml:space="preserve"><value>应用注释</value></data>
+  <data name="InspectorAnnotationX" xml:space="preserve"><value>水平网格坐标</value></data>
+  <data name="InspectorAnnotationY" xml:space="preserve"><value>垂直网格坐标</value></data>
+  <data name="InspectorAnnotationAlignment" xml:space="preserve"><value>文字对齐</value></data>
+  <data name="InspectorAlignmentStart" xml:space="preserve"><value>起始端</value></data>
+  <data name="InspectorAlignmentCenter" xml:space="preserve"><value>居中</value></data>
+  <data name="InspectorAlignmentEnd" xml:space="preserve"><value>末端</value></data>
+  <data name="InspectorAnnotationInvalid" xml:space="preserve"><value>请输入有符号 32 位整数范围内的网格坐标。</value></data>
+  <data name="InspectorDefinitionActions" xml:space="preserve"><value>电路定义</value></data>
+  <data name="InspectorNewDefinitionName" xml:space="preserve"><value>新电路名称</value></data>
+  <data name="InspectorCreateDefinition" xml:space="preserve"><value>创建电路</value></data>
+  <data name="InspectorRemoveDefinition" xml:space="preserve"><value>删除当前电路</value></data>
+  <data name="InspectorRemoveDefinitionHint" xml:space="preserve"><value>只能删除非入口且未被元件引用的电路。</value></data>
+  <data name="PublicPorts" xml:space="preserve"><value>公共端口</value></data>
+  <data name="PublicPortsHint" xml:space="preserve"><value>保留端口会保留其身份、方向和位宽。替换或删除端口会断开旧定义边界连接。应用前请检查每个调用点。</value></data>
+  <data name="PublicPortIdentity" xml:space="preserve"><value>端口身份</value></data>
+  <data name="PublicPortRetain" xml:space="preserve"><value>保留身份</value></data>
+  <data name="PublicPortReplace" xml:space="preserve"><value>替换为新身份</value></data>
+  <data name="PublicPortRemove" xml:space="preserve"><value>删除端口</value></data>
+  <data name="PublicPortFacing" xml:space="preserve"><value>朝向</value></data>
+  <data name="PublicPortFacingNorth" xml:space="preserve"><value>北</value></data>
+  <data name="PublicPortFacingEast" xml:space="preserve"><value>东</value></data>
+  <data name="PublicPortFacingSouth" xml:space="preserve"><value>南</value></data>
+  <data name="PublicPortFacingWest" xml:space="preserve"><value>西</value></data>
+  <data name="PublicPortUp" xml:space="preserve"><value>上移</value></data>
+  <data name="PublicPortDown" xml:space="preserve"><value>下移</value></data>
+  <data name="PublicPortAdd" xml:space="preserve"><value>添加端口</value></data>
+  <data name="PublicPortsReview" xml:space="preserve"><value>检查端口契约</value></data>
+  <data name="PublicPortsInvalid" xml:space="preserve"><value>请输入有效的十进制位宽、有符号网格坐标和方向。</value></data>
+  <data name="PublicPortsBudget" xml:space="preserve"><value>完整端口迁移超出了当前工作区的命令预算。</value></data>
+  <data name="PublicPortsMigrationHint" xml:space="preserve"><value>受影响的调用点：{0}。每个旧端口必须映射到不同的兼容端口，或显式断开。</value></data>
+  <data name="PublicPortsMappingInvalid" xml:space="preserve"><value>请为每个旧端口选择兼容目标或断开；同一调用点的目标不得重复。</value></data>
+  <data name="PublicPortsApply" xml:space="preserve"><value>应用端口和调用点</value></data>
+  <data name="PublicPortNumber" xml:space="preserve"><value>端口 {0}</value></data>
+  <data name="InspectorSymbols" xml:space="preserve"><value>符号外观</value></data>
+  <data name="InspectorIndicationConvention" xml:space="preserve"><value>项目指示约定</value></data>
+  <data name="InspectorConventionNegation" xml:space="preserve"><value>逻辑否定</value></data>
+  <data name="InspectorConventionDirectPolarity" xml:space="preserve"><value>直接极性</value></data>
+  <data name="InspectorConventionHint" xml:space="preserve"><value>此约定应用于整个项目，并保留元件行为。</value></data>
+  <data name="InspectorSymbolVariant" xml:space="preserve"><value>符号变体</value></data>
+  <data name="InspectorSymbolDefault" xml:space="preserve"><value>配置默认值</value></data>
+  <data name="InspectorSymbolBoundary" xml:space="preserve"><value>边界符号</value></data>
+  <data name="InspectorSymbolDistinctive" xml:space="preserve"><value>特征门符号</value></data>
+  <data name="InspectorSymbolRectangular" xml:space="preserve"><value>矩形符号</value></data>
+  <data name="InspectorApplySymbol" xml:space="preserve"><value>应用外观</value></data>
+  <data name="InspectorSymbolIncompatible" xml:space="preserve"><value>当前覆盖不兼容</value></data>
+  <data name="InspectorSymbolMigrationRequired" xml:space="preserve"><value>请为新契约选择配置默认值或兼容的符号变体。</value></data>
 </root>

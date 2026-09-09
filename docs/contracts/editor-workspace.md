@@ -312,6 +312,45 @@ future inputs or changing Run state preserves that evidence. A committed Advance
 Hot Swap replaces it. A Session attached to an earlier Project Revision keeps its
 evidence separate from Diagnostics for the current revision.
 
+Rejected open and command outcomes also retain the owning Module's Diagnostic
+records. Workspace tags authoring, compiler, and simulation evidence with the
+revision used by the operation; package validation and rejected Genesis have no
+published revision. Code summaries are derived from these records for consumers
+that need only codes. A rejected operation changes no authored revision or Session
+boundary. Web may display its evidence until the next operation completes, but
+must fence publication by the current caller and Workspace and must never resolve
+an earlier revision's sources against the current document. An authored location
+identifies a definition directly; it does not invent a hierarchy occurrence.
+Failed Advance and Run projections retain full Simulation Diagnostics separately
+from the last committed boundary.
+
+Application-owned Workspace notices are bounded facts in the same owned projection, ordered by code.
+`workspace_compilation_stale` is present while the retained Session's Compilation
+Artifact names an earlier Project Revision; compiling alone does not make that
+Session current. Hot Swap, Restart, Close, or returning to its exact revision removes
+the notice as applicable. `workspace_history_truncated` reports the cumulative number
+of oldest revisions evicted by the History retention limit since this Workspace was
+opened. Discarding a Redo branch is not retention eviction, and idempotent replay
+does not count twice. `workspace_attachment_recovered` records that this Workspace
+has successfully replaced an attachment through Reattach or RecoverAttach. The first
+recovery adds that notice and increments Projection Version; later recoveries do not
+change the notice. These summaries survive ordinary reads and edits. A newly opened
+or copied Workspace starts its own History and attachment summaries. Rejected
+operations add no notices or version changes.
+
+The Web waveform view additionally projects `workspace_probe_unresolved` for each
+distinct source represented by its current unresolved recovery rows, with the closed
+rule `artifactIncompatible`. It retains the original typed Compilation Source from
+the prior Session projection instead of reconstructing authored IDs from a browser
+record. This notice describes the binding's inability to resolve against the current
+revision; navigation still requires both the entity and its complete Hierarchy Path
+to exist. Explicitly removed Probes are not recovered from an older waveform snapshot.
+Removing a recovery row, successfully rebinding its source, or replacing/closing the
+Session removes its notice. Recovery rows and these notices belong to the current Web
+view, alongside its waveform preferences; they do not enter Workspace Projection or
+change Projection Version. The Diagnostics list and Inspector consume the same
+current evidence, and canonical Compilation Source order governs these notices.
+
 `ReadProjection` returns `ProjectionUnchanged` only when the supplied version is current; otherwise it returns a complete snapshot. V1 does not expose a generic field-mask query or semantic patch format. The Web projection coordinator derives browser-specific scene and waveform messages from this snapshot plus Diagram Presentation and Trace reads.
 
 The snapshot is an in-process composition of owned immutable values, not a serialized browser payload. Projection Version is an atomic publication fence, not a cache-invalidation command.

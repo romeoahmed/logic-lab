@@ -3,11 +3,34 @@ using LogicLab.Domain;
 using LogicLab.Domain.Authoring;
 using LogicLab.Web.Components.Editor;
 using LogicLab.Web.Scene;
+using Microsoft.FluentUI.AspNetCore.Components;
 
 namespace LogicLab.Web.Tests;
 
 internal sealed partial class WorkbenchComponentTests
 {
+    [Test]
+    public async Task Editor_MemoryImage_CreateUndoRedoUsesWorkspaceHistory()
+    {
+        await using var context = CreateContext();
+        await using var workspace = new TrackingWorkspace();
+        var rendered = await RenderAuthoredEditor(context, workspace);
+        rendered.Find("[data-inspector-view='memory']").Click();
+        var editor = rendered.FindComponent<MemoryImageEditor>();
+        await rendered.InvokeAsync(() => editor.FindComponents<FluentTextInput>().Single(control =>
+            control.FindAll("[data-memory-name]").Count != 0).Instance.ValueChanged.InvokeAsync("Boot data"));
+        await ClickAndWaitForState(rendered, "memory-apply", () =>
+            rendered.FindComponent<MemoryImageEditor>().Instance.Revision.Document.MemoryImages.Count == 1);
+        var image = (await workspace.ReadCurrent()).ProjectRevision.Document.MemoryImages.Single();
+        await Assert.That(image.DisplayName).IsEqualTo("Boot data");
+        await Assert.That(editor.Instance.SelectedImageId).IsEqualTo(image.Id);
+        await ClickAndWaitForState(rendered, "undo", () =>
+            rendered.FindComponent<MemoryImageEditor>().Instance.Revision.Document.MemoryImages.Count == 0);
+        await ClickAndWaitForState(rendered, "redo", () =>
+            rendered.FindComponent<MemoryImageEditor>().Instance.Revision.Document.MemoryImages.Count == 1);
+        await Assert.That((await workspace.ReadCurrent()).ProjectRevision.Document.MemoryImages.Single().Id).IsEqualTo(image.Id);
+    }
+
     [Test]
     public async Task Editor_SelectedComponent_ShowsParametersAndDeletesOnlySelection()
     {
@@ -20,13 +43,13 @@ internal sealed partial class WorkbenchComponentTests
         await Select(rendered, [SceneSourceMap.From(new ComponentInstanceSourceIdentity(definition.Id, input.Id))]);
 
         var inspector = rendered.FindComponent<SelectionInspector>();
-        var facts = inspector.FindAll("dl > div").ToDictionary(
-            row => row.QuerySelector("dt")!.TextContent,
-            row => row.QuerySelector("dd")!.TextContent);
+        var fields = inspector.FindComponents<FluentTextInput>().ToDictionary(
+            control => control.Instance.Label!,
+            control => control.Instance.Value);
         using (Assert.Multiple())
         {
-            await Assert.That(facts["Width (bits)"]).IsEqualTo("1");
-            await Assert.That(facts["Initial value"]).IsEqualTo("0");
+            await Assert.That(fields["Width (bits)"]).IsEqualTo("1");
+            await Assert.That(fields["Initial value"]).IsEqualTo("0");
             await Assert.That(inspector.FindAll("[data-selection-item]")).Count().IsEqualTo(1);
         }
 

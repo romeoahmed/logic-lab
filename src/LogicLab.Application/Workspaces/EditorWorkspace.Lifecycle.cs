@@ -531,6 +531,8 @@ internal sealed partial class EditorWorkspace
 
         public int HistoryCursor { get; set; }
 
+        public ulong RemovedHistoryRevisionCount { get; set; }
+
         public WorkspaceAttachmentId? AttachmentId { get; set; }
 
         public ulong AttachmentGeneration { get; set; }

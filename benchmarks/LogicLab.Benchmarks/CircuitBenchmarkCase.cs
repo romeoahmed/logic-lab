@@ -11,16 +11,20 @@ public enum CircuitBenchmarkShape
 
 public readonly record struct CircuitBenchmarkCase
 {
-    public CircuitBenchmarkCase(CircuitBenchmarkShape shape, int size)
+    public CircuitBenchmarkCase(CircuitBenchmarkShape shape, int size, uint wordWidth = 8)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
+        ArgumentOutOfRangeException.ThrowIfZero(wordWidth);
         Shape = shape;
         Size = size;
+        WordWidth = wordWidth;
     }
 
     public CircuitBenchmarkShape Shape { get; }
 
     public int Size { get; }
+
+    public uint WordWidth { get; }
 
     public override string ToString() => Shape switch
     {
@@ -28,7 +32,7 @@ public readonly record struct CircuitBenchmarkCase
         CircuitBenchmarkShape.HierarchicalInverterChain => $"hier-not-v1-i{Size}",
         CircuitBenchmarkShape.InverterFeedbackBank => $"feedback-not-v1-r{Size}",
         CircuitBenchmarkShape.DFlipFlopBank => $"dff-bank-v1-r{Size}",
-        CircuitBenchmarkShape.SinglePortRam => $"ram-v1-d{Size}-w8",
+        CircuitBenchmarkShape.SinglePortRam => $"ram-v1-d{Size}-w{WordWidth}",
         _ => throw new InvalidOperationException("Unknown benchmark circuit shape."),
     };
 }

@@ -18,10 +18,12 @@ tests, runtime counters, or deployment profiling.
 | `VectorNetResolutionBenchmarks`     | multi-driver resolution                                               | scalar and projected-driver paths against packed resolution              |
 | `PriorityEncoderBenchmarks`         | known and all-unknown inputs at three input counts                    | one encoder operation across candidate-set sizes                         |
 | `CompilerBenchmarks`                | flat, hierarchical, feedback, sequential, and memory circuits         | one public Compiler operation across shape and scale                     |
+| `CompilerAdmissionBenchmarks`       | invalid Port, cancellation, and policy rejection on three circuit shapes | closed rejection-path cost, with the declared outcome verified         |
 | `SimulationOpenBenchmarks`          | open and settle                                                       | one public Session workflow across shape and scale                       |
 | `SimulationSnapshotReadBenchmarks`  | read an open Session                                                  | read cost across probe topology and scale                                |
 | `SimulationAdvanceBenchmarks`       | schedule and advance                                                  | end-to-end command workflow across circuit families                      |
 | `SimulationTraceReadBenchmarks`     | transition and summary windows                                        | Trace reads across retained history                                      |
+| `SimulationHotSwapBenchmarks`       | compatible state migration and rejected state loss, including 65-bit RAM | additional workflow cost relative to opening and closing the same Session |
 
 The versioned corpus and parameter values live with benchmark source. It includes
 word-tail widths, small-to-large scale series, hierarchy, feedback, registers, and
@@ -48,9 +50,11 @@ dotnet run --project benchmarks/LogicLab.Benchmarks -c Release --no-build -- --j
 dotnet run --project benchmarks/LogicLab.Benchmarks -c Release --no-build -- --filter '*SimulationTraceReadBenchmarks*' --noOverwrite
 ```
 
-Non-interactive `BenchmarkSwitcher` runs require `--filter`. `Dry` proves only that a
-case can generate, compile, and execute once. Inspect the generated report rather than
-console iteration lines. Benchmark artifacts remain untracked.
+Non-interactive `BenchmarkSwitcher` runs require `--filter`. A failed benchmark,
+critical validation error, or empty execution returns nonzero; listing and help remain
+successful inspection commands. `Dry` proves only that a case can generate, compile,
+and execute once. Inspect the generated report rather than console iteration lines.
+Benchmark artifacts remain untracked.
 
 ## Interpret results
 
@@ -60,10 +64,13 @@ not equivalent operations. Absolute means depend on runtime, build, operating sy
 hardware, power state, and load; retain those facts with the corpus revision.
 
 The [performance evidence](../../docs/research/module-performance.md) owns historical
-measurements and decisions. Invalid compilation, cancellation, policy rejection, Hot
-Swap, broader memory shapes, and versioned edit sequences remain corpus gaps until
-[Delivery item 34](../../docs/delivery.md#production-qualification) freezes the
-representative set.
+measurements and decisions. Admission and Hot Swap cases use versioned benchmark
+categories; RAM includes both 8-bit words and a 65-bit packed-word boundary. The
+Hot Swap baseline includes Open and Close, so its ratio measures added migration or
+rejection work rather than isolated kernel latency. Versioned authoring sequences
+are semantic test evidence, not a substitute for Workspace history/load measurements.
+[Delivery item 34](../../docs/delivery.md#completed) owns freezing the
+representative qualification set.
 
 Application/Web concurrency and database capacity need load tests and runtime
 counters. Blazor rendering and interaction need browser traces. Do not turn either

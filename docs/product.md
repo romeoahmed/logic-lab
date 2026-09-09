@@ -95,6 +95,10 @@ Space temporarily pans. Escape cancels the current preview before clearing selec
 Pointer capture ends on commit, cancel, lost capture, disconnect, or tool change. A
 cancelled gesture emits no Workspace command.
 
+Canvas pauses input while a changed tool or authored scene is being synchronized
+with the browser. It retains focus and resumes when the current tool and revision
+are ready; value-overlay refreshes do not interrupt local interaction.
+
 Snapping is visible and deterministic. Routes are orthogonal; crossings never create
 Junctions. Pan, zoom, hover, snapping, and preview react locally. Only a completed
 semantic intention crosses the circuit.
@@ -122,9 +126,91 @@ parameters, Net drivers/receivers/value, Junction ownership, definition ports an
 references, or common multi-selection properties. It does not duplicate the complete
 Project Document.
 
+With no selection, Inspector edits the current Circuit Definition's display name.
+With one Component Instance selected, it edits that instance's optional display name;
+an empty value restores the component type name. Apply creates one authored revision
+and participates in Undo/Redo. A revision or selection change discards the old name
+draft; ordinary projection refreshes preserve it.
+
+With no selection, **Circuit definitions** creates a named, empty Circuit Definition
+and opens it for editing. The current definition can be deleted only when it is not
+the entry and no Component Instance references it. Undo restores the deleted
+definition and its identity. The navigator selects existing definitions and changes
+the entry through **Set as entry**.
+
+**Public ports** edits the selected Circuit Definition's ordered public contract.
+Retaining a Port preserves its identity, direction, and width; its name, position,
+and facing remain editable. Replacing a Port creates a new identity, and removing
+or replacing one disconnects its old definition-boundary connections. New Ports
+have no authored identity until committed. Reordering never identifies Ports by
+array position. A selected Canvas Port opens the editor on its page.
+
+**Review port contract** lists every old Port at every call site, including
+unconnected Ports. Each must keep or choose a distinct compatible destination,
+or explicitly disconnect. Call-site connections can also change while the public
+contract remains unchanged. Port edits invalidate the preview. Apply commits the
+ordered contract and all call-site migrations together; Undo restores the complete
+prior revision. Both lists are paginated, and the complete migration must fit the
+Workspace command budget before its call-site rows are expanded. Definition or
+revision changes discard the draft.
+
+With no selection, **Add annotation** accepts multiline text, signed grid coordinates,
+and text alignment. Creating an Annotation selects it immediately. Selecting an
+Annotation exposes the same form for one atomic text/position/alignment replacement;
+Canvas dragging and the selection removal action remain available. Invalid text uses
+the shared authoring diagnostics. Selection or revision changes discard old drafts,
+and each accepted change participates in Undo/Redo.
+
+A single library Component Instance also exposes its contract's complete parameter
+set. Numeric fields use decimal digits; Logic Vectors display the most significant
+bit first; widths and slices use comma-separated lists. Choice and Memory Image
+fields select declared values and existing resources. Apply submits one complete
+parameter replacement. Syntax errors stay beside the field, while authored
+constraint failures use the shared Diagnostics list and preserve the draft.
+Ordinary parameter edits preserve Port shape; changes to Ports require an explicit
+contract migration. Parameter drafts follow the same revision and selection
+lifetime as name drafts.
+
+**Review port changes** supports replacing the selected Component Instance's target
+with a library contract or an existing Circuit Definition, as well as changing its
+Port shape. Choosing another library type starts with the Component Palette's
+parameter defaults and an existing Memory Image when one is required. The preview
+lists every old Port, including unconnected Ports, and proposes same-ID compatible
+matches. Each Port must map to a distinct new Port with the same direction and width
+or be explicitly disconnected. Destination search uses Port names; the complete new
+Port list remains available. Lists are paginated without discarding decisions.
+Changing parameters invalidates the preview until reviewed again. Apply publishes
+the target, parameters, and connections in one authored revision, preserving the
+Component Instance identity. The preview also selects the Symbol Variant: changing
+target starts with the profile default, while an unchanged target retains its
+compatible override. An incompatible override requires an explicit replacement or
+return to the profile default. Undo restores the whole migration.
+
+**Symbol appearance** changes presentation through authored revisions. With no
+selection it changes the project-wide indication convention while preserving the
+exact Symbol Profile ID/version. With one Component Instance selected it chooses a
+registered compatible Symbol Variant or returns to the profile default. Compatibility
+comes from the Domain catalog, including the two-input-only distinctive XOR/XNOR
+rule. These edits preserve component contracts, parameters, identities, and
+connectivity, and participate in Undo/Redo. Drafts expire with selection or revision.
+
+Inspector's **Memory Images** view creates, replaces, and removes authored initial
+memory data. Words start at address zero, one word per line, with the most significant
+bit first; initial values allow `0`, `1`, and `X`. Each referenced Component Instance
+shows its image binding and word/address widths. **Adopt image dimensions** explicitly
+updates bindings that still use the edited image when its depth is a power of two.
+Apply submits the image and every affected instance's complete parameters as one
+revision. Connected Port shape changes are rejected without partial changes. Removal
+requires an unreferenced image; rebind its instances first. Memory Image diagnostics
+open the corresponding resource. Revision changes discard drafts; switching Inspector
+views preserves them. Images larger than the command budget are not expanded into
+text, and an unloaded image cannot be accidentally replaced by an empty draft.
+
 The Diagnostics tab owns the complete ordered list and navigation. Inspector shows
 only diagnostics attached to the current selection. Both views reveal the same stable
-source identity.
+source identity. Project-level diagnostics clear the Canvas selection and open
+Inspector's general authoring controls; resource diagnostics open their resource.
+Earlier-revision or unavailable sources remain visible without a navigation action.
 
 Each Probe repeats its identity cue at the Net, Probe Spine, Inspector, and waveform
 row. Reordering rows never changes identity. Hot Swap preserves a Probe only when the

@@ -11,6 +11,26 @@ namespace LogicLab.Web.Tests;
 internal sealed partial class CircuitSceneHostTests
 {
     [Test]
+    public async Task SetTool_ReadyCanvasWaitsForAcknowledgement_PreservesSnapshotAndEnablesNewTool()
+    {
+        await using var context = WebTestContext.CreateBunitContext();
+        var browser = ConfigureBrowser(context);
+        var rendered = RenderInteractive(context);
+        await rendered.WaitForStateAsync(() => rendered.Find("canvas").GetAttribute("aria-disabled") == "false");
+        var transfers = browser.Transfers.Count;
+        var pending = NewCompletion();
+        browser.ToolCompletion = pending.Task;
+        rendered.Render(parameters => parameters.Add(host => host.ActiveTool, ScenePanToolV1.Instance));
+        await rendered.WaitForStateAsync(() => browser.Tools.Count == 2);
+        await Assert.That(rendered.Find("canvas").GetAttribute("aria-disabled")).IsEqualTo("true");
+        await Assert.That(RendererState(rendered)).IsEqualTo("ready");
+        await rendered.InvokeAsync(() => pending.SetResult());
+        await rendered.WaitForStateAsync(() => rendered.Find("canvas").GetAttribute("aria-disabled") == "false");
+        await Assert.That(browser.Transfers.Count).IsEqualTo(transfers);
+        await Assert.That(browser.Tools[^1]).IsTypeOf<ScenePanToolV1>();
+    }
+
+    [Test]
     public async Task Mount_ParametersChangeWhilePending_PublishesLatestThroughOneHandle()
     {
         await using var context = WebTestContext.CreateBunitContext();
@@ -18,12 +38,12 @@ internal sealed partial class CircuitSceneHostTests
         var pending = NewCompletion();
         browser.MountCompletion = pending.Task;
         var rendered = RenderInteractive(context);
-        rendered.WaitForState(() => browser.MountCount == 1);
+        await rendered.WaitForStateAsync(() => browser.MountCount == 1);
 
         rendered.Render(parameters => parameters.Add(host => host.ProjectionVersion, 2UL));
         var mountCount = browser.MountCount;
         await rendered.InvokeAsync(() => pending.SetResult());
-        rendered.WaitForState(() => RendererState(rendered) == "ready");
+        await rendered.WaitForStateAsync(() => RendererState(rendered) == "ready");
 
         using (Assert.Multiple())
         {
@@ -42,7 +62,7 @@ internal sealed partial class CircuitSceneHostTests
         var pending = NewCompletion();
         browser.MountCompletion = pending.Task;
         var rendered = RenderInteractive(context);
-        rendered.WaitForState(() => browser.MountCount == 1);
+        await rendered.WaitForStateAsync(() => browser.MountCount == 1);
 
         await rendered.InvokeAsync(() => rendered.Instance.DisposeAsync().AsTask());
         await rendered.InvokeAsync(() => pending.SetResult());
@@ -64,13 +84,13 @@ internal sealed partial class CircuitSceneHostTests
         var pending = NewCompletion();
         browser.ToolCompletion = pending.Task;
         var rendered = RenderInteractive(context);
-        rendered.WaitForState(() => browser.Tools.Count == 1);
+        await rendered.WaitForStateAsync(() => browser.Tools.Count == 1);
 
         rendered.Render(parameters => parameters.Add(host => host.ActiveTool, ScenePanToolV1.Instance));
         var pendingCount = browser.Tools.Count;
         browser.ToolCompletion = Task.CompletedTask;
         await rendered.InvokeAsync(() => pending.SetResult());
-        rendered.WaitForState(() => browser.Tools.Count >= 2 && RendererState(rendered) == "ready");
+        await rendered.WaitForStateAsync(() => browser.Tools.Count >= 2 && RendererState(rendered) == "ready");
 
         using (Assert.Multiple())
         {
@@ -81,23 +101,28 @@ internal sealed partial class CircuitSceneHostTests
     }
 
     [Test]
-    [Arguments(false, false)]
-    [Arguments(true, false)]
-    [Arguments(false, true)]
-    [Arguments(true, true)]
-    public async Task Publish_ObsoleteCommitFails_PublishesCurrentProjection(bool policyFailure, bool retry)
+    [Arguments("success", false)]
+    [Arguments("interop", false)]
+    [Arguments("policy", false)]
+    [Arguments("success", true)]
+    [Arguments("interop", true)]
+    [Arguments("policy", true)]
+    public async Task Publish_ObsoleteCommitCompletes_PublishesCurrentProjection(string completion, bool retry)
     {
         await using var context = WebTestContext.CreateBunitContext();
         var browser = ConfigureBrowser(context);
         var pending = NewCompletion();
         browser.CommitCompletion = pending.Task;
-        browser.CommitFailure = policyFailure
-            ? new BrowserPolicyException(BrowserPolicy.Default,
+        browser.CommitFailure = completion switch
+        {
+            "policy" => new BrowserPolicyException(BrowserPolicy.Default,
                 BrowserLimitDimension.CandidateTransferBytes,
-                BrowserPolicy.Default.Limit(BrowserLimitDimension.CandidateTransferBytes) + 1)
-            : new JSException("The retired browser operation failed.");
+                BrowserPolicy.Default.Limit(BrowserLimitDimension.CandidateTransferBytes) + 1),
+            "interop" => new JSException("The retired browser operation failed."),
+            _ => null,
+        };
         var rendered = RenderInteractive(context);
-        rendered.WaitForState(() => browser.Transfers.Count == 1);
+        await rendered.WaitForStateAsync(() => browser.Transfers.Count == 1);
 
         if (retry)
         {
@@ -111,7 +136,7 @@ internal sealed partial class CircuitSceneHostTests
         browser.CommitCompletion = Task.CompletedTask;
         browser.CommitFailure = null;
         await rendered.InvokeAsync(() => pending.SetResult());
-        rendered.WaitForState(() => RendererState(rendered) == "ready");
+        await rendered.WaitForStateAsync(() => RendererState(rendered) == "ready");
 
         using (Assert.Multiple())
         {
@@ -130,16 +155,16 @@ internal sealed partial class CircuitSceneHostTests
         await using var context = WebTestContext.CreateBunitContext();
         var browser = ConfigureBrowser(context);
         var rendered = RenderInteractive(context);
-        rendered.WaitForState(() => RendererState(rendered) == "ready");
+        await rendered.WaitForStateAsync(() => RendererState(rendered) == "ready");
         var pending = NewCompletion();
         browser.RevealCompletion = pending.Task;
         rendered.Render(parameters => parameters.Add(host => host.RevealVersion, 1UL));
-        rendered.WaitForState(() => browser.RevealedScenes.Count == 1);
+        await rendered.WaitForStateAsync(() => browser.RevealedScenes.Count == 1);
         rendered.Render(parameters => parameters.Add(host => host.RevealVersion, 2UL));
 
         browser.RevealCompletion = Task.CompletedTask;
         await rendered.InvokeAsync(() => pending.SetResult());
-        rendered.WaitForState(() => browser.RevealedScenes.Count == 2);
+        await rendered.WaitForStateAsync(() => browser.RevealedScenes.Count == 2);
 
         await Assert.That(browser.Transfers).Count().IsEqualTo(1);
         var version = browser.Transfers[0].GetProperty("sceneVersion").GetUInt64();
@@ -152,7 +177,7 @@ internal sealed partial class CircuitSceneHostTests
         await using var context = WebTestContext.CreateBunitContext();
         var browser = ConfigureBrowser(context);
         var rendered = RenderInteractive(context);
-        rendered.WaitForState(() => RendererState(rendered) == "ready");
+        await rendered.WaitForStateAsync(() => RendererState(rendered) == "ready");
         await rendered.InvokeAsync(() => rendered.Instance.SceneRendererFailedAsync("contextLost"));
         var generation = rendered.Find("[data-scene-generation]").GetAttribute("data-scene-generation");
         browser.RecoveryState = new BrowserSceneRecoveryStateV1(
@@ -161,14 +186,14 @@ internal sealed partial class CircuitSceneHostTests
         browser.RecoveryCompletion = pending.Task;
         var button = rendered.Find("[data-scene-retry]");
         var firstRetry = button.ClickAsync();
-        rendered.WaitForState(() => browser.CaptureCount == 1);
+        await rendered.WaitForStateAsync(() => browser.CaptureCount == 1);
         var pendingGeneration = rendered.Find("[data-scene-generation]").GetAttribute("data-scene-generation");
         var secondRetry = button.ClickAsync();
         var captureCount = browser.CaptureCount;
 
         pending.SetResult();
         await Task.WhenAll(firstRetry, secondRetry);
-        rendered.WaitForState(() => RendererState(rendered) == "ready");
+        await rendered.WaitForStateAsync(() => RendererState(rendered) == "ready");
 
         using (Assert.Multiple())
         {

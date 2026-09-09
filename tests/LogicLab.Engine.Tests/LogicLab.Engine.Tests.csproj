@@ -1,5 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <Compile Include="../LogicLab.ComponentTesting/CoreContractFixture.cs" Link="Fixtures/CoreContractFixture.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\LogicLab.Engine\LogicLab.Engine.csproj" />
   </ItemGroup>
 

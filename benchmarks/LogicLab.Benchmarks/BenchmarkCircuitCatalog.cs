@@ -15,7 +15,7 @@ internal static class BenchmarkCircuitCatalog
             CircuitBenchmarkShape.InverterFeedbackBank =>
                 InverterFeedbackBank(benchmarkCase.Size),
             CircuitBenchmarkShape.DFlipFlopBank => DFlipFlopBank(benchmarkCase.Size),
-            CircuitBenchmarkShape.SinglePortRam => SinglePortRam(benchmarkCase.Size),
+            CircuitBenchmarkShape.SinglePortRam => SinglePortRam(benchmarkCase.Size, benchmarkCase.WordWidth),
             _ => throw new InvalidOperationException("Unknown benchmark circuit shape."),
         };
 
@@ -221,17 +221,16 @@ internal static class BenchmarkCircuitCatalog
         return new AuthoredBenchmarkCircuit(builder.Revision, outputs, null);
     }
 
-    private static AuthoredBenchmarkCircuit SinglePortRam(int depth)
+    private static AuthoredBenchmarkCircuit SinglePortRam(int depth, uint wordWidth)
     {
-        const int wordWidth = 8;
         var builder = BenchmarkCircuitBuilder.Create();
         var definitionId = builder.EntryDefinitionId;
         MemoryImageWord[] words =
         [
-            .. Enumerable.Range(0, depth).Select(static value => new MemoryImageWord(
+            .. Enumerable.Range(0, depth).Select(value => new MemoryImageWord(
                 [
-                    .. Enumerable.Range(0, wordWidth).Select(bit =>
-                        ((value >> bit) & 1) == 0
+                    .. Enumerable.Range(0, checked((int)wordWidth)).Select(bit =>
+                        bit >= 32 || ((value >> bit) & 1) == 0
                             ? LogicValue.Zero
                             : LogicValue.One),
                 ])),
@@ -254,16 +253,7 @@ internal static class BenchmarkCircuitCatalog
             definitionId,
             "source.input",
             InputVectorParameters(
-                [
-                    LogicValue.One,
-                    LogicValue.Zero,
-                    LogicValue.One,
-                    LogicValue.Zero,
-                    LogicValue.One,
-                    LogicValue.Zero,
-                    LogicValue.One,
-                    LogicValue.Zero,
-                ]),
+                [.. Enumerable.Range(0, checked((int)wordWidth)).Select(bit => (bit & 1) == 0 ? LogicValue.One : LogicValue.Zero)]),
             new GridPoint(0, 4));
         var writeEnable = builder.PlaceLibrary(
             definitionId,

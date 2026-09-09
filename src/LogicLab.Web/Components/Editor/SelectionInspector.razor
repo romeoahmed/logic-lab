@@ -1,4 +1,105 @@
 <section class="selection-inspector" data-selection-inspector>
+    @if (nameDraft is { } draft)
+    {
+        <div @key="draft" class="selection-name-editor">
+            <FluentTextInput data-inspector-name Label="@Text["InspectorDisplayName"]"
+                             Value="@draft.Name" ValueChanged="@(value => draft.Name = value ?? string.Empty)"
+                             Immediate="true" AutoComplete="off" Disabled="@(!CanEdit)" Width="100%" />
+            <FluentButton data-command="selection-rename" Appearance="ButtonAppearance.Outline"
+                          Disabled="@(!CanEdit || draft.Name == draft.OriginalName)"
+                          OnClick="@(() => RenameAsync(draft))">@Text["InspectorRename"]</FluentButton>
+            @if (draft.ComponentId is not null)
+            {
+                <p>@Text["InspectorNameOptional"]</p>
+            }
+            else
+            {
+                <details data-definition-actions>
+                    <summary>@Text["InspectorDefinitionActions"]</summary>
+                    <div class="selection-parameters">
+                        <FluentTextInput Label="@Text["InspectorNewDefinitionName"]" data-new-definition-name
+                                         Value="@draft.NewDefinitionName" ValueChanged="@(value => draft.NewDefinitionName = value ?? string.Empty)"
+                                         Immediate="true" Disabled="@(!CanEdit)" Width="100%" />
+                        <FluentButton data-command="selection-create-definition" Appearance="ButtonAppearance.Outline"
+                                      Disabled="@(!CanEdit || string.IsNullOrWhiteSpace(draft.NewDefinitionName))"
+                                      OnClick="@(() => CreateDefinitionAsync(draft))">@Text["InspectorCreateDefinition"]</FluentButton>
+                        <FluentButton data-command="selection-remove-definition" Appearance="ButtonAppearance.Outline"
+                                      Disabled="@(!CanEdit || !CanRemoveDefinition(draft))"
+                                      OnClick="@(() => RemoveDefinitionAsync(draft))">@Text["InspectorRemoveDefinition"]</FluentButton>
+                        <p>@Text["InspectorRemoveDefinitionHint"]</p>
+                    </div>
+                </details>
+            }
+        </div>
+    }
+    @if (Projection.ProjectRevision.Document.FindCircuitDefinition(DefinitionId) is not null
+        && (items.Count == 0 || (Selection?.Sources is { Count: 1 } portSources && portSources[0].EntityKind == "definitionPort")))
+    {
+        <DefinitionPortEditor Revision="Projection.ProjectRevision" DefinitionId="DefinitionId" SelectedPortId="selectedDefinitionPortId" CanEdit="CanEdit" OnEdit="OnEdit" />
+    }
+    @if (symbolDraft is { } symbols)
+    {
+        <details @key="symbols" data-symbol-editor>
+            <summary>@Text["InspectorSymbols"]</summary>
+            <div class="selection-parameters">
+                <p>@symbols.Profile.Id @symbols.Profile.Version</p>
+                @if (symbols.Component is null)
+                {
+                    <FluentSelect TOption="string" TValue="string" Label="@Text["InspectorIndicationConvention"]" data-symbol-convention
+                                  Value="@symbols.Convention" ValueChanged="@(value => symbols.Convention = value ?? string.Empty)" Disabled="@(!CanEdit)">
+                        @foreach (var convention in Enum.GetValues<IndicationConvention>())
+                        {
+                            <FluentOptionString Value="@convention.ToString()">@Text["InspectorConvention" + convention]</FluentOptionString>
+                        }
+                    </FluentSelect>
+                    <p>@Text["InspectorConventionHint"]</p>
+                }
+                else
+                {
+                    <FluentSelect TOption="string" TValue="string" Label="@Text["InspectorSymbolVariant"]" data-symbol-variant
+                                  Value="@symbols.Variant" ValueChanged="@(value => symbols.Variant = value ?? string.Empty)" Disabled="@(!CanEdit)">
+                        <FluentOptionString Value="">@Text["InspectorSymbolDefault"]</FluentOptionString>
+                        @foreach (var variant in symbols.Variants)
+                        {
+                            <FluentOptionString Value="@variant">@VariantLabel(variant)</FluentOptionString>
+                        }
+                    </FluentSelect>
+                }
+                <FluentButton data-command="selection-symbol" Appearance="ButtonAppearance.Outline"
+                              Disabled="@(!CanEdit || !symbols.Changed)" OnClick="@(() => ApplySymbolAsync(symbols))">@Text["InspectorApplySymbol"]</FluentButton>
+            </div>
+        </details>
+    }
+    @if (annotationDraft is { } annotation)
+    {
+        <details @key="annotation" open="@(annotation.Source is not null)" data-annotation-editor>
+            <summary>@Text[annotation.Source is null ? "InspectorCreateAnnotation" : "InspectorEditAnnotation"]</summary>
+            <div class="selection-parameters">
+                <FluentTextArea Label="@Text["InspectorAnnotationText"]" data-annotation-text Value="@annotation.Text"
+                                ValueChanged="@(value => annotation.Text = value ?? string.Empty)" Immediate="true"
+                                Disabled="@(!CanEdit)" Width="100%" Height="7rem" />
+                <FluentTextInput Label="@Text["InspectorAnnotationX"]" data-annotation-x Value="@annotation.X"
+                                 ValueChanged="@(value => annotation.X = value ?? string.Empty)" Immediate="true" Disabled="@(!CanEdit)" Width="100%" />
+                <FluentTextInput Label="@Text["InspectorAnnotationY"]" data-annotation-y Value="@annotation.Y"
+                                 ValueChanged="@(value => annotation.Y = value ?? string.Empty)" Immediate="true" Disabled="@(!CanEdit)" Width="100%" />
+                <FluentSelect TOption="string" TValue="string" Label="@Text["InspectorAnnotationAlignment"]"
+                              data-annotation-alignment Value="@annotation.Alignment"
+                              ValueChanged="@(value => annotation.Alignment = value ?? string.Empty)" Disabled="@(!CanEdit)">
+                    @foreach (var alignment in Enum.GetValues<AnnotationAlignment>())
+                    {
+                        <FluentOptionString Value="@alignment.ToString()">@Text["InspectorAlignment" + alignment]</FluentOptionString>
+                    }
+                </FluentSelect>
+                @if (annotation.Value is null)
+                {
+                    <p class="parameter-error">@Text["InspectorAnnotationInvalid"]</p>
+                }
+                <FluentButton data-command="selection-annotation" Appearance="ButtonAppearance.Outline"
+                              Disabled="@(!CanEdit || !annotation.Changed || annotation.Value is null)"
+                              OnClick="@(() => ApplyAnnotationAsync(annotation))">@Text[annotation.Source is null ? "InspectorCreateAnnotation" : "InspectorApplyAnnotation"]</FluentButton>
+            </div>
+        </details>
+    }
     @if (items.Count == 0)
     {
         @if (Projection.ProjectRevision.Document.FindCircuitDefinition(DefinitionId) is { } definition)
@@ -34,6 +135,155 @@
                     }
                 </dl>
             </article>
+        }
+        @if (parameterDraft is { } parameters)
+        {
+            var valid = parameters.Fields.All(field => field.Parse(Projection.ProjectRevision.Document) is not null);
+            <div @key="parameters" class="selection-parameters" data-inspector-parameters>
+                <h3>@Text["InspectorParameters"]</h3>
+                <FluentSelect TOption="string" TValue="string" Label="@Text["InspectorTarget"]"
+                              data-contract-target Value="@TargetKey(parameters.Target)" Disabled="@(!CanEdit)"
+                              ValueChanged="@(value => ChangeMigrationTarget(parameters, value))">
+                    @foreach (var target in MigrationTargets)
+                    {
+                        <FluentOptionString Value="@TargetKey(target)">@TargetLabel(target)</FluentOptionString>
+                    }
+                </FluentSelect>
+                @foreach (var field in parameters.Fields)
+                {
+                    <div @key="field">
+                        @if (field.Schema is ChoiceParameterSchema choice)
+                        {
+                            <FluentSelect TOption="string" TValue="string" Label="@ParameterLabel(field.Schema.Id)"
+                                          data-parameter="@field.Schema.Id" Value="@field.Text"
+                                          ValueChanged="@(value => ChangeParameter(parameters, field, value))" Disabled="@(!CanEdit)">
+                                @foreach (var option in choice.AllowedValues)
+                                {
+                                    <FluentOptionString Value="@option">@ParameterValue(new ChoiceParameterValue(option))</FluentOptionString>
+                                }
+                            </FluentSelect>
+                        }
+                        else if (field.Schema is MemoryImageParameterSchema)
+                        {
+                            <FluentSelect TOption="string" TValue="string" Label="@ParameterLabel(field.Schema.Id)"
+                                          data-parameter="@field.Schema.Id" Value="@field.Text"
+                                          ValueChanged="@(value => ChangeParameter(parameters, field, value))" Disabled="@(!CanEdit)">
+                                @foreach (var memory in Projection.ProjectRevision.Document.MemoryImages)
+                                {
+                                    <FluentOptionString Value="@memory.Id.Value">@memory.DisplayName</FluentOptionString>
+                                }
+                            </FluentSelect>
+                        }
+                        else if (field.Schema is BinaryLogicParameterSchema)
+                        {
+                            <FluentSelect TOption="string" TValue="string" Label="@ParameterLabel(field.Schema.Id)"
+                                          data-parameter="@field.Schema.Id" Value="@field.Text"
+                                          ValueChanged="@(value => ChangeParameter(parameters, field, value))" Disabled="@(!CanEdit)">
+                                <FluentOptionString Value="0">0</FluentOptionString>
+                                <FluentOptionString Value="1">1</FluentOptionString>
+                            </FluentSelect>
+                        }
+                        else
+                        {
+                            <FluentTextInput Label="@ParameterLabel(field.Schema.Id)" data-parameter="@field.Schema.Id"
+                                             Value="@field.Text" ValueChanged="@(value => ChangeParameter(parameters, field, value))"
+                                             Immediate="true" AutoComplete="off" Disabled="@(!CanEdit)" Width="100%" />
+                            <p>@ParameterHint(field.Schema)</p>
+                        }
+                        @if (field.Parse(Projection.ProjectRevision.Document) is null)
+                        {
+                            <p class="parameter-error">@Text["InspectorParameterInvalid"]</p>
+                        }
+                    </div>
+                }
+                <FluentButton data-command="selection-parameters" Appearance="ButtonAppearance.Outline"
+                              Disabled="@(!CanEdit || !valid || !parameters.Changed || parameters.Target != parameters.Source.Target)"
+                              OnClick="@(() => ApplyParametersAsync(parameters))">@Text["InspectorApplyParameters"]</FluentButton>
+                <p>@Text["InspectorParameterShapeHint"]</p>
+                <FluentButton data-command="selection-review-migration" Appearance="ButtonAppearance.Outline"
+                              Disabled="@(!CanEdit || !valid || !parameters.Changed)"
+                              OnClick="@(() => ReviewMigration(parameters))">@Text["InspectorReviewMigration"]</FluentButton>
+                @if (parameters.MigrationError is { } migrationError)
+                {
+                    <p class="parameter-error">@Text[migrationError]</p>
+                }
+                @if (parameters.Migration is { } preview && preview.Matches(parameters))
+                {
+                    <div class="contract-migration" data-contract-migration>
+                        <p>@Text["InspectorMigrationHint"]</p>
+                        <FluentSelect @key="preview" TOption="string" TValue="string" Label="@Text["InspectorSymbolVariant"]" data-migration-variant
+                                      Value="@preview.Variant" ValueChanged="@(value => preview.Variant = value ?? string.Empty)" Disabled="@(!CanEdit)">
+                            <FluentOptionString Value="">@Text["InspectorSymbolDefault"]</FluentOptionString>
+                            @if (!preview.VariantValid)
+                            {
+                                <FluentOptionString Value="@preview.Variant" Disabled="true">@Text["InspectorSymbolIncompatible"]</FluentOptionString>
+                            }
+                            @foreach (var variant in preview.Variants)
+                            {
+                                <FluentOptionString Value="@variant">@VariantLabel(variant)</FluentOptionString>
+                            }
+                        </FluentSelect>
+                        @if (!preview.VariantValid)
+                        {
+                            <p class="parameter-error">@Text["InspectorSymbolMigrationRequired"]</p>
+                        }
+                        <details>
+                            <summary>@Text["InspectorNewPorts"]</summary>
+                            <FluentDataGrid Items="@preview.NewPorts" Pagination="@preview.NewPagination" MultiLine="true"
+                                            GridTemplateColumns="minmax(0, 1fr)" GenerateHeader="DataGridGeneratedHeaderType.None">
+                                <TemplateColumn Context="port"><p>@PortLabel(port)</p><code>@port.Id</code></TemplateColumn>
+                            </FluentDataGrid>
+                            @if (preview.NewPorts.Count() > 25)
+                            {
+                                <FluentPaginator State="@preview.NewPagination" />
+                            }
+                        </details>
+                        <FluentDataGrid Items="@preview.Rows.AsQueryable()" Pagination="@preview.OldPagination" MultiLine="true"
+                                        GridTemplateColumns="minmax(0, 1fr)" GenerateHeader="DataGridGeneratedHeaderType.None">
+                            <TemplateColumn Context="row">
+                                <div data-migration-port="@row.OldPort.Id">
+                                    <p>@PortLabel(row.OldPort)</p>
+                                    <FluentSelect TOption="string" TValue="string" Label="@Text["InspectorConnectionAction"]"
+                                                  Width="100%"
+                                                  data-migration-action="@row.OldPort.Id"
+                                                  Value="@row.Mode" ValueChanged="@(value => row.Mode = value ?? string.Empty)" Disabled="@(!CanEdit)">
+                                        <FluentOptionString Value="">@Text["InspectorChooseConnection"]</FluentOptionString>
+                                        <FluentOptionString Value="connect">@Text["InspectorMapPort"]</FluentOptionString>
+                                        <FluentOptionString Value="disconnect">@Text["InspectorDisconnectPort"]</FluentOptionString>
+                                    </FluentSelect>
+                                    @if (row.Mode == "connect")
+                                    {
+                                        <FluentAutocomplete TOption="MigrationPort" TValue="string"
+                                                            data-migration-destination="@row.OldPort.Id"
+                                                            Label="@Text["InspectorDestinationPort"]" Value="@row.Destination"
+                                                            ValueChanged="@(value => row.Destination = value ?? string.Empty)"
+                                                            OptionText="@(port => port is null ? string.Empty : PortLabel(port))" OptionValue="@(port => port?.Id ?? string.Empty)"
+                                                            OnOptionsSearch="@(args => preview.Search(row, args))"
+                                                            OnSetValue="preview.Resolve" MaximumOptionsSearch="25"
+                                                            Disabled="@(!CanEdit)" Width="100%" />
+                                    }
+                                    @if (!preview.Valid(row))
+                                    {
+                                        <p class="parameter-error">@Text["InspectorPortMappingInvalid"]</p>
+                                    }
+                                </div>
+                            </TemplateColumn>
+                        </FluentDataGrid>
+                        @if (preview.Rows.Count > 25)
+                        {
+                            <FluentPaginator State="@preview.OldPagination" />
+                        }
+                        <FluentButton data-command="selection-apply-migration" Appearance="ButtonAppearance.Primary"
+                                      Disabled="@(!CanEdit || !preview.Ready)"
+                                      OnClick="@(() => ApplyMigrationAsync(parameters, preview))">@Text["InspectorApplyMigration"]</FluentButton>
+                        @if (preview.Rows.All(preview.Valid) && !preview.PortMappingsReady)
+                        {
+                            <p class="parameter-error">@Text["InspectorDuplicateDestination"]</p>
+                        }
+                        <p>@Text["InspectorMigrationSymbolHint"]</p>
+                    </div>
+                }
+            </div>
         }
         @if (actions.Count != 0)
         {

@@ -153,6 +153,8 @@ mutable tag. See [.NET SDK container publishing](https://learn.microsoft.com/en-
 
 Release evidence includes source/asset fingerprint, dependency locks, SBOM,
 provenance, and the symbols required by diagnostics.
+The [component evidence gate](../conformance/README.md) verifies the catalog against
+fresh MTP reports from the same checkout; Release consumes the verified commit.
 
 ## Verification
 

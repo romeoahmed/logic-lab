@@ -1,0 +1,105 @@
+name: Verify checkout
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact branch, tag, or commit to verify
+        required: false
+        type: string
+        default: ""
+    outputs:
+      source-commit:
+        description: Commit whose build and component evidence passed
+        value: ${{ jobs.build-and-test.outputs.source-commit }}
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: true
+
+jobs:
+  build-and-test:
+    name: Build, test, and verify component evidence
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 30
+    outputs:
+      source-commit: ${{ steps.source.outputs.commit }}
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.ref }}
+
+      - name: Record source commit
+        id: source
+        run: printf 'commit=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
+
+      - name: Restore dependencies
+        run: dotnet restore logic-lab.slnx --locked-mode --nologo
+
+      - name: Verify formatting
+        run: dotnet format logic-lab.slnx --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build logic-lab.slnx --configuration Release --no-restore --nologo
+
+      - name: Install Playwright Chromium
+        run: pwsh tests/LogicLab.Web.BrowserTests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Test and verify component evidence
+        id: evidence
+        run: bash .github/scripts/verify-component-evidence.sh "$RUNNER_TEMP/component-evidence"
+        env:
+          LOGICLAB_TEST_POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres
+
+      - name: Preserve test and component evidence
+        if: ${{ !cancelled() && (steps.evidence.outcome == 'success' || steps.evidence.outcome == 'failure') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: component-evidence
+          path: ${{ runner.temp }}/component-evidence
+          if-no-files-found: error
+
+      - name: Smoke-test qualification benchmarks
+        id: benchmarks
+        run: >-
+          dotnet run --project benchmarks/LogicLab.Benchmarks --configuration Release --no-build --no-restore --
+          --job Dry --filter '*CompilerAdmissionBenchmarks*' '*SimulationHotSwapBenchmarks*'
+          --artifacts "${{ runner.temp }}/qualification-benchmarks" --noOverwrite
+
+      - name: Preserve qualification measurements
+        if: ${{ !cancelled() && (steps.evidence.outcome == 'success' || steps.evidence.outcome == 'failure') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: qualification-measurements
+          path: |
+            ${{ runner.temp }}/qualification-benchmarks
+            tests/LogicLab.Web.BrowserTests/bin/Release/net10.0/review-artifacts/
+          if-no-files-found: ${{ steps.evidence.outcome == 'success' && steps.benchmarks.outcome == 'success' && 'error' || 'warn' }}

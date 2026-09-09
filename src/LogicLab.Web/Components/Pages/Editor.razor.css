@@ -91,23 +91,6 @@
   grid-template-rows: minmax(14rem, 1fr) minmax(0, var(--instrument-height));
 }
 
-.inspector-heading {
-  padding: 0.5rem 0.75rem;
-  border-block-end: 1px solid var(--ll-border);
-}
-
-.inspector-heading h2 {
-  margin: 0;
-}
-
-.inspector-heading h2 {
-  color: var(--ll-signal);
-  font-size: 0.82rem;
-  font-weight: 750;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-}
-
 .workbench-status-region {
   min-inline-size: 0;
   border-block-start: 1px solid var(--ll-border-strong);
@@ -306,6 +289,13 @@
   flex-direction: column;
   flex: 1;
   min-block-size: 0;
+}
+
+.inspector-views {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.1rem 0.75rem;
+  border-block-end: 1px solid var(--ll-border);
 }
 
 .instrument-bay ::deep fluent-tablist {

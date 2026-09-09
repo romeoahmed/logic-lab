@@ -912,6 +912,7 @@ class CircuitSceneHandle {
   pointerDown(event) {
     if (
       this.destroyed ||
+      this.canvas.getAttribute("aria-disabled") === "true" ||
       this.contextIsLost ||
       !event.isPrimary ||
       event.button !== 0 ||
@@ -1077,6 +1078,11 @@ class CircuitSceneHandle {
   }
 
   keyDown(event) {
+    if (this.canvas.getAttribute("aria-disabled") === "true") {
+      this.cancelGesture();
+      this.spacePan = false;
+      return;
+    }
     const canvasIsTarget = event.target === this.canvas;
     if (event.key === "Escape") {
       const cancelledGesture = this.cancelGesture();

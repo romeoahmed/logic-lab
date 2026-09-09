@@ -136,6 +136,8 @@ internal sealed class ProjectEditorStructureTests
 
         var committed = (await Assert.That(sameShape).IsTypeOf<EditCommitted>())!;
         var rejected = (await Assert.That(changedShape).IsTypeOf<EditRejected>())!;
+        await Assert.That(rejected.Diagnostics.Single().Primary)
+            .IsEqualTo(new ComponentInstanceSourceIdentity(definitionId, instanceId));
         using (Assert.Multiple())
         {
             await Assert.That(committed.Revision.Document.EntryCircuitDefinition

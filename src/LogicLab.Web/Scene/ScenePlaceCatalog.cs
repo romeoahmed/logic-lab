@@ -106,7 +106,7 @@ internal static class ScenePlaceCatalog
         }
     }
 
-    private static ComponentParameterValue CreateDefaultValue(
+    internal static ComponentParameterValue CreateDefaultValue(
         ComponentParameterSchema schema,
         IReadOnlyList<ComponentParameterBinding> bindings)
     {

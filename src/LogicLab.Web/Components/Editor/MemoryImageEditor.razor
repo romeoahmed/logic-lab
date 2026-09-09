@@ -1,0 +1,75 @@
+@{ var current = draft; var valid = TryPrepare(current, out _, out var error); }
+<section class="memory-image-editor" data-memory-image-editor>
+    <FluentSelect @key="(current, true)" TOption="string" TValue="string" Label="@Text["MemoryImages"]" Width="100%"
+                  data-memory-image-select Value="@(current.Source?.Id.Value ?? string.Empty)" ValueChanged="SelectImageAsync">
+        <FluentOptionString Value="">@Text["MemoryImageNew"]</FluentOptionString>
+        @foreach (var image in Revision.Document.MemoryImages)
+        {
+            <FluentOptionString Value="@image.Id.Value">@image.DisplayName</FluentOptionString>
+        }
+    </FluentSelect>
+    <div @key="current" class="memory-image-draft">
+        <FluentTextInput Label="@Text["MemoryImageName"]" data-memory-name Value="@current.Name"
+                         ValueChanged="@(value => current.Name = value ?? string.Empty)" Immediate="true" Disabled="@(!CanEdit)" Width="100%" />
+        <FluentTextInput Label="@Text["MemoryImageWidth"]" data-memory-width Value="@current.Width"
+                         ValueChanged="@(value => current.Width = value ?? string.Empty)" Immediate="true" Disabled="@(!CanEdit)" Width="100%" />
+        <FluentTextInput Label="@Text["MemoryImageDepth"]" data-memory-depth Value="@current.Depth"
+                         ValueChanged="@(value => current.Depth = value ?? string.Empty)" Immediate="true" Disabled="@(!CanEdit)" Width="100%" />
+        <FluentTextArea Label="@Text["MemoryImageWords"]" data-memory-words Value="@(current.Words ?? string.Empty)"
+                        ValueChanged="@(value => current.Words = value ?? string.Empty)" Immediate="true"
+                        Disabled="@(!CanEdit)" Width="100%" Height="10rem" Spellcheck="false" />
+        <p>@Text["MemoryImageWordsHint"]</p>
+        @if (current.Words is null)
+        {
+            <p class="memory-error">@Text["MemoryImageNotLoaded"]</p>
+        }
+        @if (current.References.Count != 0)
+        {
+            <p>@Text["MemoryImageReferences", current.References.Count]</p>
+            <FluentButton data-command="memory-adopt-dimensions" Appearance="ButtonAppearance.Outline"
+                          Disabled="@(!CanEdit || !Unsigned(current.Width, out _) || !Unsigned(current.Depth, out var depth) || depth < 2 || (depth & (depth - 1)) != 0)"
+                          OnClick="@(() => AdoptDimensions(current))">@Text["MemoryImageAdoptDimensions"]</FluentButton>
+            <p>@Text["MemoryImageMigrationHint"]</p>
+            <FluentDataGrid Items="@current.References.AsQueryable()" Pagination="@current.Pagination" MultiLine="true"
+                            GridTemplateColumns="minmax(0, 1fr)" GenerateHeader="DataGridGeneratedHeaderType.None">
+                <TemplateColumn Context="reference">
+                    <div data-memory-reference="@reference.Component.Id.Value">
+                        <FluentButton Appearance="ButtonAppearance.Subtle"
+                                      OnClick="@(() => OnReveal.InvokeAsync(new(current.RevisionId,
+                                          new(new ComponentInstanceSourceIdentity(reference.DefinitionId, reference.Component.Id)))))">@reference.Label</FluentButton>
+                        <FluentTextInput Label="@Text["MemoryImageWidth"]" data-reference-word-width Value="@reference.WordWidth"
+                                         ValueChanged="@(value => reference.WordWidth = value ?? string.Empty)" Immediate="true" Disabled="@(!CanEdit)" Width="100%" />
+                        <FluentTextInput Label="@Text["MemoryImageAddressWidth"]" data-reference-address-width Value="@reference.AddressWidth"
+                                         ValueChanged="@(value => reference.AddressWidth = value ?? string.Empty)" Immediate="true" Disabled="@(!CanEdit)" Width="100%" />
+                        <FluentSelect TOption="string" TValue="string" Label="@Text["MemoryImages"]" data-reference-image
+                                      Value="@reference.ImageId" ValueChanged="@(value => reference.ImageId = value ?? string.Empty)" Disabled="@(!CanEdit)" Width="100%">
+                            @foreach (var image in Revision.Document.MemoryImages)
+                            {
+                                <FluentOptionString Value="@image.Id.Value">@image.DisplayName</FluentOptionString>
+                            }
+                        </FluentSelect>
+                    </div>
+                </TemplateColumn>
+            </FluentDataGrid>
+            @if (current.References.Count > 25)
+            {
+                <FluentPaginator State="@current.Pagination" />
+            }
+        }
+        @if (!valid && current.Words is not null)
+        {
+            <p class="memory-error">@Text[error!]</p>
+        }
+        <FluentButton data-command="memory-apply" Appearance="ButtonAppearance.Primary"
+                      Disabled="@(!CanEdit || !valid || !current.Changed)" OnClick="@(() => ApplyAsync(current))">@Text[current.Source is null ? "MemoryImageCreate" : "MemoryImageApply"]</FluentButton>
+        @if (current.Source is not null)
+        {
+            <FluentButton data-command="memory-remove" Appearance="ButtonAppearance.Outline"
+                          Disabled="@(!CanEdit || current.References.Count != 0)" OnClick="@(() => RemoveAsync(current))">@Text["MemoryImageRemove"]</FluentButton>
+            @if (current.References.Count != 0)
+            {
+                <p>@Text["MemoryImageRemoveHint"]</p>
+            }
+        }
+    </div>
+</section>

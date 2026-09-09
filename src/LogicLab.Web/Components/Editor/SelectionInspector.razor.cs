@@ -16,6 +16,15 @@ public sealed partial class SelectionInspector
     [Parameter, EditorRequired]
     public WorkspaceProjection Projection { get; set; } = null!;
 
+    [Parameter]
+    public IReadOnlyList<WorkspaceDiagnostic> OperationDiagnostics { get; set; } = [];
+
+    [Parameter]
+    public EditorLocalDiagnostics? SceneDiagnostics { get; set; }
+
+    [Parameter]
+    public EditorLocalDiagnostics? WaveformDiagnostics { get; set; }
+
     [Parameter, EditorRequired]
     public CircuitDefinitionId DefinitionId { get; set; } = null!;
 
@@ -39,6 +48,8 @@ public sealed partial class SelectionInspector
 
     private IReadOnlyList<SelectionEditAction> actions = [];
     private IReadOnlyList<SelectionItem> items = [];
+    private IReadOnlyList<WorkbenchDiagnostic> diagnostics = [];
+    private DefinitionPortId? selectedDefinitionPortId;
     private ProjectRevisionId revisionId = null!;
     private CircuitDefinitionId inspectedDefinitionId = null!;
 
@@ -50,6 +61,18 @@ public sealed partial class SelectionInspector
         var definition = revision.Document.FindCircuitDefinition(DefinitionId);
         var sources = Selection?.Sources ?? [];
         actions = SelectionEdits.Create(revision, DefinitionId, sources);
+        diagnostics = DiagnosticPresentation.Project(Projection, OperationDiagnostics, SceneDiagnostics, WaveformDiagnostics);
+        var selectedComponent = sources.Count == 1 && sources[0].EntityKind == "componentInstance"
+            && sources[0].CircuitDefinitionId == definition?.Id.Value
+            ? definition.ComponentInstances.FirstOrDefault(item => item.Id.Value == sources[0].EntityId)
+            : null;
+        selectedDefinitionPortId = sources.Count == 1 && sources[0].EntityKind == "definitionPort"
+            && sources[0].CircuitDefinitionId == definition?.Id.Value
+            ? definition.Ports.FirstOrDefault(port => port.Id.Value == sources[0].EntityId)?.Id : null;
+        UpdateNameDraft(definition, selectedComponent, sources.Count == 0);
+        UpdateParameterDraft(definition, selectedComponent);
+        UpdateSymbolDraft(definition, selectedComponent, sources.Count == 0);
+        UpdateAnnotationDraft(definition, sources);
         items = definition is null ? [] : sources
             .Where(source => SceneSourceMap.Contains(revision, source)
                 && source.CircuitDefinitionId == DefinitionId.Value)
@@ -70,9 +93,12 @@ public sealed partial class SelectionInspector
                 title = ComponentPresentationCatalog.DisplayName(Projection.ProjectRevision.Document, component, Text);
                 Add("InspectorType", ComponentPresentationCatalog.TypeName(Projection.ProjectRevision.Document, component, Text));
                 Add("InspectorPosition", Position(component.Placement.Origin));
-                foreach (var parameter in component.Parameters)
+                if (component.Id != parameterDraft?.ComponentId)
                 {
-                    facts.Add(new(ParameterLabel(parameter.ParameterId), ParameterValue(parameter.Value)));
+                    foreach (var parameter in component.Parameters)
+                    {
+                        facts.Add(new(ParameterLabel(parameter.ParameterId), ParameterValue(parameter.Value)));
+                    }
                 }
                 break;
             case "definitionPort":
@@ -138,22 +164,12 @@ public sealed partial class SelectionInspector
             Add("InspectorNet", Text["InspectorUnconnected"]);
         }
 
-        var diagnostics = Projection.Compilation.Diagnostics;
-        foreach (var diagnostic in diagnostics.Where(item => item.Primary is CompilerCircuitLocation { Source: var location }
+        foreach (var diagnostic in diagnostics.Where(item =>
+            item.RevisionId == revisionId && item.Source is { } location
             && SceneSourceMap.TryFrom(location.Identity)?.Key == source.Key
-            && (HierarchyPath is null || MatchesOccurrence(location.HierarchyPath))))
+            && (location.HierarchyPath is null || MatchesOccurrence(location.HierarchyPath))))
         {
             Add("InspectorDiagnostic", DiagnosticPresentation.Message(Text, diagnostic.Code));
-        }
-        if (Projection.Simulation is { } simulation
-            && simulation.CompilationArtifactKey.ProjectRevisionId == revisionId)
-        {
-            foreach (var diagnostic in simulation.Diagnostics.Where(item => item.Primary is { } location
-                && SceneSourceMap.TryFrom(location.Identity)?.Key == source.Key
-                && MatchesOccurrence(location.HierarchyPath)))
-            {
-                Add("InspectorDiagnostic", DiagnosticPresentation.Message(Text, diagnostic.Code));
-            }
         }
         return new(source.Key, title, facts, cue);
     }

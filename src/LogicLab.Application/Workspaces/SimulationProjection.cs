@@ -18,10 +18,10 @@ public sealed record AdvanceFailureProjection
 {
     public AdvanceFailureProjection(
         AdvanceFailureReason reason,
-        IReadOnlyList<string> diagnosticCodes,
+        IReadOnlyList<SimulationDiagnostic> diagnostics,
         PolicyEvidenceProjection? policyEvidence)
     {
-        ArgumentNullException.ThrowIfNull(diagnosticCodes);
+        ArgumentNullException.ThrowIfNull(diagnostics);
         if (!Enum.IsDefined(reason)
             || (reason == AdvanceFailureReason.SimulationResourceLimit)
                 != (policyEvidence is not null))
@@ -31,11 +31,14 @@ public sealed record AdvanceFailureProjection
         }
 
         Reason = reason;
-        DiagnosticCodes = Array.AsReadOnly(diagnosticCodes.ToArray());
+        Diagnostics = Array.AsReadOnly(diagnostics.ToArray());
+        DiagnosticCodes = Array.AsReadOnly(Diagnostics.Select(item => item.Code).ToArray());
         PolicyEvidence = policyEvidence;
     }
 
     public AdvanceFailureReason Reason { get; }
+
+    public ReadOnlyCollection<SimulationDiagnostic> Diagnostics { get; }
 
     public ReadOnlyCollection<string> DiagnosticCodes { get; }
 

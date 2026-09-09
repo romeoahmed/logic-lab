@@ -11,6 +11,22 @@ internal sealed class BrowserSceneProjectionTests
     private static readonly FontFingerprintV1 FontFingerprint = new(new string('7', 64));
 
     [Test]
+    public async Task Project_RejectedLayout_PreservesServerEvidenceWithoutAddingItToBrowserPayload()
+    {
+        var revision = WebTestCircuit.CreateCompleteCircuit();
+        var rejected = (SceneUnavailableV1)BrowserSceneProjection.Project(
+            "build-a", 1, 1, revision, revision.Document.EntryCircuitDefinitionId, "en-US",
+            BrowserPolicy.Default, 1, new TestTextMeasurer());
+        var diagnostic = rejected.PresentationDiagnostics.Single();
+        await Assert.That(diagnostic.Code).IsEqualTo("presentation_constraint_unsatisfied");
+        await Assert.That(diagnostic.Arguments.Single().Name).IsEqualTo("constraint");
+        await Assert.That(((LayoutStableTokenValueV1)diagnostic.Arguments.Single().Value).Value).IsEqualTo("portBudget");
+        var json = JsonSerializer.SerializeToElement(rejected, SceneJsonSerializerContext.Strict.SceneUnavailableV1);
+        await Assert.That(json.TryGetProperty("presentationDiagnostics", out _)).IsFalse();
+        await Assert.That(json.GetProperty("diagnostics")[0].GetString()).IsEqualTo(diagnostic.Code);
+    }
+
+    [Test]
     public async Task Project_TerminalConnections_UsesAuthoredMembership()
     {
         var revision = WebTestCircuit.CreateCompleteCircuit();

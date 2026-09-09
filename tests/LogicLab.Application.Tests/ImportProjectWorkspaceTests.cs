@@ -206,6 +206,14 @@ internal sealed class ImportProjectWorkspaceTests
         {
             await Assert.That(workflow.MaximumCarrierBytes).IsEqualTo(4L);
             await Assert.That(rejected.Code).IsEqualTo("package_limit_exceeded");
+            var diagnostic = ((WorkspacePackageDiagnostic)rejected.Diagnostics.Single()).Diagnostic;
+            await Assert.That(diagnostic.Arguments).IsEquivalentTo(new PackageDiagnosticArgument[]
+            {
+                new("policyId", "import-test-package"),
+                new("policyRevision", "1"),
+                new("dimension", "carrier_bytes"),
+                new("observed", "5"),
+            }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
             await Assert.That(rejected.PolicyEvidence)
                 .IsEqualTo(new PolicyEvidenceProjection(
                     "import-test-package",

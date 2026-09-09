@@ -1,8 +1,6 @@
-using System.Globalization;
 using LogicLab.Application.Workspaces;
 using LogicLab.Domain.Authoring;
 using LogicLab.Engine.Compilation;
-using LogicLab.Engine.Simulation;
 using LogicLab.Web.Scene;
 using LogicLab.Web.Waveforms;
 using Microsoft.AspNetCore.Components;
@@ -14,12 +12,24 @@ namespace LogicLab.Web.Components.Editor;
 public sealed partial class DiagnosticList
 {
     private readonly PaginationState pagination = new() { ItemsPerPage = 25 };
-    private IQueryable<DiagnosticRow> rows = Array.Empty<DiagnosticRow>().AsQueryable();
+    private IQueryable<WorkbenchDiagnostic> rows = Array.Empty<WorkbenchDiagnostic>().AsQueryable();
     private WorkspaceProjection? previous;
     private int count;
+    private IReadOnlyList<WorkspaceDiagnostic>? previousOperations;
+    private EditorLocalDiagnostics? previousScene;
+    private EditorLocalDiagnostics? previousWaveform;
 
-    [Parameter, EditorRequired]
-    public WorkspaceProjection Projection { get; set; } = null!;
+    [Parameter]
+    public EditorLocalDiagnostics? SceneDiagnostics { get; set; }
+
+    [Parameter]
+    public EditorLocalDiagnostics? WaveformDiagnostics { get; set; }
+
+    [Parameter]
+    public WorkspaceProjection? Projection { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<WorkspaceDiagnostic> OperationDiagnostics { get; set; } = [];
 
     [Parameter]
     public EventCallback<RevealRequest> OnReveal { get; set; }
@@ -29,36 +39,24 @@ public sealed partial class DiagnosticList
 
     protected override async Task OnParametersSetAsync()
     {
-        if (previous?.ProjectRevision == Projection.ProjectRevision
-            && previous.Compilation == Projection.Compilation
-            && previous.Simulation?.CompilationArtifactKey == Projection.Simulation?.CompilationArtifactKey
-            && ReferenceEquals(previous.Simulation?.Diagnostics, Projection.Simulation?.Diagnostics))
+        if (ReferenceEquals(previousScene, SceneDiagnostics)
+            && ReferenceEquals(previousWaveform, WaveformDiagnostics)
+            && ReferenceEquals(previousOperations, OperationDiagnostics)
+            && previous?.ProjectRevision == Projection?.ProjectRevision
+            && previous?.Compilation == Projection?.Compilation
+            && previous?.Simulation?.CompilationArtifactKey == Projection?.Simulation?.CompilationArtifactKey
+            && previous?.Simulation?.Run == Projection?.Simulation?.Run
+            && (previous?.Notices ?? []).SequenceEqual(Projection?.Notices ?? [])
+            && ReferenceEquals(previous?.Simulation?.Diagnostics, Projection?.Simulation?.Diagnostics))
         {
             return;
         }
 
         previous = Projection;
-        var revision = Projection.ProjectRevision.RevisionId;
-        var compiler = Projection.Compilation.Diagnostics;
-        // Module order is evidence; severity must not reorder the list.
-        var items = compiler.Select(diagnostic => new DiagnosticRow(
-            diagnostic.Code, "error", Text["DiagnosticCompilation"], revision,
-            diagnostic.Primary is CompilerCircuitLocation location ? location.Source : null,
-            [.. diagnostic.Arguments.Select(argument => new Detail(argument.Name, Format(argument.Value)))],
-            [.. diagnostic.Related.OfType<CompilerCircuitLocation>().Select(location => location.Source)]))
-            .ToList();
-        if (Projection.Simulation is { } simulation)
-        {
-            var sessionRevision = simulation.CompilationArtifactKey.ProjectRevisionId;
-            items.AddRange(simulation.Diagnostics.Select(diagnostic => new DiagnosticRow(
-                diagnostic.Code,
-                DiagnosticPresentation.Severity(diagnostic.Severity),
-                Text[sessionRevision == revision ? "DiagnosticSimulation" : "DiagnosticEarlierSession"],
-                sessionRevision, diagnostic.Primary,
-                [.. diagnostic.Arguments.Select(argument => new Detail(argument.Name, Format(argument.Value)))],
-                diagnostic.Related)));
-        }
-
+        previousOperations = OperationDiagnostics;
+        previousScene = SceneDiagnostics;
+        previousWaveform = WaveformDiagnostics;
+        var items = DiagnosticPresentation.Project(Projection, OperationDiagnostics, SceneDiagnostics, WaveformDiagnostics);
         count = items.Count;
         rows = items.AsQueryable();
         if (pagination.CurrentPageIndex * pagination.ItemsPerPage >= count
@@ -68,23 +66,49 @@ public sealed partial class DiagnosticList
         }
     }
 
-    private bool CanReveal(DiagnosticRow row, CompilationSource source) =>
-        row.RevisionId == Projection.ProjectRevision.RevisionId
+    private bool CanReveal(WorkbenchDiagnostic row, DiagnosticSource source) =>
+        Projection is not null && row.RevisionId == Projection.ProjectRevision.RevisionId
+        && (source.Identity is ProjectRootSourceIdentity project
+            ? project.ProjectId == Projection.ProjectRevision.Document.ProjectId
+            : source.Identity is MemoryImageSourceIdentity image
+            ? image.ProjectId == Projection.ProjectRevision.Document.ProjectId
+                && Projection.ProjectRevision.Document.FindMemoryImage(image.MemoryImageId) is not null
+            : source.Identity is CircuitSourceIdentity circuit
+        && (source.HierarchyPath is null || SceneSourceMap.Contains(Projection.ProjectRevision, new CompilationSource(circuit, source.HierarchyPath)))
         && (source.Identity is CircuitRootSourceIdentity root
             ? Projection.ProjectRevision.Document.FindCircuitDefinition(root.CircuitDefinitionId) is not null
             : SceneSourceMap.TryFrom(source.Identity) is { } entity
-                && SceneSourceMap.Contains(Projection.ProjectRevision, entity));
+                && SceneSourceMap.Contains(Projection.ProjectRevision, entity)));
 
-    private string SourceLabel(DiagnosticRow row, CompilationSource source)
+    private string SourceLabel(WorkbenchDiagnostic row, DiagnosticSource source)
     {
-        if (row.RevisionId != Projection.ProjectRevision.RevisionId)
+        if (Projection is null || row.RevisionId != Projection.ProjectRevision.RevisionId)
         {
             return Text["DiagnosticEarlierSource"];
         }
 
         var document = Projection.ProjectRevision.Document;
+        if (source.Identity is ProjectRootSourceIdentity project && project.ProjectId == document.ProjectId)
+        {
+            return document.DisplayName;
+        }
+        if (source.Identity is MemoryImageSourceIdentity image && image.ProjectId == document.ProjectId)
+        {
+            return document.FindMemoryImage(image.MemoryImageId)?.DisplayName ?? Text["DiagnosticSourceUnavailable"];
+        }
+        if (source.Identity is not CircuitSourceIdentity circuit)
+        {
+            return Text["DiagnosticSourceUnavailable"];
+        }
+
+        if (source.HierarchyPath is { } path
+            && !SceneSourceMap.Contains(Projection.ProjectRevision, new CompilationSource(circuit, path)))
+        {
+            return Text["DiagnosticSourceUnavailable"];
+        }
+
         var entity = SceneSourceMap.TryFrom(source.Identity);
-        var definition = document.FindCircuitDefinition(source.Identity.CircuitDefinitionId);
+        var definition = document.FindCircuitDefinition(circuit.CircuitDefinitionId);
         if (definition is null)
         {
             return Text["DiagnosticSourceUnavailable"];
@@ -105,43 +129,10 @@ public sealed partial class DiagnosticList
         return label is null ? definition.DisplayName : $"{definition.DisplayName} / {label}";
     }
 
-    private Task RevealAsync(DiagnosticRow row, CompilationSource source) =>
+    private Task RevealAsync(WorkbenchDiagnostic row, DiagnosticSource source) =>
         CanReveal(row, source)
-            ? OnReveal.InvokeAsync(new RevealRequest(row.RevisionId, source))
+            ? OnReveal.InvokeAsync(new RevealRequest(row.RevisionId!, source))
             : Task.CompletedTask;
 
-    private static string Format(CompilerDiagnosticValue value) => value switch
-    {
-        CompilerStableTokenValue token => token.Value,
-        CompilerUnsignedDecimalValue number => number.Value.ToString(CultureInfo.InvariantCulture),
-        CompilerDigestValue digest => digest.Value,
-        CompilerCorrelationTokenValue correlation => correlation.Value,
-        CompilerContractKeyValue key => $"{key.Value.LibraryId}:{key.Value.ContractId}",
-        _ => throw new InvalidOperationException("The compiler diagnostic argument is undefined."),
-    };
-
-    private static string Format(SimulationDiagnosticValue value) => value switch
-    {
-        SimulationStableTokenValue token => token.Value,
-        SimulationUnsignedDecimalValue number => number.Value.ToString(CultureInfo.InvariantCulture),
-        SimulationLogicValue logic => logic.Value switch
-        {
-            LogicLab.Domain.LogicValue.Zero => "0",
-            LogicLab.Domain.LogicValue.One => "1",
-            LogicLab.Domain.LogicValue.X => "X",
-            LogicLab.Domain.LogicValue.Z => "Z",
-            _ => throw new InvalidOperationException("The diagnostic logic value is undefined."),
-        },
-        SimulationCorrelationTokenValue correlation => correlation.Value,
-        SimulationContractKeyValue key => $"{key.Value.LibraryId}:{key.Value.ContractId}",
-        _ => throw new InvalidOperationException("The simulation diagnostic argument is undefined."),
-    };
-
-    public sealed record RevealRequest(ProjectRevisionId RevisionId, CompilationSource Source);
-
-    private sealed record Detail(string Name, string Value);
-
-    private sealed record DiagnosticRow(string Code, string Severity, string Origin,
-        ProjectRevisionId RevisionId, CompilationSource? Source,
-        IReadOnlyList<Detail> Arguments, IReadOnlyList<CompilationSource> Related);
+    public sealed record RevealRequest(ProjectRevisionId RevisionId, DiagnosticSource Source);
 }

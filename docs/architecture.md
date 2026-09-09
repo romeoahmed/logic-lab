@@ -115,6 +115,10 @@ Project seams follow dependency or deployment seams, not namespaces.
 | `LogicLab.DatabaseMigrator` | principal bootstrap and deterministic migrations                   | Infrastructure                            |
 | `LogicLab.Web`              | Blazor UI, HTTP/browser adapters, composition root                 | Application, Presentation, Infrastructure |
 
+`tools/LogicLab.Conformance` verifies library evidence against Domain schema digests
+and standard test reports. It is an offline release tool, references Domain only,
+and is not part of the Web runtime. Its tests remain in a separate test project.
+
 Dependency invariants:
 
 - Domain references no persistence, serialization, Web, Simulation, or rendering

@@ -13,7 +13,7 @@ using static LogicLab.ProjectFormat.Tests.ProjectPackageTestFixture;
 
 namespace LogicLab.ProjectFormat.Tests;
 
-internal sealed class ProjectPackageReaderTests
+internal sealed partial class ProjectPackageReaderTests
 {
     [Test]
     public async Task ReadAsync_WriterOutput_RoundTripsProjectAndDigestsWithoutClosingSource()

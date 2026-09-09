@@ -5,6 +5,7 @@ using Azure.Extensions.AspNetCore.DataProtection.Blobs;
 using Azure.Identity;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Azure.Storage.Blobs;
+using LogicLab.Application.Work;
 using LogicLab.Application.Workspaces;
 using LogicLab.Infrastructure.Identity;
 using LogicLab.Infrastructure.Persistence;
@@ -30,6 +31,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.FluentUI.AspNetCore.Components;
 using Npgsql;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("LogicLab")
@@ -75,6 +77,7 @@ if (production is not null && azureCredential is not null)
     builder.Services.Configure<HostFilteringOptions>(options =>
         options.AllowedHosts = [production.PublicOrigin.Host]);
     builder.Services.AddOpenTelemetry()
+        .WithTracing(tracing => tracing.AddSource(WorkTelemetry.ActivitySourceName))
         .UseAzureMonitor(options => options.Credential = azureCredential);
 }
 builder.Services.AddSingleton(workspacePolicy);

@@ -7,10 +7,11 @@ Logic Lab is a digital-logic workbench for teaching and experimentation. Build
 circuits on a Canvas schematic, simulate deterministic four-state `0/1/X/Z` behavior,
 and inspect values and waveforms in the integrated logic analyzer.
 
-> **Project status:** Core modules and the Workbench are implemented. Workbench
-> conformance, the component evidence manifest, and production qualification remain
-> open; [Delivery](./docs/delivery.md) records the remaining work. Azure deployment
-> assets are implemented, but no environment is represented as production-qualified.
+> **Project status:** V1 core modules, Workbench conformance, component evidence,
+> and the local qualification corpus are implemented and verified. Production
+> calibration and environment qualification remain open; [Delivery](./docs/delivery.md)
+> records the evidence and remaining work. No Azure environment is represented as
+> production-qualified.
 
 ## What you can do
 
@@ -80,6 +81,8 @@ git diff --check
 The full test suite expects an administrative PostgreSQL connection in
 `LOGICLAB_TEST_POSTGRES_CONNECTION_STRING`; tests create isolated temporary databases.
 CI runs the same repository graph on `ubuntu-26.04-arm` with PostgreSQL 18.
+For the complete Release gate, follow the [component evidence procedure](./conformance/README.md),
+which also verifies the qualification corpus and preserves the fresh test reports.
 
 ## Repository map
 

@@ -29,7 +29,7 @@ internal sealed partial class CircuitSceneHostTests
             .Add(host => host.ProjectRevision, revision)
             .Add(host => host.ProjectionVersion, 1UL)
             .Add(host => host.CircuitDefinitionId, definition.Id));
-        rendered.WaitForState(() => pendingMeasurement.Invocations.Count == 1);
+        await rendered.WaitForStateAsync(() => pendingMeasurement.Invocations.Count == 1);
         var oldRequests = pendingMeasurement.Invocations.Single().Arguments.ToArray();
         var renamed = WebTestCircuit.Commit(ProjectEditor.Apply(revision,
             new RenameComponentInstanceIntent(
@@ -49,7 +49,7 @@ internal sealed partial class CircuitSceneHostTests
         await rendered.InvokeAsync(() => pendingMeasurement.SetResult(
             BrowserMeasurementFixture.CreateRecord(oldRequests)));
 
-        rendered.WaitForState(() => rendered.Find("[data-scene-renderer]")
+        await rendered.WaitForStateAsync(() => rendered.Find("[data-scene-renderer]")
             .GetAttribute("data-scene-renderer") is "ready" or "unavailable");
         using (Assert.Multiple())
         {
@@ -139,14 +139,21 @@ internal sealed partial class CircuitSceneHostTests
         await using var context = WebTestContext.CreateBunitContext();
         context.Renderer.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
         var revision = WebTestCircuit.CreateCompleteCircuit();
+        EditorLocalDiagnostics? evidence = null;
         var rendered = context.Render<CircuitSceneHost>(parameters => parameters
             .Add(component => component.ProjectRevision, revision)
+            .Add(component => component.OnDiagnosticsChanged, value => evidence = value)
             .Add(component => component.ProjectionVersion, 1UL)
             .Add(component => component.CircuitDefinitionId,
                 revision.Document.EntryCircuitDefinitionId));
 
         await rendered.InvokeAsync(() =>
             rendered.Instance.SceneRendererFailedAsync("contextUnavailable"));
+        await rendered.WaitForStateAsync(() => evidence?.Browser.Count == 1);
+        await Assert.That(evidence!.RevisionId).IsEqualTo(revision.RevisionId);
+        await Assert.That(evidence.Browser[0].Code).IsEqualTo("web_renderer_unavailable");
+        await Assert.That(evidence.Browser[0].Arguments).IsEquivalentTo(
+            new EditorDiagnosticArgument[] { new("reason", "contextUnavailable") });
 
         using (Assert.Multiple())
         {

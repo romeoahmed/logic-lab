@@ -1,0 +1,18 @@
+.memory-image-editor,
+.memory-image-draft {
+  display: grid;
+  gap: 0.75rem;
+  min-inline-size: 0;
+}
+.memory-image-editor {
+  padding: 0.85rem 0.9rem;
+}
+.memory-image-editor p {
+  margin: 0;
+  color: var(--ll-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.memory-image-editor .memory-error {
+  color: var(--ll-danger);
+}

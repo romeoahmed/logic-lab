@@ -21,6 +21,388 @@ internal sealed class WorkbenchWorkflowTests(LogicLabKestrelApplication applicat
     }
 
     [Test]
+    public async Task Inspector_IndicationConvention_ChangesProjectAndUndoRestoresConvention()
+    {
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenSandboxAsync();
+        await Page.Locator("[data-symbol-editor] summary").ClickAsync();
+        var convention = Page.Locator("[data-symbol-convention]");
+        await convention.ClickAsync();
+        await convention.Locator("fluent-option[value='DirectPolarity']").ClickAsync();
+        var apply = Page.Locator("[data-command='selection-symbol']");
+        await Expect(apply).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        await apply.ClickAsync();
+        await Expect(apply).ToHaveAttributeAsync("disabled", string.Empty);
+        await Expect(convention).ToHaveJSPropertyAsync("value", "DirectPolarity");
+        await workbench.Undo.ClickAsync();
+        await Expect(convention).ToHaveJSPropertyAsync("value", "Negation");
+        await workbench.Redo.ClickAsync();
+        await Expect(convention).ToHaveJSPropertyAsync("value", "DirectPolarity");
+    }
+
+    [Test]
+    public async Task Inspector_SymbolVariant_ChangesAppearanceAndUndoRestoresDefault()
+    {
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenSandboxAsync();
+        var place = Page.Locator("[data-place-option='library:logiclab.core:logic.not']");
+        await place.ClickAsync();
+        await workbench.Canvas.ClickAsync();
+        await Expect(place).ToHaveAttributeAsync("aria-pressed", "false");
+        await Expect(Page.Locator("[data-scene-tool='select']")).ToBeEnabledAsync();
+        var bounds = (await workbench.Canvas.BoundingBoxAsync())!;
+        await workbench.Canvas.ClickAsync(new() { Position = new() { X = bounds.Width / 2 + 48, Y = bounds.Height / 2 + 32 } });
+        await Page.Locator("[data-symbol-editor] summary").ClickAsync();
+        var variant = Page.Locator("[data-symbol-variant]");
+        await variant.ClickAsync();
+        await variant.Locator($"fluent-option[value='{SymbolVariantCatalog.RectangularId}']").ClickAsync();
+        var apply = Page.Locator("[data-command='selection-symbol']");
+        await Expect(apply).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        await apply.ClickAsync();
+        await Expect(apply).ToHaveAttributeAsync("disabled", string.Empty);
+        await Expect(variant).ToHaveJSPropertyAsync("value", SymbolVariantCatalog.RectangularId);
+        await Expect(workbench.Renderer).ToHaveAttributeAsync("data-scene-renderer", "ready");
+        var artifactDirectory = Path.Combine(AppContext.BaseDirectory, "review-artifacts");
+        Directory.CreateDirectory(artifactDirectory);
+        var artifact = Path.Combine(artifactDirectory, "symbol-variant.png");
+        await Page.ScreenshotAsync(new PageScreenshotOptions { Path = artifact, FullPage = true });
+        TestContext.Current!.Output.AttachArtifact(artifact, "Symbol appearance editing");
+        await workbench.Undo.ClickAsync();
+        await Expect(variant).ToHaveJSPropertyAsync("value", string.Empty);
+        await workbench.Redo.ClickAsync();
+        await Expect(variant).ToHaveJSPropertyAsync("value", SymbolVariantCatalog.RectangularId);
+    }
+
+    [Test]
+    public async Task Inspector_PublicPortContract_MigratesCallSiteAndUndoRestoresIdentity()
+    {
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenSandboxAsync();
+        await Page.Locator("[data-definition-actions] summary").ClickAsync();
+        await Page.Locator("[data-new-definition-name] input").FillAsync("Child");
+        var create = Page.Locator("[data-command='selection-create-definition']");
+        await Expect(create).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        await create.ClickAsync();
+        var child = Page.Locator("[data-definition]").Filter(new() { HasText = "Child" });
+        await Expect(child).ToHaveAttributeAsync("aria-current", "page");
+        if (await Page.Locator("[data-public-ports]").GetAttributeAsync("open") is null)
+        {
+            await Page.Locator("[data-public-ports] summary").ClickAsync();
+        }
+        await Page.Locator("[data-command='port-add']").ClickAsync();
+        await Page.Locator("[data-port-name] input").FillAsync("A");
+        await Page.Locator("[data-command='ports-review']").ClickAsync();
+        await Page.Locator("[data-command='ports-apply']").ClickAsync();
+        var authoredPort = Page.Locator("[data-public-port]:not([data-public-port='new'])");
+        await Expect(authoredPort).ToHaveCountAsync(1);
+        var oldPortId = await authoredPort.GetAttributeAsync("data-public-port");
+        var childId = await child.GetAttributeAsync("data-definition");
+        await Page.Locator("[data-definition]").Filter(new() { HasText = "Main" }).ClickAsync();
+        await Page.Locator("[data-component-search] input").FillAsync("Child");
+        var place = Page.Locator($"[data-place-option='definition:{childId}']");
+        await place.ClickAsync();
+        await workbench.Canvas.ClickAsync();
+        await Expect(place).ToHaveAttributeAsync("aria-pressed", "false");
+        await child.ClickAsync();
+        await Expect(child).ToHaveAttributeAsync("aria-current", "page");
+        if (await Page.Locator("[data-public-ports]").GetAttributeAsync("open") is null)
+        {
+            await Page.Locator("[data-public-ports] summary").ClickAsync();
+        }
+        await Page.Locator("[data-port-mode]").ClickAsync();
+        await Page.Locator("[data-port-mode] fluent-option[value='replace']").ClickAsync();
+        await Page.Locator("[data-port-width] input").FillAsync("2");
+        await Page.Locator("[data-command='ports-review']").ClickAsync();
+        await Expect(Page.Locator("[data-callsite-port]")).ToHaveCountAsync(1);
+        var apply = Page.Locator("[data-command='ports-apply']");
+        await Expect(apply).ToHaveAttributeAsync("disabled", string.Empty);
+        await Page.Locator("[data-callsite-destination]").ClickAsync();
+        await Page.Locator("[data-callsite-destination] fluent-option[value='disconnect']").ClickAsync();
+        await Expect(apply).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        await apply.ScrollIntoViewIfNeededAsync();
+        var artifactDirectory = Path.Combine(AppContext.BaseDirectory, "review-artifacts");
+        Directory.CreateDirectory(artifactDirectory);
+        var artifact = Path.Combine(artifactDirectory, "public-port-migration.png");
+        await Page.ScreenshotAsync(new PageScreenshotOptions { Path = artifact, FullPage = true });
+        TestContext.Current!.Output.AttachArtifact(artifact, "Public port contract migration");
+        await apply.ClickAsync();
+        await Expect(apply).ToHaveCountAsync(0);
+        await Expect(authoredPort).Not.ToHaveAttributeAsync("data-public-port", oldPortId!);
+        await Expect(Page.Locator("[data-port-width] input")).ToHaveValueAsync("2");
+        await workbench.Undo.ClickAsync();
+        await Expect(authoredPort).ToHaveAttributeAsync("data-public-port", oldPortId!);
+        await Expect(Page.Locator("[data-port-width] input")).ToHaveValueAsync("1");
+    }
+
+    [Test]
+    public async Task Inspector_CircuitDefinition_CreateDeleteUndoAndSetEntry()
+    {
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenSandboxAsync();
+        await Page.Locator("[data-definition-actions] summary").ClickAsync();
+        await Page.Locator("[data-new-definition-name] input").FillAsync("Child circuit");
+        var create = Page.Locator("[data-command='selection-create-definition']");
+        await Expect(create).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        await create.ClickAsync();
+        var child = Page.Locator("[data-definition]").Filter(new() { HasText = "Child circuit" });
+        await Expect(child).ToHaveAttributeAsync("aria-current", "page");
+        await Page.Locator("[data-definition-actions] summary").ClickAsync();
+        var remove = Page.Locator("[data-command='selection-remove-definition']");
+        await Expect(remove).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        await remove.ClickAsync();
+        await Expect(child).ToHaveCountAsync(0);
+        await workbench.Undo.ClickAsync();
+        await child.ClickAsync();
+        var entry = Page.Locator("[data-command='set-entry']");
+        await Expect(entry).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        await entry.ClickAsync();
+        await Expect(child.Locator("[data-entry-marker]")).ToHaveCountAsync(1);
+        await Expect(remove).ToHaveAttributeAsync("disabled", string.Empty);
+        await Expect(workbench.Renderer).ToHaveAttributeAsync("data-scene-renderer", "ready");
+        var artifactDirectory = Path.Combine(AppContext.BaseDirectory, "review-artifacts");
+        Directory.CreateDirectory(artifactDirectory);
+        var artifact = Path.Combine(artifactDirectory, "definition-actions.png");
+        await Page.ScreenshotAsync(new PageScreenshotOptions { Path = artifact, FullPage = true });
+        TestContext.Current!.Output.AttachArtifact(artifact, "Circuit definition authoring");
+    }
+
+    [Test]
+    public async Task Inspector_Annotation_CreateEditAndUndoPreserveText()
+    {
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenSandboxAsync();
+        await Page.Locator("[data-annotation-editor] summary").ClickAsync();
+        var text = Page.Locator("[data-annotation-text] textarea");
+        await text.FillAsync("Carry\n进位");
+        var apply = Page.Locator("[data-command='selection-annotation']");
+        await Expect(apply).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        await apply.ClickAsync();
+        await Expect(Page.Locator("[data-annotation-editor] summary")).ToHaveTextAsync("Edit annotation");
+        await Expect(apply).ToHaveAttributeAsync("disabled", string.Empty);
+        await Expect(text).ToBeEnabledAsync();
+        await text.FillAsync("Carry output");
+        await Expect(apply).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        await apply.ClickAsync();
+        await Expect(Page.Locator("[data-selection-item] dd").Filter(new() { HasText = "Carry output" })).ToHaveCountAsync(1);
+        await workbench.Undo.ClickAsync();
+        await Expect(text).ToHaveValueAsync("Carry\n进位");
+        await workbench.Redo.ClickAsync();
+        await Expect(text).ToHaveValueAsync("Carry output");
+        var artifactDirectory = Path.Combine(AppContext.BaseDirectory, "review-artifacts");
+        Directory.CreateDirectory(artifactDirectory);
+        var artifact = Path.Combine(artifactDirectory, "annotation-editor.png");
+        await Page.ScreenshotAsync(new PageScreenshotOptions { Path = artifact, FullPage = true });
+        TestContext.Current!.Output.AttachArtifact(artifact, "Annotation authoring");
+    }
+
+    [Test]
+    [Arguments(1440)]
+    [Arguments(390)]
+    public async Task Inspector_MemoryImage_EditRemoveAndUndoPreserveContent(int width)
+    {
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenSandboxAsync(width: width);
+        await workbench.OpenInspectorAsync();
+        await Page.Locator("[data-inspector-view='memory']").ClickAsync();
+        var name = Page.Locator("[data-memory-name]").Locator("input");
+        var words = Page.Locator("[data-memory-words]").Locator("textarea");
+        var apply = Page.Locator("[data-command='memory-apply']");
+        await name.FillAsync("Boot data");
+        await words.FillAsync("0\nX");
+        await Expect(apply).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        await apply.ClickAsync();
+        var remove = Page.Locator("[data-command='memory-remove']");
+        await Expect(remove).ToBeVisibleAsync();
+        await Expect(apply).ToHaveAttributeAsync("disabled", string.Empty);
+        await Expect(name).ToBeEnabledAsync();
+        await name.FillAsync("Revised boot data");
+        await words.FillAsync("1\n0");
+        await Expect(apply).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        await apply.ClickAsync();
+        await Expect(apply).ToHaveAttributeAsync("disabled", string.Empty);
+        await Expect(Page.Locator("[data-memory-image-select] fluent-option").Filter(new() { HasText = "Revised boot data" })).ToHaveCountAsync(1);
+        var artifactDirectory = Path.Combine(AppContext.BaseDirectory, "review-artifacts");
+        Directory.CreateDirectory(artifactDirectory);
+        await name.ScrollIntoViewIfNeededAsync();
+        var artifact = Path.Combine(artifactDirectory, $"memory-image-{width}.png");
+        await Page.ScreenshotAsync(new PageScreenshotOptions { Path = artifact, FullPage = true });
+        TestContext.Current!.Output.AttachArtifact(artifact, "Memory Image authoring");
+        await remove.ClickAsync();
+        await Expect(remove).ToHaveCountAsync(0);
+        await workbench.Undo.ClickAsync();
+        await Page.Locator("[data-memory-image-select]").ClickAsync();
+        await Page.Locator("[data-memory-image-select] fluent-option").Filter(new() { HasText = "Revised boot data" }).ClickAsync();
+        await Expect(name).ToHaveValueAsync("Revised boot data");
+        await Expect(words).ToHaveValueAsync("1\n0");
+        await workbench.Redo.ClickAsync();
+        await Expect(remove).ToHaveCountAsync(0);
+    }
+
+    [Test]
+    public async Task Inspector_ChangeComponentContract_UndoRestoresOriginalType()
+    {
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenSandboxAsync();
+        var input = Page.Locator("[data-place-option='library:logiclab.core:source.input']");
+        await input.ClickAsync();
+        await workbench.Canvas.ClickAsync();
+        await Expect(input).ToHaveAttributeAsync("aria-pressed", "false");
+        await Expect(Page.Locator("[data-scene-tool='select']")).ToBeEnabledAsync();
+        var bounds = (await workbench.Canvas.BoundingBoxAsync())!;
+        await workbench.Canvas.ClickAsync(new() { Position = new() { X = bounds.Width / 2 + 48, Y = bounds.Height / 2 + 32 } });
+        await Page.Locator("[data-contract-target]").ClickAsync();
+        await Page.Locator("[data-contract-target] fluent-option[value='library:logiclab.core:source.constant']").ClickAsync();
+        await Expect(Page.Locator("[data-parameter='value']")).ToBeVisibleAsync();
+        var review = Page.Locator("[data-command='selection-review-migration']");
+        await Expect(review).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        await review.ClickAsync();
+        await Expect(Page.Locator("[data-migration-port='Q']")).ToBeVisibleAsync();
+        var destination = Page.Locator("[data-migration-destination='Q']");
+        await destination.Locator(".fluent-badge [role='button']").ClickAsync();
+        await Expect(destination.Locator(".fluent-badge")).ToHaveCountAsync(0);
+        var apply = Page.Locator("[data-command='selection-apply-migration']");
+        await Expect(apply).ToHaveAttributeAsync("disabled", string.Empty);
+        await destination.Locator("input").FillAsync("Q");
+        await Page.Locator("[data-migration-port='Q'] fluent-popover-b").GetByText("Q · Output · 1", new() { Exact = true }).ClickAsync();
+        await Expect(destination.Locator(".fluent-badge")).ToHaveCountAsync(1);
+        await Expect(apply).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        await apply.ScrollIntoViewIfNeededAsync();
+        var artifactDirectory = Path.Combine(AppContext.BaseDirectory, "review-artifacts");
+        Directory.CreateDirectory(artifactDirectory);
+        var artifact = Path.Combine(artifactDirectory, "inspector-migration.png");
+        await Page.ScreenshotAsync(new PageScreenshotOptions { Path = artifact, FullPage = true });
+        TestContext.Current!.Output.AttachArtifact(artifact, "Explicit component contract migration");
+        await apply.ClickAsync();
+        var type = Page.Locator("[data-selection-inspector] dl > div").Filter(new() { HasText = "Type / definition" }).Locator("dd");
+        await Expect(type).ToHaveTextAsync("Constant");
+        await workbench.Undo.ClickAsync();
+        await Expect(type).ToHaveTextAsync("Input");
+        await Expect(Page.Locator("[data-parameter='initialValue']")).ToBeVisibleAsync();
+    }
+
+    [Test]
+    public async Task Inspector_EditInputParameters_CommitsAndUndoRestoresValue()
+    {
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenSandboxAsync();
+        await Page.Locator("[data-place-option='library:logiclab.core:source.input']").ClickAsync();
+        await workbench.Canvas.ClickAsync();
+        await Expect(Page.Locator("[data-place-option='library:logiclab.core:source.input']")).ToHaveAttributeAsync("aria-pressed", "false");
+        await Expect(Page.Locator("[data-scene-tool='select']")).ToBeEnabledAsync();
+        var canvasBounds = (await workbench.Canvas.BoundingBoxAsync())!;
+        await workbench.Canvas.ClickAsync(new()
+        {
+            Position = new()
+            {
+                X = canvasBounds.Width / 2 + 48,
+                Y = canvasBounds.Height / 2 + 32,
+            }
+        });
+        var value = Page.GetByRole(AriaRole.Textbox, new() { Name = "Initial value", Exact = true });
+        await Expect(value).ToBeVisibleAsync();
+        await value.FillAsync("1");
+        var apply = Page.Locator("[data-command='selection-parameters']");
+        await Expect(apply).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        await apply.ClickAsync();
+        await Expect(apply).ToHaveAttributeAsync("disabled", string.Empty);
+        await Expect(value).ToHaveValueAsync("1");
+        await workbench.Undo.ClickAsync();
+        await Expect(value).ToHaveValueAsync("0");
+        var artifactDirectory = Path.Combine(AppContext.BaseDirectory, "review-artifacts");
+        Directory.CreateDirectory(artifactDirectory);
+        var artifact = Path.Combine(artifactDirectory, "inspector-parameters.png");
+        await Page.ScreenshotAsync(new PageScreenshotOptions { Path = artifact, FullPage = true });
+        TestContext.Current!.Output.AttachArtifact(artifact, "Inspector parameter editing");
+    }
+
+    [Test]
+    public async Task Inspector_RenameCircuit_UndoAndRedoRestoreAuthoredName()
+    {
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenExampleAsync();
+        var name = Page.GetByRole(AriaRole.Textbox, new() { Name = "Display name", Exact = true });
+        await Expect(name).ToBeVisibleAsync();
+        var original = await name.InputValueAsync();
+        await name.FillAsync("Renamed inverter");
+        var apply = Page.Locator("[data-command='selection-rename']");
+        await Expect(apply).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        await apply.ClickAsync();
+        await Expect(Page.Locator("[data-selection-inspector] h3")).ToHaveTextAsync("Renamed inverter");
+        await workbench.Undo.ClickAsync();
+        await Expect(name).ToHaveValueAsync(original);
+        await workbench.Redo.ClickAsync();
+        await Expect(name).ToHaveValueAsync("Renamed inverter");
+        await Expect(workbench.Renderer).ToHaveAttributeAsync("data-scene-renderer", "ready");
+        var artifactDirectory = Path.Combine(AppContext.BaseDirectory, "review-artifacts");
+        Directory.CreateDirectory(artifactDirectory);
+        var artifact = Path.Combine(artifactDirectory, "inspector-rename.png");
+        await Page.ScreenshotAsync(new PageScreenshotOptions { Path = artifact, FullPage = true });
+        TestContext.Current!.Output.AttachArtifact(artifact, "Inspector name editing");
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ProjectImport_InvalidCarrier_ShowsDiagnosticAndPreservesWorkspace(bool hasProject)
+    {
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        if (hasProject)
+        {
+            await workbench.OpenExampleAsync("author");
+        }
+        else
+        {
+            await Page.GotoAsync(application.EditorUri.ToString());
+            await Expect(Page.Locator("[data-command='create']")).Not.ToHaveAttributeAsync("disabled", string.Empty);
+        }
+        var originalUrl = Page.Url;
+        await Page.GetByTestId("project-options-trigger").ClickAsync();
+        await Page.Locator("input[type='file']").SetInputFilesAsync(new FilePayload
+        {
+            Name = "invalid.logiclab",
+            MimeType = "application/vnd.logiclab+zip",
+            Buffer = "not a package"u8.ToArray(),
+        });
+        var diagnostic = Page.Locator("[data-diagnostic-code='package_illegal_entry']");
+        await Expect(diagnostic).ToBeVisibleAsync();
+        await Expect(diagnostic.Locator(".diagnostic-message"))
+            .ToContainTextAsync("not a supported project package");
+        await diagnostic.Locator("summary").ClickAsync();
+        await Expect(diagnostic.Locator("dd")).ToHaveTextAsync("carrier");
+        await Expect(Page).ToHaveURLAsync(originalUrl);
+        if (hasProject)
+        {
+            await Expect(workbench.Renderer).ToHaveAttributeAsync("data-scene-renderer", "ready");
+        }
+        await Expect(Page.Locator("#blazor-error-ui")).ToBeHiddenAsync();
+        var artifactDirectory = Path.Combine(AppContext.BaseDirectory, "review-artifacts");
+        Directory.CreateDirectory(artifactDirectory);
+        var artifact = Path.Combine(artifactDirectory, $"invalid-import-{hasProject}.png");
+        await Page.ScreenshotAsync(new PageScreenshotOptions { Path = artifact, FullPage = true });
+        TestContext.Current!.Output.AttachArtifact(artifact, "Rejected package diagnostics");
+    }
+
+    [Test]
+    public async Task Diagnostics_ContextLost_ReportsRendererReasonAndClearsAfterRetry()
+    {
+        await Page.Clock.InstallAsync();
+        var workbench = new WorkbenchTestPage(Page, application.EditorUri);
+        await workbench.OpenExampleAsync("author");
+        await workbench.Canvas.DispatchEventAsync("contextlost");
+        await Page.Clock.RunForAsync(10_000);
+        await Expect(workbench.Renderer).ToHaveAttributeAsync("data-scene-renderer", "unavailable");
+        await Page.GetByRole(AriaRole.Tab, new() { Name = "Diagnostics", Exact = true }).ClickAsync();
+        var diagnostic = Page.Locator("[data-diagnostic-code='web_renderer_unavailable']");
+        await Expect(diagnostic).ToBeVisibleAsync();
+        await diagnostic.Locator("summary").ClickAsync();
+        await Expect(diagnostic.Locator("dd")).ToHaveTextAsync("contextLost");
+        await Page.Locator("[data-scene-retry]").ClickAsync();
+        await Expect(workbench.Renderer).ToHaveAttributeAsync("data-scene-renderer", "ready");
+        await Expect(diagnostic).ToHaveCountAsync(0);
+        await Expect(Page.Locator("#blazor-error-ui")).ToBeHiddenAsync();
+    }
+
+    [Test]
     [Arguments(false)]
     [Arguments(true)]
     public async Task WorkbenchNavigation_OpenExample_ReturnsToChooserAndPreservesPriorWorkspace(bool reload)

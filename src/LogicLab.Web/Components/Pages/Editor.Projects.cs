@@ -81,9 +81,15 @@ public sealed partial class Editor
         string openingStatus)
     {
         Status = openingStatus;
+        var caller = CurrentCaller;
         var outcome = await workspace.OpenAsync(request, componentCancellationToken);
+        if (Volatile.Read(ref isDisposed) != 0 || !IsCallerAvailable || caller != CurrentCaller)
+        {
+            return;
+        }
         if (outcome is WorkspaceOpenRejected rejected)
         {
+            ShowOperationDiagnostics(rejected.Diagnostics);
             Status = Text["OpeningRejected", rejected.Code];
             return;
         }
@@ -147,12 +153,18 @@ public sealed partial class Editor
 
             await using (source)
             {
+                var caller = RequireCurrentCaller();
                 var outcome = await projectImportWorkflow.ImportAsync(
                     source,
-                    RequireCurrentCaller(),
+                    caller,
                     componentCancellationToken);
+                if (Volatile.Read(ref isDisposed) != 0 || !IsCallerAvailable || caller != CurrentCaller)
+                {
+                    return;
+                }
                 if (outcome is WorkspaceOpenRejected rejected)
                 {
+                    ShowOperationDiagnostics(rejected.Diagnostics);
                     Status = Text["ImportRejected", rejected.Code];
                     return;
                 }

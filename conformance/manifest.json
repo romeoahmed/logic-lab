@@ -1,0 +1,789 @@
+[
+  {
+    "contractId": "logic.adder",
+    "contractSchemaDigest": "ca88587aa79a921a14d1fcfd3d8742a195ad31ded997051d802c599492b71d7d",
+    "semanticOracleId": "oracle.adder",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.adder",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.and",
+    "contractSchemaDigest": "3193eae759817635f653b175d39ad41c5367951b26d75d5333628c7801971019",
+    "semanticOracleId": "oracle.gates",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.distinctive",
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.gates",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.buffer",
+    "contractSchemaDigest": "ac48f4774681f0091ed318d116997b980ac778ba556c347e380c0dc2fd4ef797",
+    "semanticOracleId": "oracle.buffer",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.distinctive",
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.buffer",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.decoder",
+    "contractSchemaDigest": "ba0d7029eac9c4857d494eb609aa5b1a160f02e44af3a0101fa9627eba6b6aba",
+    "semanticOracleId": "oracle.decoder",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.decoder",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.demux",
+    "contractSchemaDigest": "11a94730d390af346b440892ceef9718bc5da5e9a5cc643d3e40bdf27827e18f",
+    "semanticOracleId": "oracle.mux-demux",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.mux-demux",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.mux",
+    "contractSchemaDigest": "4e9b315182aac2309da1c8c5e5f0dc207669f4856db93473a66a66be98bd28bd",
+    "semanticOracleId": "oracle.mux-demux",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.mux-demux",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.nand",
+    "contractSchemaDigest": "e3266668011e68e5a0939e76d00aadea815d25475104d7ef5cbac124d5e18965",
+    "semanticOracleId": "oracle.gates",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.distinctive",
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.gates",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.nor",
+    "contractSchemaDigest": "83087d9b5c5679ac7f1192aab741e781b08c9c6b03a97b05fd5b4a053702286b",
+    "semanticOracleId": "oracle.gates",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.distinctive",
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.gates",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.not",
+    "contractSchemaDigest": "54ff993a5e98cec60f24cd79e6aada8433ff8f91cf948c2d10339f288645a992",
+    "semanticOracleId": "oracle.not",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.distinctive",
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.not",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.or",
+    "contractSchemaDigest": "f0d1302250bf7f63f2fe1e573ae570bbfd6a27fa967dd9619515cd81a5c67c69",
+    "semanticOracleId": "oracle.gates",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.distinctive",
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.gates",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.priority_encoder",
+    "contractSchemaDigest": "2377992f5e9400132b940adb9ec00db5a0142ed01f3cbd31e67ed125a2d132fd",
+    "semanticOracleId": "oracle.priority_encoder",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.priority_encoder",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.shift",
+    "contractSchemaDigest": "1379899fbd321f55bb276afdae4d1dc23039e94f7323793394ef4844c27c2185",
+    "semanticOracleId": "oracle.shift",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.shift",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.subtractor",
+    "contractSchemaDigest": "6f3d7c59a758f0de48e882b55a59a15d84a7b5a73ef5fefa5db03ad36bccfb56",
+    "semanticOracleId": "oracle.subtractor",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.subtractor",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.tristate",
+    "contractSchemaDigest": "f66634536ac5dc788caf56472581d09ac165e6c63c0083e8838b9568e40f96a6",
+    "semanticOracleId": "oracle.tristate",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.tristate",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.unsigned_compare",
+    "contractSchemaDigest": "8b9ff8ebea08ecd0fe8efd306ecd1f3788ee38be340f62dc9e23ec26de72d3e5",
+    "semanticOracleId": "oracle.unsigned_compare",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.unsigned_compare",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.xnor",
+    "contractSchemaDigest": "d2617f8cdf299556e0d34604f6906f49b80ed6f74a0ba4cdb70378aaa560803e",
+    "semanticOracleId": "oracle.gates",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.distinctive",
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.gates",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "logic.xor",
+    "contractSchemaDigest": "54cc954f5ca948b390bb29f1f389f45f4ed7c66f874e8ef2a04e5d5ad6af21a5",
+    "semanticOracleId": "oracle.gates",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.distinctive",
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.gates",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "memory.ram_single_port",
+    "contractSchemaDigest": "172aa55e896a1067a3b7d63f956e8fcdf27f08a15fca2ff1154bcf507c313ad5",
+    "semanticOracleId": "oracle.memory",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.memory",
+      "properties.hotswap",
+      "properties.state-migration"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "memory.rom",
+    "contractSchemaDigest": "a46da0c858cbf496a7774e3e1d7cb03144cd228acefd7958b3f2a5c629cd6131",
+    "semanticOracleId": "oracle.memory",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.memory",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "sequential.counter",
+    "contractSchemaDigest": "609e21b73473ba44742d4e31e6484fc597fd12356b4c6b3f07c157259deb9cc8",
+    "semanticOracleId": "oracle.shift-counter",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.shift-counter",
+      "properties.hotswap",
+      "properties.state-migration"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "sequential.d_latch",
+    "contractSchemaDigest": "de9b63082beb075680e909b37abf365b82d98b075e88cffd247e498375ae1942",
+    "semanticOracleId": "oracle.d_latch",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.d_latch",
+      "properties.hotswap",
+      "properties.state-migration"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "sequential.dff",
+    "contractSchemaDigest": "23012f21be517055de8006ea0c6c2658c0ded1da6db91f07ecce9e8897ec1596",
+    "semanticOracleId": "oracle.dff",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.dff",
+      "properties.hotswap",
+      "properties.state-migration"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "sequential.jkff",
+    "contractSchemaDigest": "eb25a9d939e8dc8ae49f24de9bd0f0dcdb9d8609ffe77490c13522d6330121af",
+    "semanticOracleId": "oracle.jkff",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.jkff",
+      "properties.hotswap",
+      "properties.state-migration"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "sequential.register",
+    "contractSchemaDigest": "b72b774e1877dcc20bf1fbcd3b0707893c8eb3601292c76e97c3af8585ef1c00",
+    "semanticOracleId": "oracle.register",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.register",
+      "properties.hotswap",
+      "properties.state-migration"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "sequential.shift_register",
+    "contractSchemaDigest": "9149cc7ad6796b49b65e8b46bc621bb094ed66515662ded821b94f9477a462f6",
+    "semanticOracleId": "oracle.shift-counter",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.shift-counter",
+      "properties.hotswap",
+      "properties.state-migration"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "sequential.sr_latch",
+    "contractSchemaDigest": "9485144f38ee5186b823a1a7b20f0ee11749cd32089bda8685b691048a099ef4",
+    "semanticOracleId": "oracle.sr_latch",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.sr_latch",
+      "properties.hotswap",
+      "properties.state-migration"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "sequential.tff",
+    "contractSchemaDigest": "78f89ba8c19e947e3c625f195246cbf2b64ae8fcf74676edf50c095489b2b473",
+    "semanticOracleId": "oracle.tff",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.tff",
+      "properties.hotswap",
+      "properties.state-migration"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "sink.output",
+    "contractSchemaDigest": "2015a3a9951dcd7456a6e4d174a0a680ffd3daef5bfd8c02cf6f25c9e5d5795f",
+    "semanticOracleId": "oracle.topology",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.boundary"
+    ],
+    "propertySuiteIds": [
+      "properties.topology",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "source.clock",
+    "contractSchemaDigest": "578f0c366902b8ebc7b8cab24d22771db34102531cee1c2f61f0d4c224b0190c",
+    "semanticOracleId": "oracle.clock",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.clock",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "source.constant",
+    "contractSchemaDigest": "fe052b257acb6bcfcc37c42c85537088ec8086e980a68ddac33089d7958ecaba",
+    "semanticOracleId": "oracle.topology",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.topology",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "source.input",
+    "contractSchemaDigest": "705c079d24893cfdf32fccef37f4ea3c44a9e1b423eb5be4bd048c5b2a116cfc",
+    "semanticOracleId": "oracle.input",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.boundary"
+    ],
+    "propertySuiteIds": [
+      "properties.input",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "topology.concat",
+    "contractSchemaDigest": "80d474b8635ce186f41cd714c63215d8616e3de87c5227b6ff6c777a6d7679f2",
+    "semanticOracleId": "oracle.topology",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.topology",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "topology.sign_extend",
+    "contractSchemaDigest": "1b08fb84c02bad695c26e5175ac4ae4b559c7f87517aabaddc2635995730f357",
+    "semanticOracleId": "oracle.topology",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.topology",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "topology.split",
+    "contractSchemaDigest": "4fb2024fee7c219a65c39134167df2155484ec2c96d05e40ad89680c3a630ba4",
+    "semanticOracleId": "oracle.topology",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.topology",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  },
+  {
+    "contractId": "topology.zero_extend",
+    "contractSchemaDigest": "ebccd3591a7a5cbfc5a0701fa8dd87f4e3259ed9f72f00d54690d526319f85cf",
+    "semanticOracleId": "oracle.topology",
+    "compilerLoweringId": "lowering.core",
+    "parameterAndInvalidCaseFixtureIds": [
+      "parameters.core-envelopes"
+    ],
+    "serializationFixtureIds": [
+      "serialization.core-package"
+    ],
+    "symbolVariantIds": [
+      "logiclab.teachingmixed.rectangular"
+    ],
+    "propertySuiteIds": [
+      "properties.topology",
+      "properties.hotswap"
+    ],
+    "browserScenarioIds": [
+      "browser.core-keyboard"
+    ]
+  }
+]

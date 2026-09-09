@@ -62,6 +62,7 @@ in the non-normative [Boolean Analysis proposal](./future/boolean-analysis.md).
 - [Durable Project Catalog](./contracts/durable-project-catalog.md)
 - [Browser Adapters](./contracts/browser-adapters.md)
 - [HTTP Boundary](./contracts/http-boundary.md)
+- [Observability](./contracts/observability.md)
 
 ## Executable sources
 
@@ -74,6 +75,8 @@ in the non-normative [Boolean Analysis proposal](./future/boolean-analysis.md).
 | resolved dependencies   | application-root `packages.lock.json` files               |
 | CI and release behavior | [`.github/workflows/`](../.github/workflows/)             |
 | Azure resources         | [`infra/`](../infra/)                                     |
+| component evidence      | [`conformance/`](../conformance/README.md)                |
+| qualification corpus    | [`qualification/`](../qualification/README.md)            |
 
 ## Maintenance
 

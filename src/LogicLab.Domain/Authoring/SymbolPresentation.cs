@@ -28,6 +28,16 @@ public static class SymbolVariantCatalog
     public const string DistinctiveId = "logiclab.teachingmixed.distinctive";
     public const string RectangularId = "logiclab.teachingmixed.rectangular";
 
+    public static IReadOnlyList<string> GetCompatibleVariants(
+        SymbolProfileReference profile, ComponentTarget target, IReadOnlyList<ComponentParameterBinding> parameters)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(parameters);
+        string[] variants = [BoundaryId, DistinctiveId, RectangularId];
+        return Array.AsReadOnly(variants.Where(variant => IsCompatible(profile, target, parameters, variant)).ToArray());
+    }
+
     internal static bool IsCompatible(
         SymbolProfileReference profile,
         ComponentTarget target,

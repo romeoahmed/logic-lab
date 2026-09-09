@@ -28,7 +28,7 @@ public static partial class ProjectEditor
         ArgumentNullException.ThrowIfNull(revision);
         ArgumentNullException.ThrowIfNull(intent);
 
-        return intent switch
+        var outcome = intent switch
         {
             CreateCircuitDefinitionIntent createDefinition =>
                 ApplyCreateDefinition(revision, createDefinition),
@@ -86,6 +86,7 @@ public static partial class ProjectEditor
                 ApplyRemoveAnnotation(revision, removeAnnotation),
             _ => throw new InvalidOperationException("The Edit Intent variant is undefined."),
         };
+        return AttachDiagnosticScope(revision, intent, outcome);
     }
 
     private static EditOutcome ApplyCreateDefinition(

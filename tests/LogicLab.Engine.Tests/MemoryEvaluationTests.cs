@@ -1,12 +1,49 @@
+using FsCheck;
+using FsCheck.Fluent;
 using LogicLab.Domain;
 using LogicLab.Engine.Compilation;
 using LogicLab.Engine.Simulation;
 using TUnit.Assertions.Enums;
+using TUnit.FsCheck;
 
 namespace LogicLab.Engine.Tests;
 
 internal sealed class MemoryEvaluationTests
 {
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property ReadWrite_PackedWidthsAndFourStateControls_MatchIndependentWordModel(
+        LogicVectorArithmeticCase sample, byte encodedAddress)
+    {
+        var words = Enumerable.Range(0, 4).Select(word =>
+            sample.Left.Select((value, bit) => Normalize(word % 2 == 0 ? value : sample.Right[bit])).ToArray()).ToArray();
+        var initial = PackedMemory.FromImage(MemoryTestCircuit.Create().CreateMemoryImage("Property words", words), CancellationToken.None);
+        var memory = initial.Clone();
+        var address = new LogicVector([(LogicValue)(encodedAddress & 3), (LogicValue)((encodedAddress >> 2) & 3)]);
+        var data = new LogicVector(sample.Right);
+        MemoryEvaluation.ApplyWrites(memory, MemoryEvaluation.SampleWrite(memory, address, data, sample.Control, CancellationToken.None), CancellationToken.None);
+        var expectedWords = Enumerable.Range(0, 4).Select(word =>
+        {
+            var cases = EnumerateWrites(words, address, data, sample.Control, word);
+            return Enumerable.Range(0, sample.Width).Select(bit => Merge(cases.Select(values => values[bit]))).ToArray();
+        }).ToArray();
+        var expectedRead = Enumerable.Range(0, sample.Width).Select(bit =>
+            Merge(Enumerable.Range(0, 4).Where(word => Matches(word, address)).Select(word => expectedWords[word][bit]))).ToArray();
+        var matches = Enumerable.Range(0, 4).All(word =>
+            LogicVectorTestData.Matches(memory.ReadWord(word), expectedWords[word])
+            && LogicVectorTestData.Matches(initial.ReadWord(word), words[word]))
+            && LogicVectorTestData.Matches(MemoryEvaluation.Read(memory, address, CancellationToken.None), expectedRead);
+        return matches.Label("Packed memory read/write and original clone must match the word model")
+            .Collect(LogicVectorTestData.WidthBucket(sample.Width));
+    }
+
+    private static LogicValue Normalize(LogicValue value) => value == LogicValue.Z ? LogicValue.X : value;
+
+    private static LogicValue Merge(IEnumerable<LogicValue> values)
+    {
+        var candidates = values.Select(Normalize).Distinct().ToArray();
+        return candidates.Length == 1 ? candidates[0] : LogicValue.X;
+    }
+
     private static readonly LogicValue[] AddressValues =
     [
         LogicValue.Zero,

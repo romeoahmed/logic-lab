@@ -9,6 +9,26 @@ namespace LogicLab.Engine.Tests;
 
 internal sealed partial class SequentialEvaluationTests
 {
+    [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
+    public Property StorageAndEnable_PackedWidthsAndFourStateInputs_MatchScalarCaptureAndHoldModel(LogicVectorArithmeticCase sample)
+    {
+        static LogicValue Stored(LogicValue value) => value == LogicValue.Z ? LogicValue.X : value;
+        var current = sample.Left.Select(Stored).ToArray();
+        var captured = sample.Right.Select(Stored).ToArray();
+        var expected = current.Select((value, bit) => sample.Control switch
+        {
+            LogicValue.Zero => value,
+            LogicValue.One => captured[bit],
+            LogicValue.X or LogicValue.Z => value == captured[bit] ? value : LogicValue.X,
+            _ => throw new InvalidOperationException(),
+        }).ToArray();
+        var data = new LogicVector(sample.Right);
+        return (LogicVectorTestData.Matches(SequentialEvaluation.NormalizeForStorage(data), captured)
+            && LogicVectorTestData.Matches(SequentialEvaluation.WithEnable(new LogicVector(current), data, sample.Control), expected))
+            .ToProperty().Label("storage capture and possible hold/capture cases agree with the scalar model")
+            .Collect(LogicVectorTestData.WidthBucket(sample.Width));
+    }
+
     [Test, FsCheckProperty(
         MaxTest = 100,
         Arbitrary = new[] { typeof(SequentialEvaluationArbitraries) })]
