@@ -78,11 +78,10 @@ internal static class CombinationalEvaluation
                 nameof(dataInputs));
         }
 
-        var normalizedSelector = VectorLogic.NormalizeInput(selector);
         var reachable = new List<LogicVector>(dataInputs.Count);
         for (var index = 0; index < dataInputs.Count; index++)
         {
-            if (IsCompatibleIndex(normalizedSelector, checked((uint)index)))
+            if (IsCompatibleIndex(selector, checked((uint)index)))
             {
                 reachable.Add(VectorLogic.NormalizeInput(dataInputs[index]));
             }
@@ -96,17 +95,16 @@ internal static class CombinationalEvaluation
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(selector);
         var outputCount = OutputCount(selector.Width);
-        var normalizedSelector = VectorLogic.NormalizeInput(selector);
         var normalizedData = VectorLogic.NormalizeInput(data);
         var zero = LogicVector.CreateFilled(data.Width, LogicValue.Zero);
-        var selectorIsKnown = IsKnown(normalizedSelector);
+        var selectorIsKnown = selector.GetHighWord(0) == 0;
         var selectedData = selectorIsKnown
             ? normalizedData
             : VectorConservativeMerge.Merge([normalizedData, zero]);
         var outputs = new LogicVector[outputCount];
         for (var index = 0; index < outputs.Length; index++)
         {
-            outputs[index] = IsCompatibleIndex(normalizedSelector, checked((uint)index))
+            outputs[index] = IsCompatibleIndex(selector, checked((uint)index))
                 ? selectedData
                 : zero;
         }
@@ -120,16 +118,15 @@ internal static class CombinationalEvaluation
         bool activeHigh)
     {
         ArgumentNullException.ThrowIfNull(address);
-        var normalizedAddress = VectorLogic.NormalizeInput(address);
         var normalizedEnable = ScalarLogic.NormalizeInput(enable);
         var active = activeHigh ? normalizedEnable : ScalarLogic.Not(normalizedEnable);
         var outputCount = OutputCount(address.Width);
-        var addressIsKnown = IsKnown(normalizedAddress);
+        var addressIsKnown = address.GetHighWord(0) == 0;
         var outputs = new LogicVector[outputCount];
         for (var index = 0; index < outputs.Length; index++)
         {
             var addressMatchesIndex = IsCompatibleIndex(
-                normalizedAddress,
+                address,
                 checked((uint)index));
             var output = (active, addressMatchesIndex, addressIsKnown) switch
             {
@@ -182,19 +179,13 @@ internal static class CombinationalEvaluation
 
         var width = Math.Max(1, System.Numerics.BitOperations.Log2(
             checked((uint)inputs.Count - 1)) + 1);
-        var indexBits = new LogicValue[width];
         // A bit is known only when every reachable index agrees, including zero
-        // when no input need be asserted. No per-candidate vectors are needed.
-        for (var bit = 0; bit < indexBits.Length; bit++)
-        {
-            var mask = 1U << bit;
-            indexBits[bit] = (anyIndexBits & mask) == 0
-                ? LogicValue.Zero
-                : (commonIndexBits & mask) != 0 ? LogicValue.One : LogicValue.X;
-        }
-
+        // when no input need be asserted.
         return new PriorityEncoderResult(
-            new LogicVector(indexBits),
+            LogicVector.CreateFromOwnedWords(
+                width,
+                [anyIndexBits & commonIndexBits],
+                [anyIndexBits & ~commonIndexBits]),
             hasPossibleAssertion
                 ? higherCanAllBeZero ? LogicValue.X : LogicValue.One
                 : LogicValue.Zero);
@@ -202,29 +193,9 @@ internal static class CombinationalEvaluation
 
     private static bool IsCompatibleIndex(LogicVector selector, uint index)
     {
-        for (var bit = 0; bit < selector.Width; bit++)
-        {
-            var expected = ((index >> bit) & 1U) == 0 ? LogicValue.Zero : LogicValue.One;
-            if (selector[bit] != LogicValue.X && selector[bit] != expected)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static bool IsKnown(LogicVector value)
-    {
-        for (var index = 0; index < value.Width; index++)
-        {
-            if (value[index] == LogicValue.X)
-            {
-                return false;
-            }
-        }
-
-        return true;
+        // OutputCount bounds selectors to one word. High bits mark both X and Z,
+        // so only differences at known positions rule out a candidate index.
+        return ((selector.GetLowWord(0) ^ index) & ~selector.GetHighWord(0)) == 0;
     }
 
     private static int OutputCount(int selectorWidth)

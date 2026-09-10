@@ -197,7 +197,7 @@ public static partial class ProjectPackage
                 PackageDimension.EntryCount);
         }
 
-        var unsupportedFeature = await ZipCentralDirectory.FindUnsupportedFeatureAsync(
+        var unsupportedFeature = await ZipCentralDirectory.PrepareForReadAsync(
             spool,
             centralDirectory,
             cancellationToken).ConfigureAwait(false);

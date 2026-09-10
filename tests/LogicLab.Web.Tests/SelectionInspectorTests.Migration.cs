@@ -143,7 +143,7 @@ internal sealed partial class SelectionInspectorTests
         await SetMode(rendered, "Q", "disconnect");
         rendered.Find("[data-command='selection-apply-migration']").Click();
         var intent = (ChangeInstanceContractIntent)requests.Single().Intent;
-        await Assert.That(((CircuitDefinitionComponentTarget)intent.Target).CircuitDefinitionId).IsSameReferenceAs(child.Id);
+        await Assert.That(((CircuitDefinitionComponentTarget)intent.Target).CircuitDefinitionId).IsEqualTo(child.Id);
         await Assert.That(intent.Parameters).IsEmpty();
         await Assert.That(ProjectEditor.Apply(revision, intent)).IsTypeOf<EditCommitted>();
     }

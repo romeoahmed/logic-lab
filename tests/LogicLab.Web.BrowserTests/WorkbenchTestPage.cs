@@ -72,7 +72,7 @@ internal sealed class WorkbenchTestPage(IPage page, Uri editorUri)
         AriaRole.Complementary,
         new PageGetByRoleOptions { Name = "Components", Exact = true });
 
-    private ILocator Command(string command) =>
+    public ILocator Command(string command) =>
         // Playwright does not treat a custom element's disabled attribute as
         // native actionability. Wait for Fluent's command state explicitly.
         page.Locator($"[data-command='{command}']:not([disabled])");

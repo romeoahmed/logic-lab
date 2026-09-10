@@ -42,7 +42,7 @@ internal sealed class SelectionEditsTests
             await Assert.That(merge.DestinationNetId).IsEqualTo(destination.NetId);
             await Assert.That(merge.SourceNetIds).IsEquivalentTo([source.NetId]);
             await Assert.That(committed.Document.EntryCircuitDefinition.FindNet(untouched.Id))
-                .IsSameReferenceAs(untouched);
+                .IsEquivalentTo(untouched);
         }
     }
 

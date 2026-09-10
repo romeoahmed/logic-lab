@@ -10,7 +10,7 @@ internal static class ZipCentralDirectory
     private const uint Zip64EndOfCentralDirectorySignature = 0x06064b50;
     private const uint Zip64EndOfCentralDirectoryLocatorSignature = 0x07064b50;
 
-    public static async Task<ZipUnsupportedFeature?> FindUnsupportedFeatureAsync(
+    public static async Task<ZipUnsupportedFeature?> PrepareForReadAsync(
         FileStream spool,
         ZipCentralDirectoryInfo directory,
         CancellationToken cancellationToken)
@@ -32,6 +32,7 @@ internal static class ZipCentralDirectory
         for (ulong index = 0; index < directory.EntryCount; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var centralHeaderOffset = spool.Position;
             if (checked((ulong)spool.Position + headerLength) > directoryEnd)
             {
                 throw new InvalidDataException("The ZIP central directory is truncated.");
@@ -56,12 +57,10 @@ internal static class ZipCentralDirectory
             var variableData = new byte[variableLength];
             await spool.ReadExactlyAsync(variableData, cancellationToken)
                 .ConfigureAwait(false);
-            var localHeaderOffset = ResolveLocalHeaderOffset(
+            var (localHeaderOffset, diskStart) = ResolveEntryLocation(
                 header,
                 variableData.AsSpan(nameLength, extraLength));
-            if (ResolveDiskStart(
-                    header,
-                    variableData.AsSpan(nameLength, extraLength)) != 0)
+            if (diskStart != 0)
             {
                 throw new InvalidDataException("Split ZIP archives are unsupported.");
             }
@@ -108,6 +107,18 @@ internal static class ZipCentralDirectory
                     "The ZIP local and central headers are inconsistent.");
             }
 
+            if (BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(34)) == ushort.MaxValue)
+            {
+                // ZipArchive can overlook a four-byte ZIP64 disk field after the
+                // optional eight-byte fields. We have verified disk zero above;
+                // express it directly in our private spool before BCL decoding.
+                // Part bytes and the caller's carrier remain untouched.
+                header.AsSpan(34, sizeof(ushort)).Clear();
+                spool.Position = centralHeaderOffset + 34;
+                await spool.WriteAsync(header.AsMemory(34, sizeof(ushort)), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             spool.Position = nextCentralEntry;
         }
 
@@ -119,70 +130,51 @@ internal static class ZipCentralDirectory
         return unsupportedFeature;
     }
 
-    private static uint ResolveDiskStart(
-        byte[] header,
+    private static (ulong LocalHeaderOffset, uint DiskStart) ResolveEntryLocation(
+        ReadOnlySpan<byte> header,
         ReadOnlySpan<byte> extraFields)
     {
-        var diskStart = BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(34));
-        if (diskStart != ushort.MaxValue)
+        ulong localHeaderOffset = BinaryPrimitives.ReadUInt32LittleEndian(header[42..]);
+        uint diskStart = BinaryPrimitives.ReadUInt16LittleEndian(header[34..]);
+        if (localHeaderOffset != uint.MaxValue && diskStart != ushort.MaxValue)
         {
-            return diskStart;
+            return (localHeaderOffset, diskStart);
         }
 
         var zip64 = FindExtraField(extraFields, 0x0001);
         var offset = 0;
-        if (BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(24)) == uint.MaxValue)
+        if (BinaryPrimitives.ReadUInt32LittleEndian(header[24..]) == uint.MaxValue)
         {
-            offset = checked(offset + sizeof(ulong));
+            offset += sizeof(ulong);
         }
 
-        if (BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(20)) == uint.MaxValue)
+        if (BinaryPrimitives.ReadUInt32LittleEndian(header[20..]) == uint.MaxValue)
         {
-            offset = checked(offset + sizeof(ulong));
+            offset += sizeof(ulong);
         }
 
-        if (BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(42)) == uint.MaxValue)
+        if (localHeaderOffset == uint.MaxValue)
         {
-            offset = checked(offset + sizeof(ulong));
+            if (zip64.Length < offset + sizeof(ulong))
+            {
+                throw new InvalidDataException("The ZIP64 local header offset is missing.");
+            }
+
+            localHeaderOffset = BinaryPrimitives.ReadUInt64LittleEndian(zip64[offset..]);
+            offset += sizeof(ulong);
         }
 
-        if (zip64.Length < checked(offset + sizeof(uint)))
+        if (diskStart == ushort.MaxValue)
         {
-            throw new InvalidDataException("The ZIP64 disk start is missing.");
+            if (zip64.Length < offset + sizeof(uint))
+            {
+                throw new InvalidDataException("The ZIP64 disk start is missing.");
+            }
+
+            diskStart = BinaryPrimitives.ReadUInt32LittleEndian(zip64[offset..]);
         }
 
-        return BinaryPrimitives.ReadUInt32LittleEndian(zip64[offset..]);
-    }
-
-    private static ulong ResolveLocalHeaderOffset(
-        byte[] header,
-        ReadOnlySpan<byte> extraFields)
-    {
-        var localHeaderOffset = BinaryPrimitives.ReadUInt32LittleEndian(
-            header.AsSpan(42));
-        if (localHeaderOffset != uint.MaxValue)
-        {
-            return localHeaderOffset;
-        }
-
-        var zip64 = FindExtraField(extraFields, 0x0001);
-        var offset = 0;
-        if (BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(24)) == uint.MaxValue)
-        {
-            offset = checked(offset + sizeof(ulong));
-        }
-
-        if (BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(20)) == uint.MaxValue)
-        {
-            offset = checked(offset + sizeof(ulong));
-        }
-
-        if (zip64.Length < checked(offset + sizeof(ulong)))
-        {
-            throw new InvalidDataException("The ZIP64 local header offset is missing.");
-        }
-
-        return BinaryPrimitives.ReadUInt64LittleEndian(zip64[offset..]);
+        return (localHeaderOffset, diskStart);
     }
 
     private static ReadOnlySpan<byte> FindExtraField(

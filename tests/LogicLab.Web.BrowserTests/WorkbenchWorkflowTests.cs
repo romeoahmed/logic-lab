@@ -52,7 +52,9 @@ internal sealed class WorkbenchWorkflowTests(LogicLabKestrelApplication applicat
         await Expect(Page.Locator("[data-scene-tool='select']")).ToBeEnabledAsync();
         var bounds = (await workbench.Canvas.BoundingBoxAsync())!;
         await workbench.Canvas.ClickAsync(new() { Position = new() { X = bounds.Width / 2 + 48, Y = bounds.Height / 2 + 32 } });
-        await Page.Locator("[data-symbol-editor] summary").ClickAsync();
+        await Page.Locator("[data-symbol-editor]")
+            .Filter(new() { Has = Page.Locator("[data-symbol-variant]") })
+            .Locator("summary").ClickAsync();
         var variant = Page.Locator("[data-symbol-variant]");
         await variant.ClickAsync();
         await variant.Locator($"fluent-option[value='{SymbolVariantCatalog.RectangularId}']").ClickAsync();
@@ -89,10 +91,10 @@ internal sealed class WorkbenchWorkflowTests(LogicLabKestrelApplication applicat
         {
             await Page.Locator("[data-public-ports] summary").ClickAsync();
         }
-        await Page.Locator("[data-command='port-add']").ClickAsync();
+        await workbench.Command("port-add").ClickAsync();
         await Page.Locator("[data-port-name] input").FillAsync("A");
-        await Page.Locator("[data-command='ports-review']").ClickAsync();
-        await Page.Locator("[data-command='ports-apply']").ClickAsync();
+        await workbench.Command("ports-review").ClickAsync();
+        await workbench.Command("ports-apply").ClickAsync();
         var authoredPort = Page.Locator("[data-public-port]:not([data-public-port='new'])");
         await Expect(authoredPort).ToHaveCountAsync(1);
         var oldPortId = await authoredPort.GetAttributeAsync("data-public-port");
@@ -112,7 +114,7 @@ internal sealed class WorkbenchWorkflowTests(LogicLabKestrelApplication applicat
         await Page.Locator("[data-port-mode]").ClickAsync();
         await Page.Locator("[data-port-mode] fluent-option[value='replace']").ClickAsync();
         await Page.Locator("[data-port-width] input").FillAsync("2");
-        await Page.Locator("[data-command='ports-review']").ClickAsync();
+        await workbench.Command("ports-review").ClickAsync();
         await Expect(Page.Locator("[data-callsite-port]")).ToHaveCountAsync(1);
         var apply = Page.Locator("[data-command='ports-apply']");
         await Expect(apply).ToHaveAttributeAsync("disabled", string.Empty);

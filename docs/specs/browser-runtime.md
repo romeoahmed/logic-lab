@@ -5,6 +5,12 @@
 
 Browser Runtime paints complete Scene and Waveform values and handles local interaction. [Product](../product.md) owns workflows and appearance; [Diagram Presentation](./diagram-presentation.md) owns static geometry; [Browser Adapters](../contracts/browser-adapters.md) owns exchanged records; [Web Host](./web-host.md) owns rendering, circuits, security middleware, and culture selection.
 
+Binary transfers use native `Uint8Array.fromBase64` and `Uint8Array.prototype.toHex`,
+available across current browser engines since September 2025
+([Base64](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array/fromBase64),
+[hexadecimal](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array/toHex)).
+The editor requires these capabilities.
+
 ## 1. Deep browser modules
 
 Web exposes two narrow typed adapter interfaces over collocated modules:

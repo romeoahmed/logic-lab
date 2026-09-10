@@ -131,13 +131,14 @@ internal static class GeometryPlanTransform
 
         private RectV1 Apply(RectV1 rect)
         {
-            return RectV1.Enclose(
-            [
-                Apply(new PointV1(rect.Left, rect.Top)),
-                Apply(new PointV1(rect.Right, rect.Top)),
-                Apply(new PointV1(rect.Right, rect.Bottom)),
-                Apply(new PointV1(rect.Left, rect.Bottom)),
-            ]);
+            // Orthogonal rotation and reflection preserve opposite corners.
+            var first = Apply(new PointV1(rect.Left, rect.Top));
+            var opposite = Apply(new PointV1(rect.Right, rect.Bottom));
+            return new RectV1(
+                Math.Min(first.X, opposite.X),
+                Math.Min(first.Y, opposite.Y),
+                Math.Max(first.X, opposite.X),
+                Math.Max(first.Y, opposite.Y));
         }
 
         private static RectV1 TranslateRelative(

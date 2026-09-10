@@ -1249,8 +1249,7 @@ function waveformPalette(styles) {
 
 function decodeBase64(value) {
   try {
-    const binary = atob(value);
-    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    return Uint8Array.fromBase64(value);
   } catch {
     throw new Error("invalid Base64");
   }

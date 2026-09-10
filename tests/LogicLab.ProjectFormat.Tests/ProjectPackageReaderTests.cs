@@ -114,6 +114,38 @@ internal sealed partial class ProjectPackageReaderTests
     }
 
     [Test]
+    public async Task ReadAsync_Zip64EntryFieldCombinations_PreserveProjectContentAndCarrier()
+    {
+        await using var carrier = await WriteAsync(BeginProject("ZIP64 fields", "Main"));
+        var written = (PackageWriteSucceeded)carrier.Outcome;
+        for (var fields = 1; fields < 16; fields++)
+        {
+            await using var zip64 = PatchZip64Entry(carrier.Stream, fields);
+            var carrierBytes = zip64.ToArray();
+            var outcome = await ReadAsync(zip64);
+            var read = (await Assert.That(outcome).IsTypeOf<PackageReadSucceeded>())!;
+            await Assert.That(read.ProjectContentDigest).IsEqualTo(written.ProjectContentDigest);
+            await Assert.That(zip64.ToArray()).IsEquivalentTo(carrierBytes, CollectionOrdering.Matching);
+        }
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ReadAsync_Zip64EntryInvalidLocation_RejectsCarrier(bool truncated)
+    {
+        await using var carrier = await WriteAsync(BeginProject("ZIP64 location", "Main"));
+        await using var zip64 = PatchZip64Entry(carrier.Stream, 15, truncated, diskStart: 1);
+
+        var outcome = await ReadAsync(zip64);
+
+        var rejected = (await Assert.That(outcome).IsTypeOf<PackageReadRejected>())!;
+        await Assert.That(rejected.Diagnostics).Contains(diagnostic =>
+            diagnostic.Code == "package_illegal_entry"
+            && diagnostic.Arguments.Contains(new PackageDiagnosticArgument("rule", "carrier")));
+    }
+
+    [Test]
     public async Task ReadAsync_Zip64DeclaredEntryCountBeyondPolicy_RejectsBeforeMaterialization()
     {
         var revision = BeginProject("ZIP64 entry count", "Main");
@@ -1291,6 +1323,64 @@ internal sealed partial class ProjectPackageReaderTests
             bytes.AsSpan(endRecordOffset + 6),
             diskNumber);
         return new MemoryStream(bytes);
+    }
+
+    private static MemoryStream PatchZip64Entry(
+        MemoryStream package,
+        int fields,
+        bool truncated = false,
+        uint diskStart = 0)
+    {
+        var bytes = package.ToArray();
+        var centralOffset = FindCentralDirectoryEntry(bytes, "manifest.json");
+        var endOffset = bytes.AsSpan().LastIndexOf("PK\x05\x06"u8);
+        using var payload = new MemoryStream();
+        using (var writer = new BinaryWriter(payload, Encoding.UTF8, leaveOpen: true))
+        {
+            int[] offsets = [24, 20, 42];
+            for (var bit = 0; bit < offsets.Length; bit++)
+            {
+                if ((fields & (1 << bit)) == 0)
+                {
+                    continue;
+                }
+
+                var field = bytes.AsSpan(centralOffset + offsets[bit]);
+                writer.Write((ulong)BinaryPrimitives.ReadUInt32LittleEndian(field));
+                BinaryPrimitives.WriteUInt32LittleEndian(field, uint.MaxValue);
+            }
+
+            if ((fields & 8) != 0)
+            {
+                writer.Write(diskStart);
+                BinaryPrimitives.WriteUInt16LittleEndian(
+                    bytes.AsSpan(centralOffset + 34), ushort.MaxValue);
+            }
+        }
+
+        var payloadBytes = payload.ToArray();
+        if (truncated)
+        {
+            payloadBytes = payloadBytes[..^1];
+        }
+
+        var extra = new byte[4 + payloadBytes.Length];
+        BinaryPrimitives.WriteUInt16LittleEndian(extra, 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(extra.AsSpan(2), checked((ushort)payloadBytes.Length));
+        payloadBytes.CopyTo(extra, 4);
+        var nameLength = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(centralOffset + 28));
+        var extraLength = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(centralOffset + 30));
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(centralOffset + 30),
+            checked((ushort)(extraLength + extra.Length)));
+        var directoryLength = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(endOffset + 12));
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(endOffset + 12),
+            checked(directoryLength + (uint)extra.Length));
+        var insertionOffset = centralOffset + 46 + nameLength;
+        return new MemoryStream([
+            .. bytes.AsSpan(0, insertionOffset),
+            .. extra,
+            .. bytes.AsSpan(insertionOffset),
+        ]);
     }
 
     private static MemoryStream PatchZip64Directory(

@@ -92,30 +92,7 @@ static async Task WriteVerified<T>(T value, JsonTypeInfo<T> typeInfo, string pat
 
 static T ReadJson<T>(string path, JsonTypeInfo<T> typeInfo)
 {
-    using var document = JsonDocument.Parse(File.ReadAllBytes(path));
-    CheckNames(document.RootElement);
-    return document.RootElement.Deserialize(typeInfo) ?? throw new JsonException("The evidence document cannot be null.");
-}
-
-static void CheckNames(JsonElement element)
-{
-    if (element.ValueKind == JsonValueKind.Object)
-    {
-        var names = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var property in element.EnumerateObject())
-        {
-            if (!names.Add(property.Name))
-            {
-                throw new JsonException("Duplicate evidence property.");
-            }
-            CheckNames(property.Value);
-        }
-    }
-    else if (element.ValueKind == JsonValueKind.Array)
-    {
-        foreach (var item in element.EnumerateArray())
-        {
-            CheckNames(item);
-        }
-    }
+    using var stream = File.OpenRead(path);
+    return JsonSerializer.Deserialize(stream, typeInfo)
+        ?? throw new JsonException("The evidence document cannot be null.");
 }

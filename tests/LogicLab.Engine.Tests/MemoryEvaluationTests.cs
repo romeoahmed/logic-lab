@@ -10,6 +10,31 @@ namespace LogicLab.Engine.Tests;
 
 internal sealed class MemoryEvaluationTests
 {
+    [Test]
+    public async Task ReachableAddressCount_UnknownBitsAcrossWords_CountsCasesOrRejectsOverflow()
+    {
+        for (var unknownCount = 0; unknownCount <= 65; unknownCount++)
+        {
+            var bits = Enumerable.Repeat(LogicValue.One, 130).ToArray();
+            for (var index = 0; index < unknownCount; index++)
+            {
+                bits[index * 2] = index % 2 == 0 ? LogicValue.X : LogicValue.Z;
+            }
+
+            var address = new LogicVector(bits);
+            if (unknownCount < 64)
+            {
+                await Assert.That(MemoryEvaluation.ReachableAddressCount(address))
+                    .IsEqualTo(1UL << unknownCount);
+            }
+            else
+            {
+                await Assert.That(() => MemoryEvaluation.ReachableAddressCount(address))
+                    .ThrowsExactly<OverflowException>();
+            }
+        }
+    }
+
     [Test, FsCheckProperty(Arbitrary = new[] { typeof(LogicVectorArbitraries) })]
     public Property ReadWrite_PackedWidthsAndFourStateControls_MatchIndependentWordModel(
         LogicVectorArithmeticCase sample, byte encodedAddress)

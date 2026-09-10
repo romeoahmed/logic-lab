@@ -1,3 +1,4 @@
+using System.Numerics;
 using LogicLab.Domain;
 using LogicLab.Engine.Compilation;
 
@@ -13,17 +14,13 @@ internal static class MemoryEvaluation
     {
         ArgumentNullException.ThrowIfNull(address);
         var unknownBits = 0;
-        for (var bit = 0; bit < address.Width; bit++)
+        for (var word = 0; word < address.WordCount; word++)
         {
-            if (address[bit] is LogicValue.X or LogicValue.Z)
+            unknownBits += BitOperations.PopCount(address.GetHighWord(word));
+            if (unknownBits >= 64)
             {
-                unknownBits = checked(unknownBits + 1);
+                throw new OverflowException("The reachable memory address count exceeds UInt64.");
             }
-        }
-
-        if (unknownBits >= 64)
-        {
-            throw new OverflowException("The reachable memory address count exceeds UInt64.");
         }
 
         return 1UL << unknownBits;

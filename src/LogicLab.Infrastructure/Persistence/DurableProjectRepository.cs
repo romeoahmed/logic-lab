@@ -258,40 +258,27 @@ internal sealed class DurableProjectRepository :
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(
             cancellationToken).ConfigureAwait(false);
-        IQueryable<DurableProjectCatalogQueryRow> query;
-        if (request.AfterDisplayNameSortKey is null)
-        {
-            query = context.Database.SqlQuery<DurableProjectCatalogQueryRow>($"""
-                SELECT durable_project_id AS "DurableProjectId",
-                       display_name AS "DisplayName",
-                       display_name_sort_key AS "DisplayNameSortKey"
-                FROM durable_projects
-                WHERE subject_id = {request.SubjectId.Value}
-                ORDER BY display_name_sort_key, durable_project_id
-                LIMIT {request.MaximumItemCount}
-                """);
-        }
-        else
+        var query = context.DurableProjects.AsNoTracking()
+            .Where(project => project.SubjectId == request.SubjectId.Value);
+        if (request.AfterDisplayNameSortKey is not null)
         {
             var afterSortKey = request.AfterDisplayNameSortKey.ToArray();
-            query = context.Database.SqlQuery<DurableProjectCatalogQueryRow>($"""
-                SELECT durable_project_id AS "DurableProjectId",
-                       display_name AS "DisplayName",
-                       display_name_sort_key AS "DisplayNameSortKey"
-                FROM durable_projects
-                WHERE subject_id = {request.SubjectId.Value}
-                  AND (display_name_sort_key, durable_project_id)
-                    > ({afterSortKey}, {request.AfterDurableProjectId!.Value})
-                ORDER BY display_name_sort_key, durable_project_id
-                LIMIT {request.MaximumItemCount}
-                """);
+            var afterProjectId = request.AfterDurableProjectId!.Value;
+            query = query.Where(project => EF.Functions.GreaterThan(
+                ValueTuple.Create(project.DisplayNameSortKey, project.Id),
+                ValueTuple.Create(afterSortKey, afterProjectId)));
         }
 
-        var rows = await query.ToArrayAsync(cancellationToken).ConfigureAwait(false);
+        var rows = await query
+            .OrderBy(project => project.DisplayNameSortKey)
+            .ThenBy(project => project.Id)
+            .Take(request.MaximumItemCount)
+            .Select(project => new { project.Id, project.DisplayName, project.DisplayNameSortKey })
+            .ToArrayAsync(cancellationToken).ConfigureAwait(false);
         return
         [
             .. rows.Select(row => new DurableProjectCatalogRepositoryItem(
-                new DurableProjectId(row.DurableProjectId),
+                new DurableProjectId(row.Id),
                 new DurableDisplayName(row.DisplayName),
                 row.DisplayNameSortKey)),
         ];
@@ -888,14 +875,4 @@ internal sealed class DurableProjectRepository :
         }
     }
 
-#pragma warning disable CA1812 // EF Core constructs this unmapped SQL projection.
-    private sealed class DurableProjectCatalogQueryRow
-    {
-        public required string DurableProjectId { get; set; }
-
-        public required string DisplayName { get; set; }
-
-        public required byte[] DisplayNameSortKey { get; set; }
-    }
-#pragma warning restore CA1812
 }

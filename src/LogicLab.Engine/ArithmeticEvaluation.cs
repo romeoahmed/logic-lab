@@ -1,3 +1,4 @@
+using System.Numerics;
 using LogicLab.Domain;
 
 namespace LogicLab.Engine;
@@ -229,16 +230,7 @@ internal static class ArithmeticEvaluation
     {
         ArgumentNullException.ThrowIfNull(amount);
         EnsureShiftAmountWidth(amount);
-        var unknownCount = 0;
-        for (var bit = 0; bit < amount.Width; bit++)
-        {
-            if (ScalarLogic.NormalizeInput(amount[bit]) == LogicValue.X)
-            {
-                unknownCount = checked(unknownCount + 1);
-            }
-        }
-
-        return 1UL << unknownCount;
+        return 1UL << BitOperations.PopCount(amount.GetHighWord(0));
     }
 
     private static ulong ShiftKnownWord(

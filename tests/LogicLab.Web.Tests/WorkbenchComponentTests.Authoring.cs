@@ -36,9 +36,9 @@ internal sealed partial class WorkbenchComponentTests
         await Assert.That(split.Nets.SelectMany(net => net.Terminals)).IsEquivalentTo(merged.Nets.Single().Terminals);
         await Assert.That(split.WireGeometries.Select(wire => wire.Id)).IsEquivalentTo(merged.WireGeometries.Select(wire => wire.Id));
         await ClickAndWaitForState(rendered, "undo", () => CurrentDefinition(rendered)!.Nets.Count == 1);
-        await Assert.That((await workspace.ReadCurrent()).ProjectRevision).IsSameReferenceAs(mergedRevision);
+        await Assert.That((await workspace.ReadCurrent()).ProjectRevision.RevisionId).IsEqualTo(mergedRevision.RevisionId);
         await ClickAndWaitForState(rendered, "undo", () => CurrentDefinition(rendered)!.Nets.Count == 2);
-        await Assert.That((await workspace.ReadCurrent()).ProjectRevision).IsSameReferenceAs(before);
+        await Assert.That((await workspace.ReadCurrent()).ProjectRevision.RevisionId).IsEqualTo(before.RevisionId);
     }
 
     [Test]

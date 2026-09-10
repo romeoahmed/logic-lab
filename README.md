@@ -29,7 +29,7 @@ deliberately outside V1. Their design is retained as a non-normative
 ## Get started
 
 - the .NET SDK selected by [`global.json`](./global.json);
-- a browser supported by ASP.NET Core Blazor; and
+- a browser meeting the [Browser Runtime requirements](./docs/specs/browser-runtime.md); and
 - PostgreSQL 18 when using accounts, durable projects, or database integration tests.
 
 The anonymous Sandbox works without PostgreSQL. From the repository root, run:
