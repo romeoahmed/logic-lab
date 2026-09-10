@@ -103,6 +103,20 @@ internal sealed class ArithmeticEvaluationTests
     }
 
     [Test]
+    public async Task ReachableShiftCaseCount_FourStateAmounts_CountsIndependentUnknownBits()
+    {
+        for (var unknownCount = 0; unknownCount <= 32; unknownCount++)
+        {
+            var amount = Enumerable.Range(0, 32).Select(bit => bit < unknownCount
+                ? bit % 2 == 0 ? LogicValue.X : LogicValue.Z
+                : bit % 2 == 0 ? LogicValue.Zero : LogicValue.One).ToArray();
+
+            await Assert.That(ArithmeticEvaluation.ReachableShiftCaseCount(Vector(amount)))
+                .IsEqualTo(1UL << unknownCount);
+        }
+    }
+
+    [Test]
     public async Task LogicalShift_KnownBitThirtyOne_EvaluatesItsSingleReachableCase()
     {
         var amount = Enumerable.Repeat(LogicValue.Zero, 32).ToArray();

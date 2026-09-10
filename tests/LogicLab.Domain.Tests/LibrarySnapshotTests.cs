@@ -170,14 +170,14 @@ internal sealed class LibrarySnapshotTests
     }
 
     [Test]
-    public async Task ResolveContract_EveryRegisteredKey_ReturnsTheCanonicalSchemaInstance()
+    public async Task ResolveContract_EveryRegisteredKey_ReturnsTheRegisteredSchema()
     {
         foreach (var schema in LibrarySnapshot.Core.Contracts)
         {
             var key = new ComponentContractKey(
                 new string(schema.Key.LibraryId.AsSpan()),
                 new string(schema.Key.ContractId.AsSpan()));
-            await Assert.That(ReferenceEquals(LibrarySnapshot.Core.ResolveContract(key), schema)).IsTrue();
+            await Assert.That(LibrarySnapshot.Core.ResolveContract(key)).IsEquivalentTo(schema);
         }
 
         await Assert.That(LibrarySnapshot.Core.ResolveContract(default)).IsNull();

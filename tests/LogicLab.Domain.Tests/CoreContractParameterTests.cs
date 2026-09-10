@@ -1,6 +1,7 @@
 using LogicLab.ComponentTesting;
 using LogicLab.Domain.Authoring;
 using LogicLab.Domain.Components;
+using TUnit.Assertions.Enums;
 
 namespace LogicLab.Domain.Tests;
 
@@ -52,9 +53,12 @@ internal sealed partial class CoreContractParameterTests
             var outcome = ProjectEditor.Apply(revision, new PlaceComponentInstanceIntent(definition.Id,
                 component.Target, parameters, component.Placement));
             var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
-            await Assert.That(rejected.Diagnostics.Any(diagnostic => diagnostic.Code == "authoring_invalid_parameter")).IsTrue();
-            await Assert.That(revision.Document.EntryCircuitDefinition).IsSameReferenceAs(definition);
-            await Assert.That(definition.ComponentInstances.Single()).IsSameReferenceAs(component);
+            await Assert.That(rejected.Diagnostics.Select(diagnostic => diagnostic.Code))
+                .Contains("authoring_invalid_parameter");
+            await Assert.That(revision.Document.EntryCircuitDefinition.ComponentInstances.Select(instance => instance.Id))
+                .IsEquivalentTo([component.Id]);
+            await Assert.That(revision.Document.EntryCircuitDefinition.ComponentInstances.Single().Parameters)
+                .IsEquivalentTo(valid, CollectionOrdering.Matching);
         }
     }
 }

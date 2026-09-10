@@ -137,7 +137,7 @@ export function validateReplacement(candidate, buildFingerprint, fontFingerprint
   }
 
   validateSnapshot(candidate, fontFingerprint, policy);
-  return { kind: "snapshot", value: freezeSnapshot(candidate) };
+  return { kind: "snapshot", value: deepFreeze(candidate) };
 }
 
 function validateSnapshot(candidate, fontFingerprint, policy) {
@@ -165,7 +165,6 @@ function validateSnapshot(candidate, fontFingerprint, policy) {
   assertPolicyLimit("displayListBytes", encodedJsonBytes(displayList), policy.displayListBytes);
 
   const sourceKeys = new Set();
-  const orders = new Set();
   let previousOrder = -1;
   let records = 1;
   for (const item of candidate.items) {
@@ -175,7 +174,6 @@ function validateSnapshot(candidate, fontFingerprint, policy) {
       !Number.isSafeInteger(item.order) ||
       item.order < 0 ||
       item.order <= previousOrder ||
-      orders.has(item.order) ||
       !validRect(item.bounds) ||
       !validPoint(item.origin) ||
       typeof item.hasDrawableTarget !== "boolean" ||
@@ -187,27 +185,23 @@ function validateSnapshot(candidate, fontFingerprint, policy) {
       throw new Error("invalid scene item");
     }
     sourceKeys.add(sourceKey(item.source));
-    orders.add(item.order);
     previousOrder = item.order;
     records += 1 + item.operations.length + item.hitRegions.length;
     item.operations.forEach(validateOperation);
     item.hitRegions.forEach((region) => validateHit(region, candidate.circuitDefinitionId));
     records += item.operations.reduce((sum, operation) => sum + operation.commands.length, 0);
   }
-  const overlayIds = new Set();
   let previousOverlayId = null;
   for (const overlay of candidate.overlays) {
     if (
       !overlay ||
       typeof overlay.id !== "string" ||
       !overlay.id ||
-      overlayIds.has(overlay.id) ||
       (previousOverlayId !== null && compareOrdinal(previousOverlayId, overlay.id) >= 0) ||
       !validOverlay(overlay, candidate.circuitDefinitionId)
     ) {
       throw new Error("invalid scene overlay");
     }
-    overlayIds.add(overlay.id);
     previousOverlayId = overlay.id;
     records++;
   }
@@ -299,10 +293,6 @@ export function validatePatch(patch, published, buildFingerprint, fontFingerprin
     }
     return null;
   }
-}
-
-function freezeSnapshot(candidate) {
-  return deepFreeze(candidate);
 }
 
 export function deepFreeze(value) {
@@ -733,6 +723,5 @@ function assertPolicyLimit(dimension, observed, limit) {
   }
 }
 export function decodeBase64(value) {
-  const binary = atob(value);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return Uint8Array.fromBase64(value);
 }

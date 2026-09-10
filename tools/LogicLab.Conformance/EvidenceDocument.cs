@@ -51,7 +51,8 @@ internal sealed record CorpusCase
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true,
-    UseStringEnumConverter = true, UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
+    UseStringEnumConverter = true, UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+    AllowDuplicateProperties = false)]
 [JsonSerializable(typeof(ContractEvidence[]))]
 [JsonSerializable(typeof(EvidenceDefinition[]))]
 [JsonSerializable(typeof(ContractSchemaEvidence[]))]

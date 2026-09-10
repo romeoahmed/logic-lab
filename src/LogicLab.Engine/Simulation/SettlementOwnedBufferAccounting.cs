@@ -75,20 +75,15 @@ internal static class SettlementOwnedBufferAccounting
                 or SimulationEvaluatorKind.LogicXnor => checked(
                     OwnedSlots((ulong)evaluator.InputNetOrdinals.Count)
                     + VectorPlaneBytes(evaluator.Width)),
-            SimulationEvaluatorKind.LogicTristate => checked(
-                OwnedSlots(2)
-                + (2UL * VectorPlaneBytes(evaluator.Width))),
             SimulationEvaluatorKind.LogicMux => MuxTemporaryBytes(ir, evaluator),
             SimulationEvaluatorKind.LogicDemux => checked(
                 OwnedSlots(checked(
                     (ulong)evaluator.OutputDriverOrdinals.Count + 2UL))
-                + VectorPlaneBytes(ir.Nets[evaluator.InputNetOrdinals[0]].Width)
-                + VectorPlaneBytes(ir.Nets[evaluator.InputNetOrdinals[1]].Width)),
-            SimulationEvaluatorKind.LogicDecoder => checked(
-                OwnedSlots((ulong)evaluator.OutputDriverOrdinals.Count)
                 + VectorPlaneBytes(ir.Nets[evaluator.InputNetOrdinals[0]].Width)),
+            SimulationEvaluatorKind.LogicDecoder =>
+                OwnedSlots((ulong)evaluator.OutputDriverOrdinals.Count),
             SimulationEvaluatorKind.LogicPriorityEncoder =>
-                PriorityEncoderTemporaryBytes(ir, evaluator),
+                OwnedSlots(checked((ulong)evaluator.InputNetOrdinals.Count + 1UL)),
             SimulationEvaluatorKind.LogicUnsignedCompare => OwnedSlots(2),
             SimulationEvaluatorKind.LogicAdder
                 or SimulationEvaluatorKind.LogicSubtractor =>
@@ -100,12 +95,11 @@ internal static class SettlementOwnedBufferAccounting
             SimulationEvaluatorKind.TopologySplit =>
                 VectorPlaneBytes(ir.Nets[evaluator.InputNetOrdinals[0]].Width),
             SimulationEvaluatorKind.TopologyConcat =>
-                ConcatTemporaryBytes(ir, evaluator),
+                OwnedSlots((ulong)evaluator.InputNetOrdinals.Count),
             SimulationEvaluatorKind.TopologyZeroExtend
-                or SimulationEvaluatorKind.TopologySignExtend => checked(
-                    OwnedSlots(checked((ulong)evaluator.Width * 2UL))
-                    + VectorPlaneBytes(ir.Nets[evaluator.InputNetOrdinals[0]].Width)),
-            SimulationEvaluatorKind.LogicNot
+                or SimulationEvaluatorKind.TopologySignExtend
+                or SimulationEvaluatorKind.LogicTristate
+                or SimulationEvaluatorKind.LogicNot
                 or SimulationEvaluatorKind.LogicBuffer => 0UL,
             _ => throw new InvalidOperationException(
                 "The settlement evaluator kind is undefined."),
@@ -118,44 +112,9 @@ internal static class SettlementOwnedBufferAccounting
     {
         var dataInputCount = checked(evaluator.InputNetOrdinals.Count - 1);
         var dataWidth = ir.Nets[evaluator.InputNetOrdinals[0]].Width;
-        var selectorWidth = ir.Nets[evaluator.InputNetOrdinals[^1]].Width;
         return checked(
             OwnedSlots(checked((ulong)dataInputCount * 2UL))
-            + ((ulong)dataInputCount * VectorPlaneBytes(dataWidth))
-            + VectorPlaneBytes(selectorWidth));
-    }
-
-    private static ulong PriorityEncoderTemporaryBytes(
-        SimulationIr ir,
-        SimulationEvaluator evaluator)
-    {
-        var inputCount = (ulong)evaluator.InputNetOrdinals.Count;
-        var possibleResultCount = checked(inputCount + 1UL);
-        var indexWidth = ir.Drivers[evaluator.OutputDriverOrdinals[0]].Width;
-        return checked(
-            OwnedSlots(checked(
-                inputCount
-                + inputCount
-                + (possibleResultCount * 4UL)
-                + (indexWidth * 2UL)
-                + 2UL))
-            + (possibleResultCount * VectorPlaneBytes(indexWidth)));
-    }
-
-    private static ulong ConcatTemporaryBytes(
-        SimulationIr ir,
-        SimulationEvaluator evaluator)
-    {
-        uint widestInput = 0;
-        foreach (var netOrdinal in evaluator.InputNetOrdinals)
-        {
-            widestInput = Math.Max(widestInput, ir.Nets[netOrdinal].Width);
-        }
-
-        return checked(
-            OwnedSlots((ulong)evaluator.InputNetOrdinals.Count)
-            + OwnedSlots(checked((ulong)evaluator.Width * 2UL))
-            + VectorPlaneBytes(widestInput));
+            + ((ulong)dataInputCount * VectorPlaneBytes(dataWidth)));
     }
 
     private static ulong OutputPlaneBytes(

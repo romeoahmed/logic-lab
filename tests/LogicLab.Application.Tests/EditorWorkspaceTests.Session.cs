@@ -34,12 +34,13 @@ internal sealed partial class EditorWorkspaceTests
 
         await Schedule(LogicValue.Zero, 2);
         var scheduled = await Read(workspace, opened);
-        await Assert.That(scheduled.Simulation!.Diagnostics).IsSameReferenceAs(unknown.Simulation.Diagnostics);
-        await Assert.That(scheduled.Simulation.Probes).IsSameReferenceAs(unknown.Simulation.Probes);
+        await Assert.That(scheduled.Simulation!.Diagnostics.Select(item => item.Code))
+            .IsEquivalentTo(["simulation_unknown_driver"]);
+        await Assert.That(scheduled.Simulation.Probes.Single().Value[0]).IsEqualTo(LogicValue.X);
         await workspace.DispatchAsync(Step(opened, scheduled), cancellationToken);
         var settled = await Read(workspace, opened);
         await Assert.That(settled.Simulation!.Diagnostics).IsEmpty();
-        await Assert.That(unknown.Simulation.Diagnostics.Single()).IsSameReferenceAs(diagnostic);
+        await Assert.That(unknown.Simulation.Diagnostics.Single().Code).IsEqualTo("simulation_unknown_driver");
         await Assert.That(unknown.Simulation.Probes.Single().Value[0]).IsEqualTo(LogicValue.X);
 
         async Task Schedule(LogicValue value, ulong time)

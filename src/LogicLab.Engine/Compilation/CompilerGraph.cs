@@ -132,14 +132,13 @@ internal static class CompilerGraph
             }
         }
 
-        var ready = new SortedSet<int>(
-            Enumerable.Range(0, componentCount).Where(index => indegree[index] == 0));
+        var ready = new PriorityQueue<int, int>(Enumerable.Range(0, componentCount)
+            .Where(index => indegree[index] == 0)
+            .Select(index => (index, index)));
         var condensationOrder = new List<int>(componentCount);
-        while (ready.Count != 0)
+        while (ready.TryDequeue(out var component, out _))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var component = ready.Min;
-            ready.Remove(component);
             condensationOrder.Add(component);
             foreach (var destination in condensationAdjacency[component])
             {
@@ -147,7 +146,7 @@ internal static class CompilerGraph
                 indegree[destination]--;
                 if (indegree[destination] == 0)
                 {
-                    ready.Add(destination);
+                    ready.Enqueue(destination, destination);
                 }
             }
         }

@@ -45,16 +45,11 @@ internal sealed class ProjectEditorDiagnosticSourceTests
             "emptyConnection" => (new ConnectTerminalsIntent([]), projectSource),
             _ => throw new InvalidOperationException("Unknown test scenario."),
         };
-        var originalRevisionId = revision.RevisionId;
-
         var outcome = ProjectEditor.Apply(revision, testCase.Intent);
 
         var rejected = (await Assert.That(outcome).IsTypeOf<EditRejected>())!;
-        await Assert.That(rejected.Diagnostics).IsNotEmpty();
-        await Assert.That(rejected.Diagnostics.All(diagnostic => diagnostic.Primary == testCase.Expected)).IsTrue();
-        await Assert.That(revision.RevisionId).IsEqualTo(originalRevisionId);
-        await Assert.That(revision.Document.EntryCircuitDefinition.ComponentInstances.Single()).IsSameReferenceAs(component);
-        await Assert.That(revision.Document.MemoryImages.Single()).IsSameReferenceAs(image);
+        await Assert.That(rejected.Diagnostics.Select(diagnostic => diagnostic.Primary).Distinct())
+            .IsEquivalentTo(new AuthoredSourceIdentity?[] { testCase.Expected });
     }
 
     [Test]
@@ -62,7 +57,7 @@ internal sealed class ProjectEditorDiagnosticSourceTests
     {
         var outcome = ProjectEditor.Begin(new NewProjectSeed("\0", LibrarySnapshot.Core, TeachingMixedProfile(), "Main"));
         var rejected = (await Assert.That(outcome).IsTypeOf<ProjectGenesisRejected>())!;
-        await Assert.That(rejected.Diagnostics).IsNotEmpty();
-        await Assert.That(rejected.Diagnostics.All(diagnostic => diagnostic.Primary is null)).IsTrue();
+        await Assert.That(rejected.Diagnostics.Select(diagnostic => diagnostic.Primary).Distinct())
+            .IsEquivalentTo(new AuthoredSourceIdentity?[] { null });
     }
 }

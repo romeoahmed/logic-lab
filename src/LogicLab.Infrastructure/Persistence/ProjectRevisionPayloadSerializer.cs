@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text.Json;
 using LogicLab.Domain;
@@ -505,8 +506,14 @@ internal static class ProjectRevisionPayloadSerializer
     private static GridPoint FromPayload(GridPointPayloadV2 point) =>
         new(point.X, point.Y);
 
-    private static string ToBits(IEnumerable<LogicValue> values) =>
-        new([.. values.Select(ToToken)]);
+    private static string ToBits(ReadOnlyCollection<LogicValue> values) =>
+        string.Create(values.Count, values, static (characters, source) =>
+        {
+            for (var index = 0; index < characters.Length; index++)
+            {
+                characters[index] = ToToken(source[index]);
+            }
+        });
 
     private static LogicValue[] FromBits(string bits)
     {

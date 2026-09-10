@@ -252,9 +252,10 @@ internal sealed class SimulationHotSwapTests
     [Test]
     public async Task Execute_DiagnosticHotSwap_AccountsForSessionAndOutcomeBuffers()
     {
-        // 288 committed bytes, 344 replacement working-layer bytes,
-        // 24 publication bytes, and a 32-byte Trace fork index.
-        const ulong exactPeakOwnedBufferBytes = 688;
+        // 288 committed bytes, 320 replacement working-layer bytes (including
+        // a 40-byte Net resolution envelope), 24 publication bytes, and a
+        // 32-byte Trace fork index. Tri-state allocates only its output planes.
+        const ulong exactPeakOwnedBufferBytes = 664;
         var circuit = SequentialTestCircuit.Create();
         var data = circuit.Place(
             "source.input",
@@ -708,6 +709,63 @@ internal sealed class SimulationHotSwapTests
             rejectedSession,
             replacementArtifact,
             exactPeakOwnedBufferBytes);
+    }
+
+    [Test]
+    public async Task Execute_LargerPriorityEncoder_ChargesInputsWithoutCandidateVectors()
+    {
+        CompilationArtifact CreateArtifact(uint inputCount)
+        {
+            var circuit = SequentialTestCircuit.Create();
+            var input = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.Zero));
+            var encoder = circuit.Place("logic.priority_encoder",
+                new ComponentParameterBinding("inputCount", new Unsigned32ParameterValue(inputCount)),
+                new ComponentParameterBinding("priority", new ChoiceParameterValue("lowestIndex")));
+            _ = circuit.Connect([(input, "Q"), .. Enumerable.Range(0, checked((int)inputCount))
+                .Select(index => (encoder, $"A{index}"))]);
+            return circuit.Compile();
+        }
+
+        var smaller = CreateArtifact(2);
+        var larger = CreateArtifact(256);
+        // The two output vectors still occupy one packed word each. The only
+        // additional temporary storage is 254 input slots, at eight bytes each.
+        await Assert.That(ObserveCandidatePeak(smaller, larger) - ObserveCandidatePeak(smaller, smaller))
+            .IsEqualTo(254UL * 8);
+    }
+
+    [Test]
+    [Arguments("topology.zero_extend")]
+    [Arguments("topology.sign_extend")]
+    [Arguments("topology.concat")]
+    public async Task Execute_PackedTopologyWidthsWithinWordBoundary_UseSameBudget(string contractId)
+    {
+        CompilationArtifact CreateArtifact(uint variableWidth)
+        {
+            var circuit = SequentialTestCircuit.Create();
+            var isConcat = contractId == "topology.concat";
+            var input = circuit.Place("source.input",
+                SequentialTestCircuit.Input(LogicValue.One, isConcat ? variableWidth : 1));
+            var component = circuit.Place(contractId, isConcat
+                ? [new ComponentParameterBinding("inputWidths", new WidthsParameterValue([variableWidth, 64]))]
+                : [new ComponentParameterBinding("inputWidth", new Unsigned32ParameterValue(1)),
+                    new ComponentParameterBinding("outputWidth", new Unsigned32ParameterValue(variableWidth + 64))]);
+            _ = circuit.Connect((input, "Q"), (component, isConcat ? "D0" : "D"));
+            if (isConcat)
+            {
+                var upper = circuit.Place("source.input", SequentialTestCircuit.Input(LogicValue.Zero, 64));
+                _ = circuit.Connect((upper, "Q"), (component, "D1"));
+            }
+
+            return circuit.Compile();
+        }
+
+        var smaller = CreateArtifact(1);
+        var larger = CreateArtifact(63);
+        // Both outputs occupy two packed words; each corresponding input occupies
+        // one. Changing bit width alone must not charge obsolete scalar arrays.
+        await Assert.That(ObserveCandidatePeak(smaller, larger))
+            .IsEqualTo(ObserveCandidatePeak(smaller, smaller));
     }
 
     [Test]

@@ -9,20 +9,16 @@ internal sealed partial class WorkCoordinator
     {
         private readonly Lock cancellationGate = new();
         private CancellationTokenSource? cancellation;
+        private Action? ownershipRelease;
 
         protected WorkItem(
+            Action? releaseOwnership,
             CancellationToken callerCancellationToken,
             CancellationToken stoppingToken)
-            : this(
-                CancellationTokenSource.CreateLinkedTokenSource(
-                    callerCancellationToken,
-                    stoppingToken))
         {
-        }
-
-        private WorkItem(CancellationTokenSource ownedCancellation)
-        {
-            cancellation = ownedCancellation;
+            cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                callerCancellationToken, stoppingToken);
+            ownershipRelease = releaseOwnership;
             CancellationToken = cancellation.Token;
             ParentActivityContext = Activity.Current?.Context;
             Correlation = ApplicationCorrelation.CurrentOrCreate();
@@ -33,6 +29,18 @@ internal sealed partial class WorkCoordinator
         public ActivityContext? ParentActivityContext { get; }
 
         public string Correlation { get; }
+
+        public void ReleaseOwnership()
+        {
+            try
+            {
+                Interlocked.Exchange(ref ownershipRelease, null)?.Invoke();
+            }
+            finally
+            {
+                Dispose();
+            }
+        }
 
         protected void Cancel()
         {
@@ -58,10 +66,8 @@ internal sealed partial class WorkCoordinator
         Action releaseOwnership,
         CancellationToken operationCancellationToken,
         CancellationToken stoppingToken)
-        : WorkItem(operationCancellationToken, stoppingToken)
+        : WorkItem(releaseOwnership, operationCancellationToken, stoppingToken)
     {
-        private Action? ownershipRelease = releaseOwnership;
-
         public WorkspaceId WorkspaceId { get; } = workspaceId;
 
         public LinkedListNode<WorkspaceId>? QueueNode { get; private set; }
@@ -98,18 +104,6 @@ internal sealed partial class WorkCoordinator
             }
         }
 
-        public void ReleaseOwnership()
-        {
-            try
-            {
-                Interlocked.Exchange(ref ownershipRelease, null)?.Invoke();
-            }
-            finally
-            {
-                Dispose();
-            }
-        }
-
         public void MarkPublishedUnderLock() => WasPublishedUnderLock = true;
     }
 
@@ -121,23 +115,9 @@ internal sealed partial class WorkCoordinator
         Action? releaseOwnership,
         CancellationToken callerCancellationToken,
         CancellationToken stoppingToken)
-        : WorkItem(callerCancellationToken, stoppingToken)
+        : WorkItem(releaseOwnership, callerCancellationToken, stoppingToken)
     {
-        private Action? ownershipRelease = releaseOwnership;
-
         public WorkspaceId WorkspaceId { get; } = workspaceId;
-
-        public void ReleaseOwnership()
-        {
-            try
-            {
-                Interlocked.Exchange(ref ownershipRelease, null)?.Invoke();
-            }
-            finally
-            {
-                Dispose();
-            }
-        }
 
         public LinkedListNode<SessionWorkItem>? QueueNode { get; private set; }
 

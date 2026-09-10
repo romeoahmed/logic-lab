@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -830,8 +831,7 @@ internal sealed partial class EditorWorkspace
                 nameof(PrepareExport),
                 prepare.Precondition.ProjectRevisionId.Value),
             CloseWorkspace => SerializeCanonicalIdentity(nameof(CloseWorkspace)),
-            _ => SerializeCanonicalIdentity(
-                command.GetType().FullName ?? command.GetType().Name),
+            _ => throw new UnreachableException(),
         };
     }
 
@@ -886,8 +886,8 @@ internal sealed partial class EditorWorkspace
 
     private sealed class Utf16CodeUnitStringJsonConverter : JsonConverter<string>
     {
-        private const string HexDigits = "0123456789abcdef";
-
+        // Identities live within one process. Raw code units keep malformed strings
+        // distinct instead of replacing isolated surrogates during Unicode encoding.
         public override string? Read(
             ref Utf8JsonReader reader,
             Type typeToConvert,
@@ -896,35 +896,14 @@ internal sealed partial class EditorWorkspace
         public override void Write(
             Utf8JsonWriter writer,
             string value,
-            JsonSerializerOptions options) => writer.WriteStringValue(Encode(value));
-
-        public override string ReadAsPropertyName(
-            ref Utf8JsonReader reader,
-            Type typeToConvert,
-            JsonSerializerOptions options) => throw new NotSupportedException();
+            JsonSerializerOptions options) => writer.WriteBase64StringValue(
+                MemoryMarshal.AsBytes(value.AsSpan()));
 
         public override void WriteAsPropertyName(
             Utf8JsonWriter writer,
             string value,
-            JsonSerializerOptions options) => writer.WritePropertyName(Encode(value));
-
-        private static string Encode(string value)
-        {
-            return string.Create(
-                checked(value.Length * 4),
-                value,
-                static (destination, source) =>
-                {
-                    var offset = 0;
-                    foreach (var codeUnit in source)
-                    {
-                        destination[offset++] = HexDigits[codeUnit >> 12];
-                        destination[offset++] = HexDigits[(codeUnit >> 8) & 0x0f];
-                        destination[offset++] = HexDigits[(codeUnit >> 4) & 0x0f];
-                        destination[offset++] = HexDigits[codeUnit & 0x0f];
-                    }
-                });
-        }
+            JsonSerializerOptions options) => writer.WritePropertyName(
+                Convert.ToBase64String(MemoryMarshal.AsBytes(value.AsSpan())));
     }
 
     private sealed class DomainPolymorphicTypeResolver : DefaultJsonTypeInfoResolver

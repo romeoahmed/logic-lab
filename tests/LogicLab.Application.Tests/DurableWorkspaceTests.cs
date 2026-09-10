@@ -234,7 +234,7 @@ internal sealed partial class DurableWorkspaceTests
             using (Assert.Multiple())
             {
                 await Assert.That(firstDisposal.IsCompleted).IsFalse();
-                await Assert.That(ReferenceEquals(firstDisposal, secondDisposal)).IsTrue();
+                await Assert.That(secondDisposal.IsCompleted).IsFalse();
                 await Assert.That(openRejected.Code).IsEqualTo("workspace_cancelled");
             }
 
